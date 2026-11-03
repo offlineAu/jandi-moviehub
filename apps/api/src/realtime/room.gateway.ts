@@ -26,6 +26,7 @@ import type { Redis } from 'ioredis';
 import type { Server, Socket } from 'socket.io';
 import { z } from 'zod';
 import { SessionService } from '../auth/session.service';
+import { SocketTicketService } from '../auth/socket-ticket.service';
 import type { AuthUser } from '../common/auth-context';
 import { AppError } from '../common/errors';
 import { ErrorReporter } from '../common/error-reporter';
@@ -141,6 +142,7 @@ export class RoomGateway
     private readonly reporter: ErrorReporter,
     private readonly history: HistoryService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly socketTickets: SocketTicketService,
   ) {}
 
   afterInit(server: Server) {
@@ -177,8 +179,13 @@ export class RoomGateway
   private async authenticate(socket: AppSocket) {
     const header = socket.handshake.headers.cookie;
     const token = header ? parseCookie(header)[SESSION_COOKIE] : undefined;
-    if (!token) return false;
-    const user = await this.sessions.resolve(token);
+    const ticket: unknown = socket.handshake.auth?.ticket;
+    const user =
+      ticket !== undefined
+        ? await this.socketTickets.redeem(ticket)
+        : token
+          ? await this.sessions.resolve(token)
+          : null;
     if (!user) return false;
     socket.data.user = user;
     socket.data.rooms = new Set();

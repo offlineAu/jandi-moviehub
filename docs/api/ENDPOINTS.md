@@ -84,6 +84,10 @@ type PlaybackSource = {
 
 ## Auth — `/auth` (implemented)
 
+`POST /auth/socket-ticket`: authenticated users and guests receive 201 `{ticket, expiresIn: 60}`
+with `Cache-Control: no-store`. Exchange the single-use ticket in Socket.IO's `auth.ticket`
+handshake field. Limited to 60 tickets per user per minute; normal origin checks apply.
+
 | Method | Path                                         | Notes                                                                       |
 | ------ | -------------------------------------------- | --------------------------------------------------------------------------- |
 | POST   | `/auth/register`                             | `{email, username, displayName, password}` → 201 `{user: Me}` + cookie      |

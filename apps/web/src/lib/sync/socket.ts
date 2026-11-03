@@ -1,6 +1,7 @@
 'use client';
 
 import { io, type Socket } from 'socket.io-client';
+import { apiFetch } from '../api';
 
 let socket: Socket | null = null;
 let refs = 0;
@@ -9,7 +10,7 @@ let refs = 0;
 export const wsUrl = () => process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000';
 
 /**
- * One shared, cookie-authenticated Socket.IO connection per tab. Callers `acquireSocket()` on
+ * One shared authenticated Socket.IO connection per tab. Callers `acquireSocket()` on
  * mount and `releaseSocket()` on unmount; the connection closes when nobody uses it.
  */
 export function acquireSocket(): Socket {
@@ -21,6 +22,13 @@ export function acquireSocket(): Socket {
       reconnection: true,
       reconnectionDelay: 500,
       reconnectionDelayMax: 5000,
+      // Fetch through the same-origin API proxy, where the HttpOnly cookie is available.
+      // Socket.IO invokes this again on reconnection, obtaining a fresh single-use ticket.
+      auth: (callback) => {
+        void apiFetch<{ ticket: string }>('/auth/socket-ticket', { method: 'POST' })
+          .then(({ ticket }) => callback({ ticket }))
+          .catch(() => callback({ ticket: '' }));
+      },
     });
   }
   return socket;

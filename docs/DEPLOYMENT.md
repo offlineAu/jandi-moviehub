@@ -1,5 +1,7 @@
 # Deployment
 
+For the current zero-budget setup, see [FREE_DEPLOYMENT.md](FREE_DEPLOYMENT.md) and `render.yaml`.
+
 For Railway and email over HTTPS, see [RAILWAY.md](RAILWAY.md). The Compose instructions below
 use SMTP by default; the API also supports `MAIL_TRANSPORT=resend` with `RESEND_API_KEY`.
 

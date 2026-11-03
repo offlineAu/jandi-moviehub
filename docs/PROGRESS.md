@@ -1,5 +1,19 @@
 # Progress Log
 
+## 2026-11-03 — Free hosting and Neon agent setup
+
+- Created a Neon Free project in Singapore; applied migrations on `deploy-free` before `main`,
+  saved deployment credentials outside version control, and preserved local development env.
+- Installed official Neon overview/Postgres skills and project-level OAuth MCP configuration.
+  Existing user-level Codex/Claude configuration was unchanged. See FREE_DEPLOYMENT.md.
+- Added a Render Free API/Redis Blueprint and startup migrations using the direct database URL.
+- Added single-use, 60-second socket tickets for cross-domain frontend/backend hosting. Five
+  integration tests pass, including no-cookie connection, replay, revoked session, guest and
+  origin checks. API/web typechecks, targeted lint, 128 API unit tests, 74 web tests, and API
+  build pass. Actual hosted browser tests await deployment.
+- Vercel rejects project creation due to an existing fair-use block. Render authorization,
+  Resend credentials and the frontend replacement are pending. No paid plan was selected.
+
 ## 2026-11-03 — Railway preparation and Resend HTTPS email
 
 - Added Resend HTTPS transport with a 15-second timeout, generic delivery errors, and startup

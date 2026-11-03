@@ -1,8 +1,13 @@
 # Real-time protocol (Socket.IO)
 
 Connect to the API origin (`NEXT_PUBLIC_WS_URL`, default `http://localhost:4000`) with
-`withCredentials: true`. The handshake is authenticated with the `jandi_session` cookie and the
-`Origin` must be an allowed web origin; otherwise the connection fails with `UNAUTHENTICATED`.
+`withCredentials: true`. Browser clients first POST `/api/v1/auth/socket-ticket` through the
+same-origin API proxy, then send the returned ticket in Socket.IO's `auth.ticket` field.
+Tickets expire after 60 seconds, are consumed once, and recheck the underlying session for
+revocation, suspension and expiry. Fetch a new ticket on every reconnect. This supports a
+frontend and backend on different hosting domains without sharing cookies between domains.
+Same-origin clients may still authenticate with the `jandi_session` cookie. The `Origin` must
+be an allowed web origin; otherwise the connection fails.
 Event names and payload types: `packages/shared/src/sync/events.ts` (`SocketEvents`).
 
 Every client→server event is acknowledged (`socket.emitWithAck`) with

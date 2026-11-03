@@ -37,6 +37,7 @@ import { ValidBody } from '../common/zod';
 import { AuthService } from './auth.service';
 import { OAuthService } from './oauth.service';
 import { SessionService } from './session.service';
+import { SocketTicketService } from './socket-ticket.service';
 
 const OAUTH_STATE_COOKIE = 'jandi_oauth_state';
 const meta = (req: Request) => ({ ip: clientIp(req), userAgent: req.headers['user-agent'] });
@@ -48,7 +49,16 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly sessions: SessionService,
     private readonly oauth: OAuthService,
+    private readonly socketTickets: SocketTicketService,
   ) {}
+
+  @AllowGuest()
+  @RateLimit({ name: 'auth:socket-ticket', limit: 60, windowSec: 60, by: 'user' })
+  @Post('socket-ticket')
+  async socketTicket(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    res.setHeader('Cache-Control', 'no-store');
+    return this.socketTickets.issue(user.sessionId);
+  }
 
   @Public()
   @RateLimit({ name: 'auth:register', limit: 10, windowSec: 3600 })

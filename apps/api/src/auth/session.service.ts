@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SESSION_COOKIE } from '@jandi/shared';
+import type { Prisma } from '@prisma/client';
 import type { CookieOptions, Response } from 'express';
 import { AppConfig } from '../config/app-config';
 import type { AuthUser } from '../common/auth-context';
@@ -39,8 +40,17 @@ export class SessionService {
   /** Returns the authenticated user for a raw session token, or null if invalid/expired/suspended. */
   async resolve(token: string): Promise<AuthUser | null> {
     if (!token || token.length > 200) return null;
+    return this.resolveSession({ tokenHash: sha256(token) });
+  }
+
+  /** Used after redeeming a short-lived realtime ticket; checks revocation and expiry again. */
+  resolveById(id: string): Promise<AuthUser | null> {
+    return this.resolveSession({ id });
+  }
+
+  private async resolveSession(where: Prisma.SessionWhereUniqueInput): Promise<AuthUser | null> {
     const session = await this.prisma.session.findUnique({
-      where: { tokenHash: sha256(token) },
+      where,
       include: { user: { include: { profile: true } } },
     });
     if (!session) return null;

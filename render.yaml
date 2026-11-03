@@ -1,0 +1,59 @@
+# All compute plans are explicitly free. Database is supplied separately by Neon.
+services:
+  - type: keyvalue
+    name: jandi-moviehub-redis
+    plan: free
+    region: singapore
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+  - type: web
+    name: jandi-moviehub-api
+    runtime: node
+    plan: free
+    region: singapore
+    repo: https://github.com/offlineAu/jandi-moviehub
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter @jandi/shared build && pnpm --filter @jandi/api build
+    startCommand: sh scripts/render-start.sh
+    healthCheckPath: /api/v1/health/ready
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: jandi-moviehub-redis
+          type: keyvalue
+          property: connectionString
+      - key: WEB_ORIGINS
+        sync: false
+      - key: PUBLIC_WEB_URL
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: COOKIE_SECURE
+        value: 'true'
+      - key: TRUST_PROXY
+        value: 'true'
+      - key: ENABLE_DEV_ROUTES
+        value: 'false'
+      - key: MEDIA_SIGNING_SECRET
+        generateValue: true
+      - key: MAIL_TRANSPORT
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        value: Jandi MovieHub <onboarding@resend.dev>
+      - key: STORAGE_DRIVER
+        value: local
+      - key: STORAGE_LOCAL_DIR
+        value: /tmp/jandi-storage
