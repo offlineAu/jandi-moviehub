@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/.next-*
+**/dist
+**/.turbo
+**/coverage
+.git
+.data
+storage
+!apps/api/src/storage
+!apps/api/src/storage/**
+test-results
+playwright-report
+**/.env
+**/.env.*
+!**/.env.example

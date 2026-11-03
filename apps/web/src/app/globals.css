@@ -1,0 +1,519 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* ───────────────────────── Midnight Cinema tokens ───────────────────────── */
+:root {
+  --background: #080810;
+  --secondary: #11111d;
+  --surface: #191927;
+  --surface-raised: #222234;
+  --primary: #a855f7;
+  --primary-strong: #9333ea;
+  --accent: #ec4899;
+  --accent-strong: #db2777;
+  --foreground: #f8fafc;
+  --muted: #94a3b8;
+  --subtle: #7c8799;
+  --border: rgb(255 255 255 / 0.08);
+  --border-strong: rgb(255 255 255 / 0.14);
+  --ring: #a855f7;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --danger-strong: #dc2626;
+
+  --iris: #38bdf8;
+  --gradient-brand: linear-gradient(100deg, var(--primary-strong) 0%, var(--accent-strong) 100%);
+  --gradient-iris: linear-gradient(
+    100deg,
+    #c4b5fd 0%,
+    var(--primary) 30%,
+    var(--accent) 60%,
+    #fda4af 80%,
+    var(--iris) 100%
+  );
+
+  /* Motion tokens (expo/quint outs for arrivals, quart in-out for travel). */
+  --ease-out-cinema: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-cinema: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+  --t-press: 140ms;
+  --t-hover: 180ms;
+  --t-ui: 240ms;
+  --t-reveal: 800ms;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-secondary: var(--secondary);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-strong: var(--danger-strong);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    var(--font-space-grotesk), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -12px rgb(0 0 0 / 0.7);
+  --shadow-lift:
+    0 1px 0 0 rgb(255 255 255 / 0.06) inset, 0 24px 48px -16px rgb(0 0 0 / 0.85),
+    0 0 0 1px rgb(168 85 247 / 0.25);
+  --shadow-glow: 0 0 0 1px rgb(168 85 247 / 0.5), 0 0 24px -4px rgb(236 72 153 / 0.45);
+
+  --ease-cinema: var(--ease-out-cinema);
+  --color-iris: var(--iris);
+
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-marquee: marquee var(--marquee-duration, 60s) linear infinite;
+  --animate-ken-burns: ken-burns 24s var(--ease-soft) infinite alternate;
+  --animate-float-up: float-up 0.6s var(--ease-expo) both;
+  --animate-iris-shift: iris-shift 8s ease-in-out infinite alternate;
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes marquee {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+  @keyframes ken-burns {
+    from {
+      transform: scale(1.04) translate3d(0, 0, 0);
+    }
+    to {
+      transform: scale(1.12) translate3d(-1.5%, -1%, 0);
+    }
+  }
+  @keyframes float-up {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 10px, 0) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes iris-shift {
+    from {
+      background-position: 0% 50%;
+    }
+    to {
+      background-position: 100% 50%;
+    }
+  }
+}
+
+/* ───────────────────────── Base ───────────────────────── */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  html {
+    background: var(--background);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: rgb(168 85 247 / 0.45);
+    color: var(--foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Native form controls inherit the dark scheme. */
+  input,
+  select,
+  textarea {
+    color-scheme: dark;
+  }
+}
+
+/* ───────────────────────── Utilities ───────────────────────── */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility bg-brand {
+  background-image: var(--gradient-brand);
+}
+
+@utility text-brand {
+  background-image: linear-gradient(100deg, var(--primary) 0%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Iridescent animated text (wordmarks, the one hero accent). */
+@utility text-iridescent {
+  background-image: var(--gradient-iris);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: var(--animate-iris-shift);
+}
+
+/* Pointer-following light: set --mx/--my (px) from script; see components/motion/spotlight. */
+@utility spotlight {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity var(--t-ui) ease;
+    background: radial-gradient(
+      420px circle at var(--mx, 50%) var(--my, 50%),
+      rgb(168 85 247 / 0.16),
+      rgb(236 72 153 / 0.06) 40%,
+      transparent 70%
+    );
+  }
+  &:hover::before,
+  &:focus-within::before {
+    opacity: 1;
+  }
+}
+
+/* Sweep of light across a surface on hover (primary buttons, posters). */
+@utility sheen {
+  position: relative;
+  overflow: hidden;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      rgb(255 255 255 / 0.22) 50%,
+      transparent 65%
+    );
+    transform: translateX(-120%);
+    transition: transform 0.9s var(--ease-expo);
+  }
+  &:hover::after,
+  &:focus-visible::after {
+    transform: translateX(120%);
+  }
+}
+
+/* Text link: no resting underline; a hairline draws in from the left on hover/focus. */
+@utility link-fx {
+  color: #d8b4fe;
+  background-image: linear-gradient(90deg, var(--primary), var(--accent));
+  background-size: 0% 1px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  text-decoration: none;
+  transition:
+    background-size 0.45s var(--ease-expo),
+    color 0.2s ease;
+  &:hover,
+  &:focus-visible {
+    color: #f5d0fe;
+    background-size: 100% 1px;
+  }
+}
+
+/* Loading placeholder: a light band travelling across the surface. */
+@utility shimmer {
+  background-color: #151523;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.05) 45%,
+    rgb(168 85 247 / 0.08) 50%,
+    rgb(255 255 255 / 0.05) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@utility focus-ring {
+  outline: none;
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgb(168 85 247 / 0.2);
+  }
+}
+
+/* Ticket stub: half-circle notches on the left and right edges (room codes, invitations). */
+@utility ticket-sides {
+  --notch: 10px;
+  mask:
+    radial-gradient(circle var(--notch) at left center, #0000 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at right center, #0000 98%, #000) right / 51% 100% no-repeat;
+}
+
+/* Ticket stub with a tear line: notches on top and bottom at --notch-x. */
+@utility ticket-stub {
+  --notch: 10px;
+  --notch-x: 72%;
+  mask:
+    radial-gradient(circle var(--notch) at var(--notch-x) 0, #0000 98%, #000) top / 100% 51%
+      no-repeat,
+    radial-gradient(circle var(--notch) at var(--notch-x) 100%, #0000 98%, #000) bottom / 100% 51%
+      no-repeat;
+}
+
+/* Faint film grain for cinematic surfaces (static; no motion). */
+@utility film-grain {
+  position: relative;
+  isolation: isolate;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    /* Fade the grain out at the bottom so it never draws a seam against the page. */
+    mask-image: linear-gradient(to bottom, #000 55%, transparent 92%);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+}
+
+/* ───────────────────────── Route transitions (React <ViewTransition>) ───────────────────────── */
+::view-transition-old(.page-exit) {
+  animation: 180ms var(--ease-out-cinema) both page-out;
+}
+::view-transition-new(.page-enter) {
+  animation: 520ms var(--ease-expo) 60ms both page-in;
+}
+::view-transition-group(.poster-morph) {
+  animation-duration: 480ms;
+  animation-timing-function: var(--ease-expo);
+}
+::view-transition-image-pair(.poster-morph) {
+  animation-name: via-blur;
+}
+@keyframes page-out {
+  to {
+    opacity: 0;
+    filter: blur(4px);
+    transform: scale(0.99);
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(14px);
+  }
+}
+@keyframes via-blur {
+  30% {
+    filter: blur(3px);
+  }
+}
+
+/* Logo mark: the echo glyphs converge into one (see components/layout/logo.tsx). */
+@keyframes sync-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--sync-from, -4px));
+  }
+}
+@keyframes sync-loop {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(var(--sync-from, -4px));
+  }
+}
+
+/* Light travelling along a hairline (footer edge, section dividers). */
+@keyframes line-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Ambient light pools drifting behind the app. */
+@keyframes drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(8vw, 6vh, 0) scale(1.15);
+  }
+}
+@keyframes drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  50% {
+    transform: translate3d(-10vw, -4vh, 0) scale(0.95);
+  }
+}
+
+/* Projector light sweeping across the hero now and then. */
+@keyframes beam {
+  0%,
+  62% {
+    transform: translateX(-60%) skewX(-18deg);
+    opacity: 0;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(160%) skewX(-18deg);
+    opacity: 0;
+  }
+}
+
+/* Equalizer bars on the episode that is playing. */
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* Marquee tracks pause while hovered/focused or when the user pauses them. */
+[data-marquee]:hover [data-marquee-track],
+[data-marquee]:focus-within [data-marquee-track],
+[data-marquee][data-paused='true'] [data-marquee-track] {
+  animation-play-state: paused;
+}
+
+/* ───────────────────────── Motion preferences ───────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html[data-reduce-motion='true'] *,
+html[data-reduce-motion='true'] ::before,
+html[data-reduce-motion='true'] ::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Sonner theming */
+html [data-sonner-toaster][data-sonner-theme='dark'] {
+  --normal-bg: var(--surface-raised);
+  --normal-text: var(--foreground);
+  --normal-border: var(--border-strong);
+  --success-bg: var(--surface-raised);
+  --success-text: var(--foreground);
+  --success-border: rgb(52 211 153 / 0.35);
+  --error-bg: var(--surface-raised);
+  --error-text: var(--foreground);
+  --error-border: rgb(248 113 113 / 0.4);
+  font-family: var(--font-sans);
+}
+
+/* Player captions: readable cues that move up while the control bar is visible. */
+video::cue {
+  background: rgb(0 0 0 / 0.72);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: clamp(14px, 2.4vw, 28px);
+  line-height: 1.35;
+}
+video::-webkit-media-text-track-container {
+  transition: transform 200ms var(--ease-out-cinema);
+}
+[data-controls='shown'] video::-webkit-media-text-track-container {
+  transform: translateY(-72px);
+}

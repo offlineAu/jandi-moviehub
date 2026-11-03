@@ -1,0 +1,11 @@
+{
+  "extends": "@jandi/typescript-config/nestjs.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "types": ["node"],
+    "noUncheckedIndexedAccess": true
+  },
+  "include": ["src", "test", "prisma", "scripts", "vitest.config.mts"]
+}

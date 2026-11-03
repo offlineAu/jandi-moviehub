@@ -1,0 +1,888 @@
+// Jandi MovieHub database schema.
+// Conventions: UUID primary keys, snake_case table/column names, timestamps with ms precision.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+enum VisibilityLevel {
+  PUBLIC
+  FRIENDS
+  PRIVATE
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum MovieSource {
+  TMDB
+  LOCAL
+}
+
+enum LicenseType {
+  PUBLIC_DOMAIN
+  CREATIVE_COMMONS
+  OWNED
+  LICENSED
+  DEMO_GENERATED
+}
+
+enum MediaFormat {
+  MP4
+  WEBM
+  HLS
+}
+
+enum StorageDriver {
+  LOCAL
+  S3
+}
+
+enum MediaAssetStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISABLED
+}
+
+enum RoomVisibility {
+  PUBLIC
+  PRIVATE
+  PASSWORD
+  FRIENDS
+}
+
+enum RoomStatus {
+  OPEN
+  CLOSED
+}
+
+enum RoomRole {
+  HOST
+  COHOST
+  MEMBER
+}
+
+enum ControlPolicy {
+  HOST_ONLY
+  HOSTS
+  EVERYONE
+}
+
+enum PlaylistVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+enum MarathonState {
+  IDLE
+  READY
+  COUNTDOWN
+  PLAYING
+  INTERMISSION
+  TRANSITIONING
+  COMPLETED
+  ERROR
+}
+
+enum MessageKind {
+  USER
+  SYSTEM
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+  ROOM_INVITE
+  ROOM_STARTING
+  SYSTEM
+}
+
+enum ReportTarget {
+  USER
+  MESSAGE
+  ROOM
+  PLAYLIST
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+// ───────────────────────────── Identity ─────────────────────────────
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String?   @unique
+  username        String    @unique
+  passwordHash    String?   @map("password_hash")
+  role            UserRole  @default(USER)
+  isGuest         Boolean   @default(false) @map("is_guest")
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  suspendedAt     DateTime? @map("suspended_at") @db.Timestamptz(3)
+  lastSeenAt      DateTime? @map("last_seen_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  profile               UserProfile?
+  sessions              Session[]
+  oauthAccounts         OAuthAccount[]
+  authTokens            AuthToken[]
+  favorites             Favorite[]
+  watchlists            Watchlist[]
+  watchlistMemberships  WatchlistMember[]
+  watchlistItemsAdded   WatchlistItem[]
+  history               WatchHistory[]
+  savedTvSeries         SavedTvSeries[]
+  recentTvSeries        RecentTvSeries[]
+  hostedRooms           Room[]                 @relation("RoomHost")
+  roomMemberships       RoomMember[]
+  roomBans              RoomBan[]              @relation("BannedUser")
+  roomBansIssued        RoomBan[]              @relation("BannedBy")
+  invitesCreated        RoomInvite[]           @relation("InviteCreator")
+  invitesReceived       RoomInvite[]           @relation("InviteInvitee")
+  playlists             Playlist[]
+  playlistCollaborators PlaylistCollaborator[]
+  playlistItemsAdded    PlaylistItem[]
+  playlistVotes         PlaylistVote[]
+  messages              Message[]              @relation("MessageAuthor")
+  messagesDeleted       Message[]              @relation("MessageDeletedBy")
+  reactions             Reaction[]
+  notifications         Notification[]
+  reportsFiled          Report[]               @relation("Reporter")
+  reportsResolved       Report[]               @relation("Resolver")
+  auditLogs             AuditLog[]
+  friendRequestsSent    FriendRequest[]        @relation("RequestFrom")
+  friendRequestsRecv    FriendRequest[]        @relation("RequestTo")
+  friendshipsA          Friendship[]           @relation("FriendA")
+  friendshipsB          Friendship[]           @relation("FriendB")
+  licensesVerified      ContentLicense[]
+  assetsApproved        MediaAsset[]
+  settingsUpdated       AppSetting[]
+
+  @@index([role])
+  @@index([isGuest, createdAt])
+  @@map("users")
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  tokenHash  String   @unique @map("token_hash")
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt DateTime @default(now()) @map("last_used_at") @db.Timestamptz(3)
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model SavedTvSeries {
+  userId    String   @map("user_id") @db.Uuid
+  tmdbId    Int      @map("tmdb_id")
+  title     String
+  posterUrl String?  @map("poster_url")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tmdbId])
+  @@index([userId, createdAt])
+  @@map("saved_tv_series")
+}
+
+/// Catalog page visits; separate from actual playback history and completion.
+model RecentTvSeries {
+  userId    String   @map("user_id") @db.Uuid
+  tmdbId    Int      @map("tmdb_id")
+  title     String
+  posterUrl String?  @map("poster_url")
+  viewedAt  DateTime @default(now()) @map("viewed_at") @db.Timestamptz(3)
+  season    Int?
+  episode   Int?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tmdbId])
+  @@index([userId, viewedAt])
+  @@map("recent_tv_series")
+}
+
+model OAuthAccount {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model AuthToken {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  type      AuthTokenType
+  tokenHash String        @unique @map("token_hash")
+  expiresAt DateTime      @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime?     @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("auth_tokens")
+}
+
+model UserProfile {
+  userId                 String          @id @map("user_id") @db.Uuid
+  displayName            String          @map("display_name")
+  bio                    String?
+  avatarKey              String?         @map("avatar_key")
+  preferences            Json            @default("{}")
+  profileVisibility      VisibilityLevel @default(PUBLIC) @map("profile_visibility")
+  watchHistoryVisibility VisibilityLevel @default(PRIVATE) @map("watch_history_visibility")
+  showOnlineStatus       Boolean         @default(true) @map("show_online_status")
+  discoverable           Boolean         @default(true)
+  updatedAt              DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+// ───────────────────────────── Social ─────────────────────────────
+
+model FriendRequest {
+  id          String              @id @default(uuid()) @db.Uuid
+  fromId      String              @map("from_id") @db.Uuid
+  toId        String              @map("to_id") @db.Uuid
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  respondedAt DateTime?           @map("responded_at") @db.Timestamptz(3)
+
+  from User @relation("RequestFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("RequestTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId])
+  @@index([toId, status])
+  @@map("friend_requests")
+}
+
+/// Undirected friendship stored once with userAId < userBId.
+model Friendship {
+  userAId   String   @map("user_a_id") @db.Uuid
+  userBId   String   @map("user_b_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  userA User @relation("FriendA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("FriendB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@id([userAId, userBId])
+  @@index([userBId])
+  @@map("friendships")
+}
+
+// ───────────────────────────── Catalog ─────────────────────────────
+
+model Movie {
+  id               String      @id @default(uuid()) @db.Uuid
+  tmdbId           Int?        @unique @map("tmdb_id")
+  source           MovieSource @default(LOCAL)
+  isDemo           Boolean     @default(false) @map("is_demo")
+  title            String
+  originalTitle    String?     @map("original_title")
+  tagline          String?
+  overview         String?
+  releaseDate      DateTime?   @map("release_date") @db.Date
+  runtimeMin       Int?        @map("runtime_min")
+  posterUrl        String?     @map("poster_url")
+  backdropUrl      String?     @map("backdrop_url")
+  voteAverage      Float?      @map("vote_average")
+  voteCount        Int?        @map("vote_count")
+  popularity       Float       @default(0)
+  originalLanguage String?     @map("original_language")
+  /// Cached cast: [{ name, character, profileUrl }]
+  cast             Json        @default("[]")
+  /// Trailer references: [{ site, key, name }] — embedded, never re-hosted.
+  trailers         Json        @default("[]")
+  attribution      String?
+  metadataSyncedAt DateTime?   @map("metadata_synced_at") @db.Timestamptz(3)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  genres         MovieGenre[]
+  mediaAssets    MediaAsset[]
+  favorites      Favorite[]
+  watchlistItems WatchlistItem[]
+  history        WatchHistory[]
+  rooms          Room[]
+  playlistItems  PlaylistItem[]
+  playbackStates RoomPlaybackState[]
+  seriesEpisode  SeriesEpisode?
+  tvEpisodeLinks TvEpisodeMedia[]
+
+  @@index([popularity(sort: Desc)])
+  @@index([releaseDate])
+  @@index([voteAverage])
+  @@index([title])
+  @@map("movies")
+}
+
+/// An administrator-reviewed association; it grants no rights by itself.
+model TvEpisodeMedia {
+  tmdbId    Int      @map("tmdb_id")
+  season    Int
+  episode   Int
+  movieId   String   @map("movie_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@id([tmdbId, season, episode])
+  @@index([movieId])
+  @@map("tv_episode_media")
+}
+
+model Series {
+  id          String          @id @default(uuid()) @db.Uuid
+  title       String
+  description String          @default("")
+  country     String          @default("")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  episodes    SeriesEpisode[]
+
+  @@index([title])
+  @@map("series")
+}
+
+model SeriesEpisode {
+  id            String @id @default(uuid()) @db.Uuid
+  seriesId      String @map("series_id") @db.Uuid
+  movieId       String @unique @map("movie_id") @db.Uuid
+  seasonNumber  Int    @map("season_number")
+  episodeNumber Int    @map("episode_number")
+  series        Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  movie         Movie  @relation(fields: [movieId], references: [id], onDelete: Restrict)
+
+  @@unique([seriesId, seasonNumber, episodeNumber])
+  @@map("series_episodes")
+}
+
+/// Unverified external source candidates; never a license or playable media asset.
+model SourceCandidate {
+  id          String   @id @default(uuid()) @db.Uuid
+  source      String
+  externalId  String   @map("external_id")
+  title       String
+  sourceUrl   String   @map("source_url")
+  mimeType    String   @map("mime_type")
+  sizeBytes   BigInt?  @map("size_bytes")
+  license     String   @default("")
+  artist      String   @default("")
+  licenseUrl  String   @default("") @map("license_url")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([source, externalId])
+  @@index([createdAt])
+  @@map("source_candidates")
+}
+
+model Genre {
+  id     String       @id @default(uuid()) @db.Uuid
+  tmdbId Int?         @unique @map("tmdb_id")
+  name   String       @unique
+  slug   String       @unique
+  movies MovieGenre[]
+
+  @@map("genres")
+}
+
+model MovieGenre {
+  movieId String @map("movie_id") @db.Uuid
+  genreId String @map("genre_id") @db.Uuid
+
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([movieId, genreId])
+  @@index([genreId])
+  @@map("movie_genres")
+}
+
+/// Proof of the right to stream. A media asset is playable only with a verified, in-window license.
+model ContentLicense {
+  id            String      @id @default(uuid()) @db.Uuid
+  type          LicenseType
+  title         String
+  licensor      String
+  territory     String      @default("WORLDWIDE")
+  provenanceUrl String?     @map("provenance_url")
+  attribution   String?
+  validFrom     DateTime?   @map("valid_from") @db.Timestamptz(3)
+  validUntil    DateTime?   @map("valid_until") @db.Timestamptz(3)
+  verifiedById  String?     @map("verified_by_id") @db.Uuid
+  verifiedAt    DateTime?   @map("verified_at") @db.Timestamptz(3)
+  notes         String?
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  verifiedBy User?        @relation(fields: [verifiedById], references: [id], onDelete: SetNull)
+  assets     MediaAsset[]
+
+  @@map("content_licenses")
+}
+
+model MediaAsset {
+  id            String           @id @default(uuid()) @db.Uuid
+  movieId       String           @map("movie_id") @db.Uuid
+  licenseId     String           @map("license_id") @db.Uuid
+  label         String           @default("Main feature")
+  format        MediaFormat
+  storageDriver StorageDriver    @default(LOCAL) @map("storage_driver")
+  storageKey    String           @map("storage_key")
+  mimeType      String           @map("mime_type")
+  durationSec   Float            @map("duration_sec")
+  width         Int?
+  height        Int?
+  sizeBytes     BigInt?          @map("size_bytes")
+  /// Caption tracks: [{ lang, label, storageKey }]
+  captions      Json             @default("[]")
+  status        MediaAssetStatus @default(PENDING)
+  approvedById  String?          @map("approved_by_id") @db.Uuid
+  approvedAt    DateTime?        @map("approved_at") @db.Timestamptz(3)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  movie          Movie               @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  license        ContentLicense      @relation(fields: [licenseId], references: [id], onDelete: Restrict)
+  approvedBy     User?               @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+  playbackStates RoomPlaybackState[]
+
+  @@index([movieId, status])
+  @@index([licenseId])
+  @@map("media_assets")
+}
+
+// ───────────────────────────── Library ─────────────────────────────
+
+model Watchlist {
+  id          String   @id @default(uuid()) @db.Uuid
+  ownerId     String   @map("owner_id") @db.Uuid
+  name        String
+  description String?
+  isDefault   Boolean  @default(false) @map("is_default")
+  isGroup     Boolean  @default(false) @map("is_group")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owner   User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items   WatchlistItem[]
+  members WatchlistMember[]
+
+  @@index([ownerId])
+  @@map("watchlists")
+}
+
+model WatchlistMember {
+  watchlistId String   @map("watchlist_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([watchlistId, userId])
+  @@index([userId])
+  @@map("watchlist_members")
+}
+
+model WatchlistItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  watchlistId String   @map("watchlist_id") @db.Uuid
+  movieId     String   @map("movie_id") @db.Uuid
+  addedById   String?  @map("added_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  movie     Movie     @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  addedBy   User?     @relation(fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@unique([watchlistId, movieId])
+  @@map("watchlist_items")
+}
+
+model Favorite {
+  userId    String   @map("user_id") @db.Uuid
+  movieId   String   @map("movie_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@id([userId, movieId])
+  @@index([movieId])
+  @@map("favorites")
+}
+
+/// One row per (user, movie) holding the latest progress.
+model WatchHistory {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  movieId       String   @map("movie_id") @db.Uuid
+  positionSec   Float    @default(0) @map("position_sec")
+  durationSec   Float?   @map("duration_sec")
+  completed     Boolean  @default(false)
+  lastWatchedAt DateTime @default(now()) @map("last_watched_at") @db.Timestamptz(3)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, movieId])
+  @@index([userId, lastWatchedAt(sort: Desc)])
+  @@map("watch_history")
+}
+
+// ───────────────────────────── Rooms ─────────────────────────────
+
+model Room {
+  id            String         @id @default(uuid()) @db.Uuid
+  code          String         @unique
+  name          String
+  description   String?
+  visibility    RoomVisibility
+  passwordHash  String?        @map("password_hash")
+  hostId        String         @map("host_id") @db.Uuid
+  status        RoomStatus     @default(OPEN)
+  allowGuests   Boolean        @default(false) @map("allow_guests")
+  controlPolicy ControlPolicy  @default(HOSTS) @map("control_policy")
+  maxMembers    Int            @default(20) @map("max_members")
+  movieId       String?        @map("movie_id") @db.Uuid
+  scheduledFor  DateTime?      @map("scheduled_for") @db.Timestamptz(3)
+  lastActiveAt  DateTime       @default(now()) @map("last_active_at") @db.Timestamptz(3)
+  closedAt      DateTime?      @map("closed_at") @db.Timestamptz(3)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  host          User               @relation("RoomHost", fields: [hostId], references: [id], onDelete: Cascade)
+  movie         Movie?             @relation(fields: [movieId], references: [id], onDelete: SetNull)
+  members       RoomMember[]
+  bans          RoomBan[]
+  invites       RoomInvite[]
+  playbackState RoomPlaybackState?
+  marathon      RoomPlaylist?
+  messages      Message[]
+
+  @@index([visibility, status, lastActiveAt(sort: Desc)])
+  @@index([hostId])
+  @@index([scheduledFor])
+  @@map("rooms")
+}
+
+model RoomMember {
+  id         String    @id @default(uuid()) @db.Uuid
+  roomId     String    @map("room_id") @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  role       RoomRole  @default(MEMBER)
+  joinedAt   DateTime  @default(now()) @map("joined_at") @db.Timestamptz(3)
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  leftAt     DateTime? @map("left_at") @db.Timestamptz(3)
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([userId])
+  @@map("room_members")
+}
+
+model RoomBan {
+  roomId     String   @map("room_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  bannedById String?  @map("banned_by_id") @db.Uuid
+  reason     String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  room     Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User  @relation("BannedUser", fields: [userId], references: [id], onDelete: Cascade)
+  bannedBy User? @relation("BannedBy", fields: [bannedById], references: [id], onDelete: SetNull)
+
+  @@id([roomId, userId])
+  @@map("room_bans")
+}
+
+model RoomInvite {
+  id            String    @id @default(uuid()) @db.Uuid
+  roomId        String    @map("room_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash")
+  createdById   String    @map("created_by_id") @db.Uuid
+  inviteeUserId String?   @map("invitee_user_id") @db.Uuid
+  maxUses       Int?      @map("max_uses")
+  uses          Int       @default(0)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  room      Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  invitee   User? @relation("InviteInvitee", fields: [inviteeUserId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@map("room_invites")
+}
+
+/// Durable snapshot of the authoritative playback state (live copy lives in Redis).
+model RoomPlaybackState {
+  roomId       String      @id @map("room_id") @db.Uuid
+  version      Int         @default(0)
+  movieId      String?     @map("movie_id") @db.Uuid
+  mediaAssetId String?     @map("media_asset_id") @db.Uuid
+  status       String      @default("idle")
+  positionSec  Float       @default(0) @map("position_sec")
+  rate         Float       @default(1)
+  anchorAt     DateTime    @default(now()) @map("anchor_at") @db.Timestamptz(3)
+  durationSec  Float?      @map("duration_sec")
+  updatedById  String?     @map("updated_by_id")
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  room       Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  movie      Movie?      @relation(fields: [movieId], references: [id], onDelete: SetNull)
+  mediaAsset MediaAsset? @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+
+  @@map("room_playback_states")
+}
+
+// ───────────────────────────── Playlists & marathons ─────────────────────────────
+
+model Playlist {
+  id            String             @id @default(uuid()) @db.Uuid
+  ownerId       String             @map("owner_id") @db.Uuid
+  name          String
+  description   String?
+  visibility    PlaylistVisibility @default(PRIVATE)
+  collaborative Boolean            @default(false)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owner         User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items         PlaylistItem[]
+  collaborators PlaylistCollaborator[]
+  marathons     RoomPlaylist[]
+
+  @@index([ownerId])
+  @@index([visibility])
+  @@map("playlists")
+}
+
+model PlaylistCollaborator {
+  playlistId String   @map("playlist_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([playlistId, userId])
+  @@index([userId])
+  @@map("playlist_collaborators")
+}
+
+model PlaylistItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  playlistId String   @map("playlist_id") @db.Uuid
+  movieId    String   @map("movie_id") @db.Uuid
+  position   Int
+  addedById  String?  @map("added_by_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  playlist Playlist       @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  movie    Movie          @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  addedBy  User?          @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  votes    PlaylistVote[]
+
+  @@index([playlistId, position])
+  @@map("playlist_items")
+}
+
+/// A marathon: a playlist assigned to a room, driven by the server-side state machine.
+model RoomPlaylist {
+  id              String        @id @default(uuid()) @db.Uuid
+  roomId          String        @unique @map("room_id") @db.Uuid
+  playlistId      String        @map("playlist_id") @db.Uuid
+  state           MarathonState @default(READY)
+  version         Int           @default(0)
+  currentIndex    Int           @default(0) @map("current_index")
+  /// Item ids in play order, frozen when the marathon is configured (votes may reorder upcoming items).
+  order           Json          @default("[]")
+  countdownSec    Int           @default(10) @map("countdown_sec")
+  intermissionSec Int           @default(30) @map("intermission_sec")
+  votingEnabled   Boolean       @default(false) @map("voting_enabled")
+  phaseEndsAt     DateTime?     @map("phase_ends_at") @db.Timestamptz(3)
+  scheduledFor    DateTime?     @map("scheduled_for") @db.Timestamptz(3)
+  startedAt       DateTime?     @map("started_at") @db.Timestamptz(3)
+  completedAt     DateTime?     @map("completed_at") @db.Timestamptz(3)
+  error           String?
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  room     Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  playlist Playlist       @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  votes    PlaylistVote[]
+
+  @@map("room_playlists")
+}
+
+model PlaylistVote {
+  id             String   @id @default(uuid()) @db.Uuid
+  roomPlaylistId String   @map("room_playlist_id") @db.Uuid
+  /// Index of the transition being voted on (votes reset every intermission).
+  round          Int
+  userId         String   @map("user_id") @db.Uuid
+  playlistItemId String   @map("playlist_item_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  roomPlaylist RoomPlaylist @relation(fields: [roomPlaylistId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playlistItem PlaylistItem @relation(fields: [playlistItemId], references: [id], onDelete: Cascade)
+
+  @@unique([roomPlaylistId, round, userId])
+  @@map("playlist_votes")
+}
+
+// ───────────────────────────── Chat ─────────────────────────────
+
+model Message {
+  id          String      @id @default(uuid()) @db.Uuid
+  roomId      String      @map("room_id") @db.Uuid
+  authorId    String?     @map("author_id") @db.Uuid
+  kind        MessageKind @default(USER)
+  body        String
+  replyToId   String?     @map("reply_to_id") @db.Uuid
+  deletedAt   DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  deletedById String?     @map("deleted_by_id") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  room      Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  author    User?      @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  deletedBy User?      @relation("MessageDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  replyTo   Message?   @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[]  @relation("Replies")
+  reactions Reaction[]
+
+  @@index([roomId, createdAt(sort: Desc)])
+  @@index([authorId])
+  @@map("messages")
+}
+
+model Reaction {
+  messageId String   @map("message_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId, emoji])
+  @@map("reactions")
+}
+
+// ───────────────────────────── Platform ─────────────────────────────
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String
+  body      String?
+  link      String?
+  data      Json?
+  readAt    DateTime?        @map("read_at") @db.Timestamptz(3)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model Report {
+  id             String       @id @default(uuid()) @db.Uuid
+  reporterId     String?      @map("reporter_id") @db.Uuid
+  targetType     ReportTarget @map("target_type")
+  targetId       String       @map("target_id") @db.Uuid
+  reason         String
+  status         ReportStatus @default(OPEN)
+  resolvedById   String?      @map("resolved_by_id") @db.Uuid
+  resolutionNote String?      @map("resolution_note")
+  resolvedAt     DateTime?    @map("resolved_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  reporter   User? @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  resolvedBy User? @relation("Resolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@map("reports")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id")
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+model AppSetting {
+  key         String   @id
+  value       Json
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("app_settings")
+}
