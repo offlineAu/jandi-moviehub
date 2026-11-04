@@ -69,3 +69,44 @@ describe('reducePlayback', () => {
     ).toMatchObject({ ok: false, code: 'INVALID' });
   });
 });
+
+it('shares a KissKH episode while rejecting unsupported synchronized transport commands', () => {
+  const selected = reducePlayback(
+    initialPlayback('room', 0),
+    {
+      type: 'load-tv',
+      tvEpisode: {
+        provider: 'kisskh',
+        tvId: '71446',
+        season: 1,
+        episode: 1,
+        numbering: 'provider',
+        seriesId: 2510,
+        episodeId: 57281,
+      },
+      durationSec: null,
+      autoplay: false,
+    },
+    0,
+    'host',
+  );
+  expect(selected).toMatchObject({ ok: true, state: { status: 'paused', durationSec: null } });
+  if (!selected.ok) throw new Error('Selection failed');
+  for (const action of [
+    { type: 'play' },
+    { type: 'pause' },
+    { type: 'seek', positionSec: 120 },
+    { type: 'rate', rate: 2 },
+  ] as const)
+    expect(reducePlayback(selected.state, action, 0, 'host')).toMatchObject({
+      ok: false,
+      code: 'INVALID',
+    });
+  const movie = reducePlayback(
+    selected.state,
+    { type: 'load', movieId: 'm', mediaAssetId: 'a', durationSec: 100, autoplay: false },
+    0,
+    'host',
+  );
+  expect(movie).toMatchObject({ ok: true, state: { tvEpisode: null } });
+});

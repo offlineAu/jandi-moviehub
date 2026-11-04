@@ -21,7 +21,7 @@ import { SavedTvController } from './saved-tv.controller';
 import { RecentTvController } from './recent-tv.controller';
 import { TvPlaybackController } from './tv-playback.controller';
 import { BlenderFilmsController } from './blender-films.controller';
-import { ExternalSeriesController } from './external-series.controller';
+import { ExternalSeriesController, ExternalSeriesService } from './external-series.controller';
 
 @Module({
   controllers: [
@@ -38,6 +38,7 @@ import { ExternalSeriesController } from './external-series.controller';
     MovieboxController,
   ],
   providers: [
+    ExternalSeriesService,
     MovieboxService,
     LocalCatalogProvider,
     {
@@ -108,6 +109,13 @@ import { ExternalSeriesController } from './external-series.controller';
     },
     CatalogService,
   ],
-  exports: [MovieboxService, TvMetadataService, CatalogService, MediaSigner, LocalCatalogProvider],
+  exports: [
+    ExternalSeriesService,
+    MovieboxService,
+    TvMetadataService,
+    CatalogService,
+    MediaSigner,
+    LocalCatalogProvider,
+  ],
 })
 export class CatalogModule {}

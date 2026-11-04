@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { providerCatalogEpisode, parseRoomTvTitle, roomTvTitle } from '@jandi/shared';
-import { useProviderSeries } from '@/components/series/provider-series';
+import { useProviderSeries, type SeriesProvider } from '@/components/series/provider-series';
 import { apiFetch } from '@/lib/api';
 import { useTvSeason } from '@/components/series/tv-episodes';
 import { NativeSelect } from '@/components/ui/native-select';
@@ -22,6 +22,7 @@ export function SelectedRoomEpisode({
   onRemove: () => void;
 }) {
   const episode = parseRoomTvTitle(value)!;
+  const provider = episode.provider === 'kisskh' ? 'KissKH' : 'MovieBox';
   const coordinate =
     episode.numbering === 'provider'
       ? providerCatalogEpisode(episode.season, episode.episode)
@@ -38,7 +39,12 @@ export function SelectedRoomEpisode({
           {episode.season} E{episode.episode}
         </p>
         <p className="text-sm text-muted">{title ?? 'Loading episode…'}</p>
-        <p className="text-xs text-muted">MovieBox · Original Spanish · Synced playback</p>
+        <p className="text-xs text-muted">
+          {provider} ·{' '}
+          {episode.provider === 'kisskh'
+            ? 'Shared episode · Individual playback'
+            : 'Original Spanish · Synced playback'}
+        </p>
       </div>
       <Button variant="ghost" size="sm" onClick={onChange}>
         Change
@@ -58,6 +64,7 @@ export function TvRoomPicker({
   onSelect: (value: string) => void;
 }) {
   const [series, setSeries] = React.useState<Series | null>(null);
+  const [provider, setProvider] = React.useState<SeriesProvider>('kisskh');
   const [season, setSeason] = React.useState(1);
   React.useEffect(() => {
     setSeries(null);
@@ -70,7 +77,7 @@ export function TvRoomPicker({
     enabled: query.length >= 2,
     retry: false,
   });
-  const episodes = useProviderSeries('moviebox', 'Money Heist', series?.id === 71446);
+  const episodes = useProviderSeries(provider, 'Money Heist', series?.id === 71446);
   const part = episodes.seasons.find((part) => part.number === season) ?? episodes.seasons[0];
   if (query.length < 2) return null;
   return (
@@ -109,12 +116,34 @@ export function TvRoomPicker({
               Back to results
             </Button>
           </div>
+          <div className="mb-3">
+            <NativeSelect
+              aria-label="Room playback provider"
+              value={provider}
+              onChange={(event) => {
+                setProvider(event.target.value as SeriesProvider);
+                setSeason(1);
+              }}
+            >
+              <option value="kisskh">KissKH · Individual playback</option>
+              <option value="moviebox">MovieBox · Synced playback</option>
+            </NativeSelect>
+          </div>
           <NativeSelect
             aria-label="Episode season"
             value={part?.number ?? ''}
+            disabled={episodes.loading || !!episodes.error || !episodes.seasons.length}
             onChange={(e) => setSeason(Number(e.target.value))}
           >
-            {!episodes.seasons.length && <option value="">Loading parts…</option>}
+            {!episodes.seasons.length && (
+              <option value="">
+                {episodes.error
+                  ? 'Parts unavailable'
+                  : episodes.loading
+                    ? 'Loading parts…'
+                    : 'No parts available'}
+              </option>
+            )}
             {episodes.seasons.map((part) => (
               <option key={part.number} value={part.number}>
                 {part.name} · {part.episodes.length} episodes
@@ -122,7 +151,9 @@ export function TvRoomPicker({
             ))}
           </NativeSelect>
           <p className="my-2 text-xs text-muted">
-            MovieBox · Original Spanish. Parts and episode numbers follow MovieBox.
+            {provider === 'kisskh'
+              ? 'KissKH shares the selected episode and room chat. Each viewer controls play, pause and seeking individually.'
+              : 'MovieBox · Original Spanish. Play, pause and seeking are synchronized for everyone.'}
           </p>
           {episodes.loading ? (
             <p className="text-sm text-muted">Loading episodes…</p>
@@ -134,16 +165,27 @@ export function TvRoomPicker({
                 <li key={item.id ?? item.number}>
                   <button
                     type="button"
-                    onClick={() =>
+                    disabled={provider === 'kisskh' && (!part?.id || !item.id)}
+                    onClick={() => {
+                      const coordinate = {
+                        tvId: '71446' as const,
+                        season: part!.number,
+                        episode: item.number,
+                        numbering: 'provider' as const,
+                      };
                       onSelect(
-                        roomTvTitle({
-                          tvId: '71446',
-                          season: part!.number,
-                          numbering: 'provider',
-                          episode: item.number,
-                        }),
-                      )
-                    }
+                        roomTvTitle(
+                          provider === 'kisskh'
+                            ? {
+                                ...coordinate,
+                                provider: 'kisskh',
+                                seriesId: part!.id!,
+                                episodeId: item.id!,
+                              }
+                            : coordinate,
+                        ),
+                      );
+                    }}
                     className="w-full rounded-lg p-3 text-left text-sm hover:bg-white/5"
                   >
                     Episode {item.number}

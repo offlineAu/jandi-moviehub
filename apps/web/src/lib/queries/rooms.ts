@@ -95,6 +95,7 @@ export interface FriendEntry {
 }
 
 export interface RoomPlaybackSources {
+  embed?: { provider: 'kisskh'; url: string; playbackMode: 'individual' };
   detailHref?: string;
   movieId: string | null;
   movie: MovieSummary;

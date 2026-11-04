@@ -1,3 +1,4 @@
+import { ExternalSeriesService } from '../catalog/external-series.controller';
 import { Prisma } from '@prisma/client';
 import { parseRoomTvTitle, roomTvEpisodeSchema } from '@jandi/shared';
 import { MovieboxService } from '../catalog/moviebox.controller';
@@ -72,6 +73,7 @@ export class PlaybackService implements OnModuleInit {
     private readonly emitter: RealtimeEmitter,
     private readonly media: MediaResolver,
     private readonly moviebox: MovieboxService,
+    private readonly kisskh: ExternalSeriesService,
   ) {
     (this.redis as CasRedis).defineCommand?.('playbackCas', { numberOfKeys: 2, lua: CAS_SCRIPT });
   }
@@ -226,12 +228,15 @@ export class PlaybackService implements OnModuleInit {
   ) {
     const tvEpisode = parseRoomTvTitle(movieId);
     if (tvEpisode) {
-      const source = await this.moviebox.playback(tvEpisode);
+      const source =
+        tvEpisode.provider === 'kisskh'
+          ? await this.kisskh.resolveRoomEpisode(tvEpisode).then(() => ({ durationSec: null }))
+          : await this.moviebox.playback(tvEpisode);
       const action: PlaybackAction = {
         type: 'load-tv',
         tvEpisode,
         durationSec: source.durationSec,
-        autoplay: opts.autoplay,
+        autoplay: tvEpisode.provider === 'kisskh' ? false : opts.autoplay,
       };
       const ack = opts.ctx
         ? await this.applyCommand(roomId, action, opts.ctx)

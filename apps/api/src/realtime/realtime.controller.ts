@@ -1,3 +1,4 @@
+import { ExternalSeriesService } from '../catalog/external-series.controller';
 import { MovieboxService } from '../catalog/moviebox.controller';
 import { TvMetadataService } from '../catalog/tv.service';
 import { providerCatalogEpisode, roomTvTitle } from '@jandi/shared';
@@ -17,6 +18,7 @@ export class RealtimeController {
     private readonly catalog: CatalogService,
     private readonly moviebox: MovieboxService,
     private readonly tv: TvMetadataService,
+    private readonly kisskh: ExternalSeriesService,
   ) {}
 
   /** Current authoritative playback state (REST fallback for the socket snapshot). */
@@ -38,6 +40,36 @@ export class RealtimeController {
     const state = await this.playback.getState(roomId);
     if (state.tvEpisode) {
       const episode = state.tvEpisode;
+      if (episode.provider === 'kisskh') {
+        const source = await this.kisskh.resolveRoomEpisode(episode);
+        const metadata = await this.tv.detail(Number(episode.tvId)).catch(() => null);
+        const series = metadata?.series;
+        const title = `${source.series.title} · Episode ${episode.episode}`;
+        return {
+          movieId: null,
+          tvEpisode: episode,
+          detailHref: `/watch/tv/${episode.tvId}/season/${episode.season}/episode/${episode.episode}?provider=kisskh&numbering=provider`,
+          movie: {
+            id: roomTvTitle(episode),
+            title,
+            posterUrl: series?.posterUrl ?? null,
+            backdropUrl: series?.backdropUrl ?? null,
+            overview: series?.overview ?? null,
+            year: null,
+            runtimeMin: null,
+            genres: series?.genres ?? [],
+            playable: true,
+            isDemo: false,
+            source: 'TMDB',
+          },
+          sources: [],
+          embed: {
+            provider: 'kisskh',
+            url: `https://kisskh.megaplay.su/kisskh/${source.episode.id}`,
+            playbackMode: 'individual',
+          },
+        };
+      }
       const coordinate =
         episode.numbering === 'provider'
           ? providerCatalogEpisode(episode.season, episode.episode)

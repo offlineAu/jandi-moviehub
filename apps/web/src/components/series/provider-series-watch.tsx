@@ -191,10 +191,10 @@ function ProviderSeriesWatchContent({ season, episode, browseOnly = false }: Pro
                   <Button disabled>Next</Button>
                 )}
               </nav>
-              {current && provider === 'moviebox' && (
+              {current && (provider === 'moviebox' || (currentPart?.id && current.id)) && (
                 <Button asChild variant="secondary" className="mt-3">
                   <Link
-                    href={`/rooms/new?movieId=${encodeURIComponent(roomTvTitle({ tvId: '71446', season: selectedPart!, episode: selectedEpisode!, numbering: 'provider' }))}`}
+                    href={`/rooms/new?movieId=${encodeURIComponent(roomTvTitle(provider === 'kisskh' ? { provider: 'kisskh', tvId: '71446', season: selectedPart!, episode: selectedEpisode!, numbering: 'provider', seriesId: currentPart!.id!, episodeId: current.id! } : { tvId: '71446', season: selectedPart!, episode: selectedEpisode!, numbering: 'provider' }))}`}
                   >
                     Watch together
                   </Link>

@@ -50,6 +50,7 @@ import {
 } from './marathon-panel';
 import { PeoplePanel } from './people-panel';
 import { ReactionBar, ReactionOverlay } from './reactions';
+import { KisskhRoomPlayer } from './kisskh-room-player';
 import { ChangeMovieDialog, InviteDialog, RoomSettingsDialog } from './room-dialogs';
 import { SyncStatus } from './sync-status';
 import { useRoomChat } from './use-room-chat';
@@ -86,6 +87,7 @@ export function WatchRoom({ room }: { room: Room }) {
   const close = useCloseRoom();
 
   const { playback, engine, myRole, canControl, marathon } = session;
+  const individualPlayback = playback?.tvEpisode?.provider === 'kisskh';
   const isHost = myRole === 'HOST';
   const isMod = myRole === 'HOST' || myRole === 'COHOST';
   const marathonActive = !!marathon && ACTIVE_MARATHON_STATES.includes(marathon.state);
@@ -171,7 +173,7 @@ export function WatchRoom({ room }: { room: Room }) {
                 ? 'Start it from the Marathon panel when everyone’s here.'
                 : 'The host will start it soon.'
               : canControl
-                ? 'Pick something to watch — it loads for everyone at the same moment.'
+                ? 'Pick something to watch together.'
                 : 'The host is choosing what to watch.'}
           </p>
           {canControl && !marathonActive ? (
@@ -189,6 +191,15 @@ export function WatchRoom({ room }: { room: Room }) {
       <div className="grid aspect-video place-items-center bg-black text-muted">
         <Spinner className="size-8" label="Loading the stream" />
       </div>
+    );
+  } else if (!sources.isError && sources.data?.embed?.provider === 'kisskh') {
+    stage = (
+      <KisskhRoomPlayer
+        key={assetKey}
+        src={sources.data.embed.url}
+        title={sources.data.movie.title}
+        overlay={<ReactionOverlay bursts={session.bursts} />}
+      />
     );
   } else if (sources.isError || !sources.data?.sources.length) {
     stage = (
@@ -329,12 +340,25 @@ export function WatchRoom({ room }: { room: Room }) {
             ) : null}
           </p>
         </div>
-        <SyncStatus
-          connected={session.connected}
-          joined={session.joined}
-          stats={session.stats}
-          buffering={false}
-        />
+        {individualPlayback ? (
+          <span
+            role="status"
+            className="rounded-full border border-border-strong px-3 py-1.5 text-xs text-muted"
+          >
+            {!session.connected
+              ? 'Reconnecting'
+              : !session.joined
+                ? 'Joining'
+                : 'Individual playback'}
+          </span>
+        ) : (
+          <SyncStatus
+            connected={session.connected}
+            joined={session.joined}
+            stats={session.stats}
+            buffering={false}
+          />
+        )}
         <Button
           variant="secondary"
           size="sm"
@@ -425,9 +449,11 @@ export function WatchRoom({ room }: { room: Room }) {
               className="scrollbar-none -mx-1 overflow-x-auto px-1"
             />
             <p className="text-xs text-muted md:text-right">
-              {canControl
-                ? 'You can control playback for the room.'
-                : `Only ${session.controlPolicy === 'HOST_ONLY' ? 'the host' : 'hosts'} can play, pause or seek. Volume and captions are yours.`}
+              {individualPlayback
+                ? 'The selected episode is shared. Playback controls are individual.'
+                : canControl
+                  ? 'You can control playback for the room.'
+                  : `Only ${session.controlPolicy === 'HOST_ONLY' ? 'the host' : 'hosts'} can play, pause or seek. Volume and captions are yours.`}
             </p>
           </div>
           {assetKey ? (

@@ -6,7 +6,7 @@ export type PlaybackAction =
   | { type: 'seek'; positionSec: number }
   | { type: 'rate'; rate: number }
   | { type: 'load'; movieId: string; mediaAssetId: string; durationSec: number; autoplay: boolean }
-  | { type: 'load-tv'; tvEpisode: RoomTvEpisode; durationSec: number; autoplay: boolean }
+  | { type: 'load-tv'; tvEpisode: RoomTvEpisode; durationSec: number | null; autoplay: boolean }
   | { type: 'end' }
   | { type: 'unload' };
 
@@ -55,6 +55,17 @@ export function reducePlayback(
   });
   const current = expectedPosition(state, now);
   const hasMedia = !!state.mediaAssetId || !!state.tvEpisode;
+
+  if (
+    state.tvEpisode?.provider === 'kisskh' &&
+    ['play', 'pause', 'seek', 'rate', 'end'].includes(action.type)
+  )
+    return {
+      ok: false,
+      code: 'INVALID',
+      message:
+        'KissKH playback is controlled individually. The host can change the shared episode.',
+    };
 
   switch (action.type) {
     case 'play': {
