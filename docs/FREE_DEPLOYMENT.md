@@ -11,11 +11,15 @@ Prepared on 2026-11-03. The website is not live yet.
   for migrations. Deployment credentials are in ignored `.data/deployment/neon.json` with
   owner-only file permissions. Existing local development `.env` files were not overwritten.
 - `.neon` links this directory to the project and `main` branch and is ignored by Git.
-- Vercel is authenticated, but its existing workspace reports a fair-use block and refuses
-  project creation. No new Vercel project was created and no upgrade was attempted.
+- Vercel project `jandi-moviehub` was created on 2026-11-04 in the user's chosen
+  `pearljanoplo-9385` Hobby workspace and linked locally. Project ID:
+  `prj_aX7DH03GgB15qPT7FPS5T9dNclIE`. Settings: Next.js, Node 24.x, root `apps/web`,
+  shared-package build before frontend build, and frozen-lockfile pnpm install. No deployment
+  has been created yet. The previous workspace had refused project creation due to a fair-use
+  block; no paid upgrade was attempted.
 - Render CLI is installed temporarily under `/private/tmp/jandi-render-cli`. Its browser
   authorization is pending. Backend and Redis have not been provisioned.
-- Netlify Free has been suggested as the frontend alternative; no site has been created.
+- Netlify is no longer needed now that the Vercel project exists. No Netlify site was created.
 - Real email delivery still needs a Resend API key. With no verified sending domain, only
   the Resend account email can receive messages from `onboarding@resend.dev`.
 

@@ -1,5 +1,13 @@
 # Progress Log
 
+## 2026-11-04 — Vercel project created
+
+- Verified the user's selected Vercel account (`pearljanoplo-9385`) and its Hobby workspace.
+- Created and linked `jandi-moviehub`, configured Next.js with Node 24.x, root `apps/web`,
+  shared-package build, and frozen-lockfile pnpm install. CLI created an ignored root
+  `.env.local` containing a Vercel OIDC token; deployment secrets remain outside Git.
+- No deployment was started: Render API/Redis and Resend credentials are still pending.
+
 ## 2026-11-03 — Free hosting and Neon agent setup
 
 - Created a Neon Free project in Singapore; applied migrations on `deploy-free` before `main`,
