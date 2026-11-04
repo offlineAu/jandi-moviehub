@@ -1,5 +1,6 @@
 import {
   ClockSync,
+  playbackAssetKey,
   type CommandAck,
   decideCorrection,
   DEFAULT_THRESHOLDS,
@@ -232,7 +233,7 @@ export class RoomSyncEngine {
   private receive(state: PlaybackState, force = false) {
     if (!force && this.state && state.version < this.state.version) return; // out-of-order
     // A new asset means the player is about to swap sources; 'loadedmetadata' re-applies then.
-    const movieChanged = !!this.state && this.state.mediaAssetId !== state.mediaAssetId;
+    const movieChanged = !!this.state && playbackAssetKey(this.state) !== playbackAssetKey(state);
     this.state = state;
     this.options.onState?.(state);
     this.apply(true, movieChanged);
@@ -245,7 +246,8 @@ export class RoomSyncEngine {
   private apply(hard = false, movieChanged = false) {
     const video = this.video;
     const state = this.state;
-    if (!video || !state || !state.mediaAssetId || video.readyState < 1 || movieChanged) return;
+    if (!video || !state || !playbackAssetKey(state) || video.readyState < 1 || movieChanged)
+      return;
     const expected = expectedPosition(state, this.serverNow);
     const playing = state.status === 'playing';
     const drift = video.currentTime - expected;
@@ -277,7 +279,13 @@ export class RoomSyncEngine {
   tick() {
     const video = this.video;
     const state = this.state;
-    if (!video || !state || !state.mediaAssetId || video.readyState < 2 || this.needsInteraction)
+    if (
+      !video ||
+      !state ||
+      !playbackAssetKey(state) ||
+      video.readyState < 2 ||
+      this.needsInteraction
+    )
       return;
     const playing = state.status === 'playing';
     const expected = expectedPosition(state, this.serverNow);

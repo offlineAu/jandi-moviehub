@@ -1,3 +1,6 @@
+import { MovieboxService } from '../catalog/moviebox.controller';
+import { TvMetadataService } from '../catalog/tv.service';
+import { roomTvTitle } from '@jandi/shared';
 import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AllowGuest, type AuthUser, CurrentUser } from '../common/auth-context';
@@ -12,6 +15,8 @@ export class RealtimeController {
     private readonly rooms: RoomsService,
     private readonly playback: PlaybackService,
     private readonly catalog: CatalogService,
+    private readonly moviebox: MovieboxService,
+    private readonly tv: TvMetadataService,
   ) {}
 
   /** Current authoritative playback state (REST fallback for the socket snapshot). */
@@ -31,6 +36,45 @@ export class RealtimeController {
   async sources(@CurrentUser() user: AuthUser, @Param('roomId', ParseUUIDPipe) roomId: string) {
     await this.rooms.requireMember(roomId, user.id);
     const state = await this.playback.getState(roomId);
+    if (state.tvEpisode) {
+      const episode = state.tvEpisode;
+      const [session, { series }, detail] = await Promise.all([
+        this.moviebox.playback(episode),
+        this.tv.detail(Number(episode.tvId)),
+        this.tv.episode(Number(episode.tvId), episode.season, episode.episode),
+      ]);
+      const title = `${series.title} · S${episode.season} E${episode.episode} · ${detail.episode!.title}`;
+      return {
+        movieId: null,
+        tvEpisode: episode,
+        detailHref: `/watch/tv/${episode.tvId}/season/${episode.season}/episode/${episode.episode}`,
+        movie: {
+          id: roomTvTitle(episode),
+          title,
+          posterUrl: series.posterUrl,
+          backdropUrl: series.backdropUrl,
+          overview: detail.episode!.overview,
+          year: detail.episode!.airDate ? Number(detail.episode!.airDate.slice(0, 4)) : null,
+          runtimeMin: detail.episode!.runtimeMin,
+          genres: series.genres,
+          playable: true,
+          isDemo: false,
+          source: 'TMDB',
+        },
+        sources: session.sources.map((source) => ({
+          assetId: `${roomTvTitle(episode)}:${source.id}`,
+          label: `${source.resolution}p`,
+          format: 'MP4',
+          mimeType: 'video/mp4',
+          durationSec: session.durationSec,
+          url: source.url,
+          captions: session.englishVtt
+            ? [{ lang: 'en', label: 'English', url: source.url.replace('/media/', '/captions/') }]
+            : [],
+          license: null,
+        })),
+      };
+    }
     if (!state.movieId) return { movieId: null, sources: [] };
     const sources = await this.catalog.getPlaybackSources(state.movieId);
     sources.sort(

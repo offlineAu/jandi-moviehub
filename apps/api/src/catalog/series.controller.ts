@@ -18,6 +18,7 @@ import { ValidBody, ValidQuery } from '../common/zod';
 import { PrismaService } from '../prisma/prisma.service';
 import { playableAssetWhere } from './playability';
 import { lookupCommons, searchCommons } from './commons-search';
+import { TvMetadataService } from './tv.service';
 
 const seriesInput = z.object({
   title: z.string().trim().min(1).max(160),
@@ -49,12 +50,23 @@ const episodePosition = z.object({
   episodeNumber: z.number().int().min(1).max(9999),
 });
 
+/** Episode movie fields for navigation, with current license-backed playability. */
+const episodeMovie = () =>
+  ({
+    select: {
+      id: true,
+      title: true,
+      mediaAssets: { where: playableAssetWhere(), select: { id: true }, take: 1 },
+    },
+  }) as const;
+
 @ApiTags('series')
 @Controller()
 export class SeriesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly tv: TvMetadataService,
   ) {}
 
   @Public()
@@ -140,21 +152,20 @@ export class SeriesController {
     };
   }
 
+  /**
+   * Previous/next episode for a movie that is a series episode. Local series take precedence;
+   * otherwise an admin-linked TMDB TV episode is navigated across the other linked episodes of
+   * the same show (unlinked episodes have no authorized media, so they are never offered).
+   */
   @Public()
   @Get('movies/:id/series-navigation')
   async navigation(@Param('id', ParseUUIDPipe) id: string) {
+    const movie = episodeMovie();
     const current = await this.prisma.seriesEpisode.findUnique({
       where: { movieId: id },
       include: { series: { select: { id: true, title: true } } },
     });
-    if (!current) return { navigation: null };
-    const movie = {
-      select: {
-        id: true,
-        title: true,
-        mediaAssets: { where: playableAssetWhere(), select: { id: true }, take: 1 },
-      },
-    } as const;
+    if (!current) return { navigation: await this.tvNavigation(id, movie) };
     const [previous, next] = await Promise.all([
       this.prisma.seriesEpisode.findFirst({
         where: {
@@ -187,7 +198,67 @@ export class SeriesController {
         episodeNumber: episode.episodeNumber,
         playable: episode.movie.mediaAssets.length > 0,
       };
-    return { navigation: { series: current.series, previous: item(previous), next: item(next) } };
+    return {
+      navigation: {
+        kind: 'series' as const,
+        series: current.series,
+        current: { seasonNumber: current.seasonNumber, episodeNumber: current.episodeNumber },
+        previous: item(previous),
+        next: item(next),
+      },
+    };
+  }
+
+  private async tvNavigation(movieId: string, movie: ReturnType<typeof episodeMovie>) {
+    const current = await this.prisma.tvEpisodeMedia.findFirst({
+      where: { movieId },
+      orderBy: [{ tmdbId: 'asc' }, { season: 'asc' }, { episode: 'asc' }],
+    });
+    if (!current) return null;
+    const [previous, next, title] = await Promise.all([
+      this.prisma.tvEpisodeMedia.findFirst({
+        where: {
+          tmdbId: current.tmdbId,
+          OR: [
+            { season: { lt: current.season } },
+            { season: current.season, episode: { lt: current.episode } },
+          ],
+        },
+        orderBy: [{ season: 'desc' }, { episode: 'desc' }],
+        include: { movie },
+      }),
+      this.prisma.tvEpisodeMedia.findFirst({
+        where: {
+          tmdbId: current.tmdbId,
+          OR: [
+            { season: { gt: current.season } },
+            { season: current.season, episode: { gt: current.episode } },
+          ],
+        },
+        orderBy: [{ season: 'asc' }, { episode: 'asc' }],
+        include: { movie },
+      }),
+      // Title is cosmetic; TMDB may be unconfigured or down.
+      this.tv
+        .detail(current.tmdbId)
+        .then(({ series }) => series.title)
+        .catch(() => null),
+    ]);
+    const item = (episode: typeof next) =>
+      episode && {
+        movieId: episode.movie.id,
+        title: episode.movie.title,
+        seasonNumber: episode.season,
+        episodeNumber: episode.episode,
+        playable: episode.movie.mediaAssets.length > 0,
+      };
+    return {
+      kind: 'tv' as const,
+      series: { id: String(current.tmdbId), title: title ?? 'TV series' },
+      current: { seasonNumber: current.season, episodeNumber: current.episode },
+      previous: item(previous),
+      next: item(next),
+    };
   }
 
   @Roles('ADMIN')

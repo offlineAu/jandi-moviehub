@@ -163,12 +163,13 @@ Documented in `docs/api/ROOMS.md` and `docs/api/REALTIME.md` as they are impleme
 
 - `GET /api/v1/series?q=&country=&language=&genre=&year=&page=` — public, paginated series search. Language, genre and year match the metadata of the same episode.
 - `GET /api/v1/series/:id` — ordered episodes, each with current playable status.
-- `POST /api/v1/playlists/from-series/:id` — authenticated user creates a private ordered snapshot of up to 200 episodes; empty or larger series are rejected. Availability is checked again during playback.
+- `POST /api/v1/playlists/from-series/:id` — authenticated user creates a private ordered snapshot of up to 200 episodes; empty or larger series are rejected. Availability is checked again during playback. Optional `?fromMovieId=<uuid>` starts the snapshot at that episode (404 if it is not in the series). The web "Watch series together" action sends the new playlist to `/rooms/new?playlistId=` to run it as a marathon.
 - `POST /api/v1/admin/series` — administrator creates a series (`title`, optional `country` and `description`).
 - `POST /api/v1/admin/series/:id/episodes` — administrator assigns an existing movie as an episode (`movieId`, `seasonNumber`, `episodeNumber`). A movie can belong to one episode. Approval and license requirements continue to apply to the movie's media.
 - `PATCH /api/v1/admin/series/:id` and `DELETE /api/v1/admin/series/:id` — update or remove a series. Removing a series preserves its movie and media records.
 - `DELETE /api/v1/admin/series/:id/episodes/:episodeId` — detach an episode without deleting its movie or media.
 - `PATCH /api/v1/admin/series/:id/episodes/:episodeId` — change the episode's season and episode numbers; existing positions cannot be duplicated.
-- `GET /api/v1/movies/:id/series-navigation` — neighboring episodes and their current playable status, or `null` if the movie is not part of a series.
+- `GET /api/v1/movies/:id/series-navigation` — `{ navigation: { kind, series: {id, title}, current: {seasonNumber, episodeNumber}, previous, next } | null }`. `kind: 'series'` for local series; otherwise `kind: 'tv'` for an admin-linked TMDB episode, navigating only the show's other linked episodes (`series.id` is the TMDB id; title falls back to `"TV series"` when TMDB is unavailable). `previous`/`next` carry `movieId`, season/episode numbers and current `playable`. Used for solo prev/next and the in-room episode bar.
+- `GET /api/v1/tv/:id/seasons/:season/episodes/:episode/availability` — `{ playable, movieId }`; `movieId` is the linked licensed title when playable (else `null`) so clients can open a watch party on it.
 - `GET /api/v1/admin/source-candidates/commons?q=` — search Commons for unverified video candidates. Results are not licenses or playable media.
 - `POST /api/v1/admin/source-candidates/commons` — save a candidate by numeric `pageId`; metadata is re-fetched from Commons and deduplicated. `GET /api/v1/admin/source-candidates?page=` lists the saved queue; `DELETE /api/v1/admin/source-candidates/:id` removes a candidate. All require an administrator.

@@ -90,7 +90,7 @@ export interface PlaybackSource {
   durationSec: number;
   url: string;
   captions: CaptionTrack[];
-  license: { type: string; attribution: string | null };
+  license: { type: string; attribution: string | null } | null;
 }
 
 export interface CatalogInfo {

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch, isApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/error-state';
+import { NativeSelect } from '@/components/ui/native-select';
 
 type Session = {
   audioLanguage: 'es';
@@ -21,10 +22,90 @@ export function MovieboxPlayer({
   season: string;
   episode: string;
 }) {
+  const needsSource = id === '71446' && season === '1';
+  const [part, setPart] = React.useState(1);
+  const [sourceEpisode, setSourceEpisode] = React.useState('');
+  const selection = needsSource ? (
+    <div className="mb-4 grid gap-3 rounded-2xl bg-white/[0.03] p-4">
+      <p className="text-sm text-muted">
+        Season 1 has different cuts: this catalog has 15 episodes, while MovieBox splits them into
+        Parts 1 and 2. Choose the source episode you want to watch.
+      </p>
+      <div className="flex flex-wrap gap-3">
+        <NativeSelect
+          aria-label="MovieBox source part"
+          value={part}
+          onChange={(event) => {
+            setPart(Number(event.target.value));
+            setSourceEpisode('');
+          }}
+        >
+          <option value="1">Part 1 · 13 episodes</option>
+          <option value="2">Part 2 · 9 episodes</option>
+        </NativeSelect>
+        <NativeSelect
+          aria-label="MovieBox source episode"
+          value={sourceEpisode}
+          onChange={(event) => setSourceEpisode(event.target.value)}
+        >
+          <option value="">Choose a source episode</option>
+          {Array.from({ length: part === 1 ? 13 : 9 }, (_, index) => (
+            <option key={index + 1} value={index + 1}>
+              Episode {index + 1}
+            </option>
+          ))}
+        </NativeSelect>
+      </div>
+      {sourceEpisode && (
+        <p className="text-sm">
+          Selected source: Part {part}, Episode {sourceEpisode}. The catalog title below uses the
+          original cut.
+        </p>
+      )}
+    </div>
+  ) : null;
+  return (
+    <>
+      {selection}
+      {needsSource && !sourceEpisode ? (
+        <div
+          role="status"
+          className="grid aspect-video place-items-center rounded-2xl bg-black p-6 text-center text-muted"
+        >
+          Choose a MovieBox source episode above to start playback.
+        </div>
+      ) : (
+        <MovieboxVideo
+          key={`${id}-${season}-${episode}-${part}-${sourceEpisode}`}
+          id={id}
+          season={season}
+          episode={episode}
+          source={
+            needsSource ? { sourcePart: part, sourceEpisode: Number(sourceEpisode) } : undefined
+          }
+        />
+      )}
+    </>
+  );
+}
+
+function MovieboxVideo({
+  id,
+  season,
+  episode,
+  source: sourceSelection,
+}: {
+  id: string;
+  season: string;
+  episode: string;
+  source?: { sourcePart: number; sourceEpisode: number };
+}) {
   const playback = useQuery({
-    queryKey: ['moviebox-playback', id, season, episode],
+    queryKey: ['moviebox-playback', id, season, episode, sourceSelection],
     queryFn: () =>
-      apiFetch<Session>('/moviebox/playback', { query: { tvId: id, season, episode } }),
+      apiFetch<Session>('/moviebox/playback', {
+        query: { tvId: id, season, episode, ...sourceSelection },
+      }),
     retry: false,
     staleTime: 0,
     gcTime: 0,

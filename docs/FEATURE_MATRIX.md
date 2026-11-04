@@ -85,4 +85,9 @@ Series playlists (2026-11-01): authenticated users can create a private, ordered
 for the existing marathon workflow (**IMPLEMENTED**). Browser coverage confirms playlist creation;
 automatic transitions between episodes and recovery still require dedicated end-to-end evidence.
 
+Series watch parties (2026-11-04): one-click "Watch series together" (marathon), per-episode
+"Watch together", TV-episode "Watch together" for licensed linked media, and in-room
+previous/next episode controls are **IMPLEMENTED** (unit + integration evidence in
+TEST_RESULTS.md). Multi-browser E2E pending. Third-party TV sources remain solo-only (ADR-12).
+
 MovieBox original-audio adapter (2026-11-02): **IMPLEMENTED**, explicit Money Heist mapping only. Unit/mock frontend tests passed; browser/live verification **BLOCKED** by network restrictions. Playback remains limited to provider-declared free episodes and unlocked MP4; no VIP access. English subtitles require a successful caption response for the MP4 stream ID. See MOVIEBOX_INTEGRATION.md.

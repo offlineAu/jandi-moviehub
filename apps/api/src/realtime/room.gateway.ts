@@ -1,3 +1,4 @@
+import { roomTitleSchema } from '@jandi/shared';
 import { type BeforeApplicationShutdown, Logger } from '@nestjs/common';
 import {
   ConnectedSocket,
@@ -64,7 +65,7 @@ const commandSchemas = {
   pause: commandBase.extend({ positionSec: z.number().min(0).max(86_400).optional() }),
   seek: commandBase.extend({ positionSec: z.number().min(0).max(86_400) }),
   rate: commandBase.extend({ rate: z.number().min(0.25).max(2) }),
-  movie: commandBase.extend({ movieId: uuidSchema }),
+  movie: commandBase.extend({ movieId: roomTitleSchema }),
 };
 const roomRef = z.object({ roomId: uuidSchema });
 const heartbeatSchema = z.object({

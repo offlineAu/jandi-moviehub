@@ -1,4 +1,14 @@
-import { Controller, Get, Header, Headers, Param, Req, Res, StreamableFile } from '@nestjs/common';
+import {
+  Controller,
+  Injectable,
+  Get,
+  Header,
+  Headers,
+  Param,
+  Req,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
 import { providerEpisode } from '@jandi/shared';
 import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -15,6 +25,8 @@ const querySchema = z.object({
   tvId: z.literal('71446'),
   season: z.coerce.number().int().min(1).max(100),
   episode: z.coerce.number().int().min(1).max(1000),
+  sourcePart: z.coerce.number().int().min(1).max(2).optional(),
+  sourceEpisode: z.coerce.number().int().min(1).max(13).optional(),
 });
 const policy = z.object({
   requiredVipLevel: z.number().nonnegative(),
@@ -140,28 +152,30 @@ export function srtToVtt(text: string) {
   return `WEBVTT\n\n${cues.join('\n\n')}\n`;
 }
 
-@Controller('moviebox')
-export class MovieboxController {
+@Injectable()
+export class MovieboxService {
   // Only URLs selected by playback() can enter this bounded, short-lived registry.
-  private readonly media = new Map<string, { url: string; referer: string; expires: number }>();
+  private readonly media = new Map<
+    string,
+    { url: string; referer: string; expires: number; englishVtt: string | null }
+  >();
 
-  private mediaUrl(url: string, referer: string) {
+  private mediaUrl(url: string, referer: string, englishVtt: string | null) {
     for (const [key, value] of this.media) if (value.expires <= Date.now()) this.media.delete(key);
     while (this.media.size >= 512) this.media.delete(this.media.keys().next().value!);
     const token = randomBytes(24).toString('hex');
-    this.media.set(token, { url, referer, expires: Date.now() + 2 * 60 * 60 * 1000 });
+    this.media.set(token, { url, referer, englishVtt, expires: Date.now() + 2 * 60 * 60 * 1000 });
     return `/api/v1/moviebox/media/${token}`;
   }
 
-  @Public()
-  @RateLimit({ name: 'moviebox-media', limit: 120, windowSec: 60 })
-  @Get('media/:token')
-  async stream(
-    @Param('token') token: string,
-    @Headers('range') range: string | undefined,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ) {
+  captions(token: string) {
+    const source = this.media.get(token);
+    if (!source || source.expires <= Date.now() || !source.englishVtt)
+      throw Errors.notFound('Captions');
+    return source.englishVtt;
+  }
+
+  async stream(token: string, range: string | undefined, request: Request, response: Response) {
     const source = /^[a-f0-9]{48}$/.test(token) ? this.media.get(token) : undefined;
     if (!source || source.expires <= Date.now()) {
       this.media.delete(token);
@@ -215,11 +229,21 @@ export class MovieboxController {
     }
   }
 
-  @Public()
-  @RateLimit({ name: 'moviebox-playback', limit: 12, windowSec: 60 })
-  @Header('Cache-Control', 'no-store')
-  @Get('playback')
-  async playback(@ValidQuery(querySchema) query: z.infer<typeof querySchema>) {
+  async playback(query: z.infer<typeof querySchema>) {
+    const explicitSource = query.sourcePart !== undefined || query.sourceEpisode !== undefined;
+    if (
+      explicitSource &&
+      (query.season !== 1 ||
+        !query.sourcePart ||
+        !query.sourceEpisode ||
+        query.sourceEpisode > (query.sourcePart === 1 ? 13 : 9))
+    )
+      throw Errors.badRequest('MOVIEBOX_INVALID_SOURCE', 'Choose a valid source part and episode.');
+    if (query.season === 1 && query.episode > 13 && !explicitSource)
+      throw Errors.badRequest(
+        'MOVIEBOX_SOURCE_SELECTION_REQUIRED',
+        'Season 1 uses a different episode cut. Choose a source part and episode to watch.',
+      );
     const metadata = detailSchema.safeParse(
       await json(
         `https://h5-api.aoneroom.com/wefeed-h5api-bff/detail?${new URLSearchParams({ detailPath: original.detailPath })}`,
@@ -239,7 +263,9 @@ export class MovieboxController {
         'MovieBox has marked this title as unavailable for playback.',
         'MOVIEBOX_ACCESS_REQUIRED',
       );
-    const sourceEpisode = providerEpisode(query.tvId, query.season, query.episode);
+    const sourceEpisode = explicitSource
+      ? { season: query.sourcePart!, episode: query.sourceEpisode! }
+      : providerEpisode(query.tvId, query.season, query.episode);
     // The public player sends its full page URL. Without this context the provider
     // returns hasResource:false, even for anonymously playable episodes.
     const referer = `https://movie-box.co/spa/videoPlayPage/movies/${original.detailPath}?${new URLSearchParams(
@@ -305,14 +331,46 @@ export class MovieboxController {
       /* Playable video and failed captions are reported separately. */
     }
     return {
+      durationSec: selected.duration,
       audioLanguage: 'es',
       sources: streams.map((s) => ({
         id: s.id,
-        url: this.mediaUrl(s.url, referer),
+        url: this.mediaUrl(s.url, referer, englishVtt),
         resolution: Number(s.resolutions),
       })),
       englishVtt,
       subtitleStatus: englishVtt ? 'AVAILABLE' : 'UNAVAILABLE',
     };
+  }
+}
+
+@Controller('moviebox')
+export class MovieboxController {
+  @Public()
+  @Header('Content-Type', 'text/vtt; charset=utf-8')
+  @Header('Cache-Control', 'no-store')
+  @Get('captions/:token')
+  captions(@Param('token') token: string) {
+    return this.service.captions(token);
+  }
+
+  constructor(private readonly service: MovieboxService = new MovieboxService()) {}
+  @Public()
+  @RateLimit({ name: 'moviebox-playback', limit: 12, windowSec: 60 })
+  @Header('Cache-Control', 'no-store')
+  @Get('playback')
+  playback(@ValidQuery(querySchema) query: z.infer<typeof querySchema>) {
+    return this.service.playback(query);
+  }
+  @Public()
+  @RateLimit({ name: 'moviebox-media', limit: 120, windowSec: 60 })
+  @Get('media/:token')
+  stream(
+    @Param('token') token: string,
+    @Headers('range') range: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.service.stream(token, range, request, response);
   }
 }

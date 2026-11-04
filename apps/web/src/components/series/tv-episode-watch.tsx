@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { roomTitleSchema } from '@jandi/shared';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import * as React from 'react';
@@ -81,6 +82,7 @@ export function TvEpisodeWatch({
 
   const title = ep && !/^episode\s+\d+$/i.test(ep.title.trim()) ? ep.title : `Episode ${episodeNo}`;
   const meta = [formatDate(ep?.airDate), formatRuntime(ep?.runtimeMin)].filter(Boolean);
+  const roomTitle = `moviebox:${id}:${seasonNo}:${episodeNo}`;
 
   return (
     <div className="px-4 pb-10 pt-5 sm:px-6 lg:px-10">
@@ -122,6 +124,13 @@ export function TvEpisodeWatch({
                     <StepButton to={next} seriesId={id} dir="next" />
                   </nav>
                 </div>
+                {roomTitleSchema.safeParse(roomTitle).success && (
+                  <Button asChild variant="secondary" className="mt-4">
+                    <Link href={`/rooms/new?movieId=${encodeURIComponent(roomTitle)}`}>
+                      Watch together
+                    </Link>
+                  </Button>
+                )}
                 {ep?.overview ? (
                   <p className="mt-4 max-w-[72ch] text-[15px] leading-relaxed text-foreground/80">
                     {ep.overview}

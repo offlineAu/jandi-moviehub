@@ -33,21 +33,25 @@ export function ExternalEpisodes({
   title,
   season,
   episode,
+  requireSourceSelection = false,
   onPlayerChange,
   onStatusChange,
 }: {
   title: string;
   season: number;
   episode: number;
+  requireSourceSelection?: boolean;
   onPlayerChange: (source: { id: number; title: string } | null) => void;
   onStatusChange: (status: string) => void;
 }) {
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
-  const [selectedEpisode, setSelectedEpisode] = React.useState(episode);
+  const [selectedEpisode, setSelectedEpisode] = React.useState<number | null>(
+    requireSourceSelection ? null : episode,
+  );
   React.useEffect(() => {
     setSelectedId(null);
-    setSelectedEpisode(episode);
-  }, [title, season, episode]);
+    setSelectedEpisode(requireSourceSelection ? null : episode);
+  }, [title, season, episode, requireSourceSelection]);
   const search = useQuery({
     queryKey: ['external-series-search', title],
     queryFn: () =>
@@ -88,9 +92,11 @@ export function ExternalEpisodes({
       ? 'Finding an episode source…'
       : search.isError || detail.isError
         ? errorMessage(search.error ?? detail.error, 'Could not check the episode source.')
-        : !current || !candidate
-          ? 'No matching episode source was found.'
-          : 'Loading the episode player…';
+        : requireSourceSelection && selectedEpisode === null
+          ? 'Season 1 uses a different cut. Choose a source part and episode above.'
+          : !current || !candidate
+            ? 'No matching episode source was found.'
+            : 'Loading the episode player…';
   React.useEffect(() => onStatusChange(status), [status, onStatusChange]);
   const note = (text: string) => (
     <p className="mt-6 flex items-center gap-2 rounded-2xl bg-white/[0.03] px-4 py-3 text-sm text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
@@ -133,7 +139,7 @@ export function ExternalEpisodes({
             value={current.id}
             onChange={(event) => {
               setSelectedId(Number(event.target.value));
-              setSelectedEpisode(1);
+              setSelectedEpisode(requireSourceSelection ? null : 1);
               onPlayerChange(null);
             }}
           >
@@ -162,7 +168,7 @@ export function ExternalEpisodes({
           onRetry={() => void detail.refetch()}
         />
       ) : null}
-      {detail.data && !candidate ? (
+      {detail.data && !candidate && selectedEpisode !== null ? (
         <p className="mt-4 text-sm text-muted">
           This source does not list episode {selectedEpisode} in this part.
         </p>

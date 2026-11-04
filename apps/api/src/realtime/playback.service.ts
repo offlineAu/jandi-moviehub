@@ -1,3 +1,6 @@
+import { Prisma } from '@prisma/client';
+import { parseRoomTvTitle, roomTvEpisodeSchema } from '@jandi/shared';
+import { MovieboxService } from '../catalog/moviebox.controller';
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import {
   type CommandAck,
@@ -68,6 +71,7 @@ export class PlaybackService implements OnModuleInit {
     private readonly timers: TimerQueue,
     private readonly emitter: RealtimeEmitter,
     private readonly media: MediaResolver,
+    private readonly moviebox: MovieboxService,
   ) {
     (this.redis as CasRedis).defineCommand?.('playbackCas', { numberOfKeys: 2, lua: CAS_SCRIPT });
   }
@@ -94,6 +98,9 @@ export class PlaybackService implements OnModuleInit {
           roomId,
           version: row.version,
           movieId: row.movieId,
+          tvEpisode: roomTvEpisodeSchema.safeParse(row.tvEpisode).success
+            ? roomTvEpisodeSchema.parse(row.tvEpisode)
+            : null,
           mediaAssetId: row.mediaAssetId,
           status: row.status as PlaybackState['status'],
           positionSec: row.positionSec,
@@ -114,6 +121,7 @@ export class PlaybackService implements OnModuleInit {
     const data = {
       version: state.version,
       movieId: state.movieId,
+      tvEpisode: state.tvEpisode ? { ...state.tvEpisode } : Prisma.DbNull,
       mediaAssetId: state.mediaAssetId,
       status: state.status,
       positionSec: state.positionSec,
@@ -216,6 +224,28 @@ export class PlaybackService implements OnModuleInit {
     movieId: string,
     opts: { autoplay: boolean; actorId?: string; ctx?: CommandContext },
   ) {
+    const tvEpisode = parseRoomTvTitle(movieId);
+    if (tvEpisode) {
+      const source = await this.moviebox.playback(tvEpisode);
+      const action: PlaybackAction = {
+        type: 'load-tv',
+        tvEpisode,
+        durationSec: source.durationSec,
+        autoplay: opts.autoplay,
+      };
+      const ack = opts.ctx
+        ? await this.applyCommand(roomId, action, opts.ctx)
+        : await this.applySystem(roomId, action).then((state) =>
+            state
+              ? { ok: true as const, data: state }
+              : {
+                  ok: false as const,
+                  error: { code: 'CONFLICT' as const, message: 'Could not load episode' },
+                },
+          );
+      if (ack.ok) await this.prisma.room.update({ where: { id: roomId }, data: { movieId: null } });
+      return ack;
+    }
     const asset = await this.media.primaryAsset(movieId);
     if (!asset)
       return {

@@ -378,6 +378,53 @@ const uuid = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random()}`;
 
+/**
+ * Swap the title playing in the room for everyone (MOVIE_CHANGE). Retries once on a stale
+ * version; resolves true when the server accepted the change.
+ */
+export function useChangeRoomMovie(
+  roomId: string,
+  socket: Socket | null,
+  engine: RoomSyncEngine | null,
+) {
+  const [busy, setBusy] = React.useState(false);
+  const change = React.useCallback(
+    async (movieId: string, successMessage = 'Title changed for everyone'): Promise<boolean> => {
+      if (!socket || !engine?.current) return false;
+      setBusy(true);
+      try {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const ack = (await socket.timeout(45000).emitWithAck(SocketEvents.MOVIE_CHANGE, {
+            roomId,
+            commandId: uuid(),
+            baseVersion: engine.current.version,
+            movieId,
+          })) as CommandAck<PlaybackState>;
+          if (ack.ok) {
+            toast.success(successMessage);
+            return true;
+          }
+          if (ack.error.code === 'STALE' && attempt === 0) continue;
+          toast.error(
+            ack.error.code === 'CONFLICT'
+              ? 'Stop the marathon before changing the movie.'
+              : ack.error.message,
+          );
+          return false;
+        }
+        return false;
+      } catch {
+        toast.error('Connection problem — the movie wasn’t changed.');
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [roomId, socket, engine],
+  );
+  return { change, busy };
+}
+
 export function ChangeMovieDialog({
   roomId,
   open,
@@ -394,46 +441,16 @@ export function ChangeMovieDialog({
   currentMovieId: string | null;
 }) {
   const [movieId, setMovieId] = React.useState<string | undefined>(undefined);
-  const [busy, setBusy] = React.useState(false);
+  const { change, busy } = useChangeRoomMovie(roomId, socket, engine);
   React.useEffect(() => {
     if (open) setMovieId(undefined);
   }, [open]);
-
-  const change = async (retry = true): Promise<void> => {
-    if (!socket || !engine?.current || !movieId) return;
-    setBusy(true);
-    try {
-      const ack = (await socket.timeout(8000).emitWithAck(SocketEvents.MOVIE_CHANGE, {
-        roomId,
-        commandId: uuid(),
-        baseVersion: engine.current.version,
-        movieId,
-      })) as CommandAck<PlaybackState>;
-      if (ack.ok) {
-        toast.success('Movie changed for everyone');
-        onOpenChange(false);
-      } else if (ack.error.code === 'STALE' && retry) {
-        setBusy(false);
-        return change(false);
-      } else {
-        toast.error(
-          ack.error.code === 'CONFLICT'
-            ? 'Stop the marathon before changing the movie.'
-            : ack.error.message,
-        );
-      }
-    } catch {
-      toast.error('Connection problem — the movie wasn’t changed.');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{currentMovieId ? 'Change the movie' : 'Pick a movie'}</DialogTitle>
+          <DialogTitle>{currentMovieId ? 'Change the title' : 'Pick a title'}</DialogTitle>
           <DialogDescription>
             It loads paused at the start for everyone in the room.
           </DialogDescription>
@@ -447,7 +464,7 @@ export function ChangeMovieDialog({
             disabled={!movieId || movieId === currentMovieId}
             loading={busy}
             loadingText="Loading movie"
-            onClick={() => void change()}
+            onClick={() => movieId && void change(movieId).then((ok) => ok && onOpenChange(false))}
           >
             Play this for everyone
           </Button>

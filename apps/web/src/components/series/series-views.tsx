@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Clapperboard, Film, Search } from 'lucide-react';
+import { Clapperboard, Film, Search, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
@@ -12,6 +12,7 @@ import { BackLink } from '@/components/ui/back-link';
 import { ErrorState } from '@/components/ui/error-state';
 import { Input } from '@/components/ui/input';
 import { apiFetch, errorMessage } from '@/lib/api';
+import { useMe } from '@/lib/queries/auth';
 import { useGenres } from '@/lib/queries/catalog';
 import { TvSearch } from './tv-metadata';
 import { TvGenreBrowse } from './tv-genres';
@@ -198,14 +199,29 @@ export function SeriesBrowse() {
 
 export function SeriesDetail({ id }: { id: string }) {
   const router = useRouter();
+  const me = useMe();
+  const signedIn = !!me.data && !me.data.isGuest;
   const createPlaylist = useMutation({
-    mutationFn: () =>
+    mutationFn: (target: 'room' | 'playlist') =>
       apiFetch<{ playlist: { id: string } }>(`/playlists/from-series/${encodeURIComponent(id)}`, {
         method: 'POST',
-      }),
-    onSuccess: ({ playlist }) => router.push(`/playlists/${playlist.id}`),
+      }).then(({ playlist }) => ({ playlist, target })),
+    // "Watch together" goes straight to room setup with the series queued as a marathon.
+    onSuccess: ({ playlist, target }) =>
+      router.push(
+        target === 'room'
+          ? `/rooms/new?playlistId=${encodeURIComponent(playlist.id)}`
+          : `/playlists/${playlist.id}`,
+      ),
     onError: (error) => toast.error(errorMessage(error, 'Couldn’t create the playlist.')),
   });
+  const watchTogether = () => {
+    if (!signedIn) {
+      router.push(`/login?next=${encodeURIComponent(`/series/${id}`)}`);
+      return;
+    }
+    createPlaylist.mutate('room');
+  };
   const result = useQuery({
     queryKey: ['series-detail', id],
     queryFn: () =>
@@ -227,12 +243,29 @@ export function SeriesDetail({ id }: { id: string }) {
       {s.description && <p className="mt-4 max-w-3xl text-muted">{s.description}</p>}
       {s.episodes.length > 0 && (
         <div className="mt-6">
-          <Button onClick={() => createPlaylist.mutate()} loading={createPlaylist.isPending}>
-            Create series playlist
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={watchTogether}
+              loading={createPlaylist.isPending && createPlaylist.variables === 'room'}
+              disabled={createPlaylist.isPending}
+            >
+              <Users aria-hidden="true" />
+              Watch series together
+            </Button>
+            {signedIn ? (
+              <Button
+                variant="secondary"
+                onClick={() => createPlaylist.mutate('playlist')}
+                loading={createPlaylist.isPending && createPlaylist.variables === 'playlist'}
+                disabled={createPlaylist.isPending}
+              >
+                Save as playlist
+              </Button>
+            ) : null}
+          </div>
           <p className="mt-2 text-sm text-muted">
-            Sign in to save the episodes in order, then choose the playlist in a room’s marathon
-            panel. Unavailable episodes are skipped during playback.
+            Opens a watch party that plays every episode in order for everyone, with a countdown
+            between episodes. Unavailable episodes are skipped.
           </p>
         </div>
       )}
@@ -256,9 +289,20 @@ export function SeriesDetail({ id }: { id: string }) {
                 )}
               </div>
               {e.movie.playable ? (
-                <Button asChild>
-                  <Link href={`/watch/${e.movie.id}`}>Watch episode</Link>
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild variant="secondary">
+                    <Link
+                      href={`/rooms/new?movieId=${encodeURIComponent(e.movie.id)}`}
+                      aria-label={`Watch season ${e.seasonNumber} episode ${e.episodeNumber} together`}
+                    >
+                      <Users aria-hidden="true" />
+                      Watch together
+                    </Link>
+                  </Button>
+                  <Button asChild>
+                    <Link href={`/watch/${e.movie.id}`}>Watch episode</Link>
+                  </Button>
+                </div>
               ) : (
                 <span className="text-sm text-muted">Not available to watch</span>
               )}

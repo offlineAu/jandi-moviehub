@@ -14,11 +14,35 @@ function mount() {
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MovieboxPlayer id="71446" season="1" episode="1" />
+      <MovieboxPlayer id="71446" season="2" episode="1" />
     </QueryClientProvider>,
   );
 }
 describe('MovieBox native playback', () => {
+  it('requires a source episode for Season 1 and never requests nonexistent episode 14', async () => {
+    vi.mocked(apiFetch)
+      .mockReset()
+      .mockResolvedValue({
+        audioLanguage: 'es',
+        sources: [{ id: '480', resolution: 480, url: '/api/v1/moviebox/media/test' }],
+        englishVtt: null,
+        subtitleStatus: 'UNAVAILABLE',
+      });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MovieboxPlayer id="71446" season="1" episode="14" />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('status').textContent).toContain('Choose a MovieBox source episode');
+    expect(apiFetch).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('MovieBox source part'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('MovieBox source episode'), { target: { value: '8' } });
+    expect(await screen.findByLabelText('Original Spanish audio')).toBeTruthy();
+    expect(apiFetch).toHaveBeenCalledWith('/moviebox/playback', {
+      query: { tvId: '71446', season: '1', episode: '14', sourcePart: 2, sourceEpisode: 8 },
+    });
+    expect(screen.getByText(/Selected source:/).textContent).toContain('Part 2, Episode 8');
+  });
   it('explains a missing API route and lets the user retry after restarting', async () => {
     vi.mocked(apiFetch)
       .mockRejectedValueOnce(

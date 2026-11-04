@@ -1,5 +1,7 @@
 'use client';
 
+import { parseRoomTvTitle } from '@jandi/shared';
+import { SelectedRoomEpisode, TvRoomPicker } from './tv-room-picker';
 import { Ban, Check, Film, Play } from 'lucide-react';
 import * as React from 'react';
 import { Artwork } from '@/components/movies/artwork';
@@ -79,12 +81,21 @@ export function MoviePicker({
     const t = window.setTimeout(() => setQ(text.trim()), 250);
     return () => window.clearTimeout(t);
   }, [text]);
-  const selected = useMovie(value ?? '');
+  const selectedTv = value ? parseRoomTvTitle(value) : null;
+  const selected = useMovie(selectedTv ? '' : (value ?? ''));
   const results = useMovies(
     q ? { q, pageSize: 8 } : { playable: true, sort: 'popularity', pageSize: 8 },
     { enabled: browsing },
   );
 
+  if (value && selectedTv && !browsing)
+    return (
+      <SelectedRoomEpisode
+        value={value}
+        onChange={() => setBrowsing(true)}
+        onRemove={() => onChange(undefined)}
+      />
+    );
   if (value && !browsing) {
     const movie = selected.data;
     return (
@@ -137,8 +148,8 @@ export function MoviePicker({
       <SearchInput
         value={text}
         onValueChange={setText}
-        label="Search movies to watch"
-        placeholder="Search the catalog"
+        label="Search movies or series to watch"
+        placeholder="Search movies or series"
       />
       <p className="mt-2 px-1 text-xs text-muted">{q ? 'Search results' : 'Ready to stream now'}</p>
       {results.isLoading ? (
@@ -169,9 +180,16 @@ export function MoviePicker({
           No titles match “{q}”.
         </p>
       )}
+      <TvRoomPicker
+        query={q}
+        onSelect={(id) => {
+          onChange(id);
+          setBrowsing(false);
+        }}
+      />
       {value ? (
         <Button variant="ghost" size="sm" className="mt-2" onClick={() => setBrowsing(false)}>
-          Keep current movie
+          Keep current title
         </Button>
       ) : null}
     </div>

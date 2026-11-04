@@ -161,3 +161,16 @@ multi-browser Playwright test), behaviour over real networks/latency.
 - API production build and typecheck passed; targeted ESLint and Prettier checks passed.
 - Three Railway configuration files parse as JSON. Docker/container execution, Railway
   deployment and actual Resend inbox delivery have not been verified. Railway sign-in is pending.
+
+## Series watch parties — 2026-11-04
+
+- `pnpm lint`, `pnpm typecheck`: pass (4/4 tasks).
+- `pnpm test`: shared 19, API unit 128 (30 files), web 77 (15 files) passed, incl. new
+  `episode-bar.test.tsx` (3: controller emits `MOVIE_CHANGE` with next episode; non-controller
+  sees "Up next"; controls hidden during marathon).
+- `pnpm test:integration`: 126 passed, 3 failed. New series tests pass (start-at-episode playlist,
+  linked-TV navigation incl. TMDB-down title fallback, availability `movieId`). The 3 failures are
+  pre-existing — `catalog.int.test.ts` (2) and `catalog-tmdb.int.test.ts` (1) fail identically
+  with these changes stashed (catalog count/filter expectations: expected total 14, got 10).
+- `pnpm --filter @jandi/web build`: compiled successfully.
+- Not run: Playwright multi-browser series party.

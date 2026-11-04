@@ -1,3 +1,4 @@
+import type { RoomTvEpisode } from '../room-title';
 import type { ControlPolicy, MarathonStateName, RoomRole, ReactionEmoji } from '../constants';
 
 /**
@@ -50,6 +51,7 @@ export type PlaybackStatus = 'idle' | 'playing' | 'paused' | 'ended';
  * `positionSec + (T - anchorServerTime) / 1000 * rate` while playing.
  */
 export interface PlaybackState {
+  tvEpisode?: RoomTvEpisode | null;
   roomId: string;
   version: number;
   movieId: string | null;

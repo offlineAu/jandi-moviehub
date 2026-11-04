@@ -1,3 +1,4 @@
+import { roomTitleSchema } from '../room-title';
 import { z } from 'zod';
 import {
   CONTROL_POLICIES,
@@ -157,7 +158,7 @@ const roomFields = {
   description: text(0, 280).optional(),
   visibility: z.enum(ROOM_VISIBILITIES),
   password: z.string().min(4).max(64).optional(),
-  movieId: uuidSchema.optional(),
+  movieId: roomTitleSchema.optional(),
   allowGuests: z.boolean(),
   controlPolicy: z.enum(CONTROL_POLICIES),
   maxMembers: z.number().int().min(2).max(100),

@@ -161,13 +161,14 @@ export class PlaylistsService {
   }
 
   /** Snapshot the episode order into a private playlist for the existing room marathon engine. */
-  async fromSeries(user: AuthUser, seriesId: string) {
+  async fromSeries(user: AuthUser, seriesId: string, fromMovieId?: string) {
     const series = await this.prisma.series.findUnique({
       where: { id: seriesId },
       include: {
         episodes: {
           orderBy: [{ seasonNumber: 'asc' }, { episodeNumber: 'asc' }],
-          take: 201,
+          // Without a start point, 201 rows are enough to detect an over-long series.
+          take: fromMovieId ? undefined : 201,
           select: { movieId: true },
         },
       },
@@ -175,7 +176,13 @@ export class PlaylistsService {
     if (!series) throw Errors.notFound('Series');
     if (!series.episodes.length)
       throw Errors.badRequest('EMPTY_SERIES', 'This series has no episodes');
-    if (series.episodes.length > 200)
+    let episodes = series.episodes;
+    if (fromMovieId) {
+      const start = episodes.findIndex((episode) => episode.movieId === fromMovieId);
+      if (start < 0) throw Errors.notFound('Episode');
+      episodes = episodes.slice(start);
+    }
+    if (episodes.length > 200)
       throw Errors.conflict('PLAYLIST_FULL', 'Playlists hold up to 200 episodes');
     const playlist = await this.prisma.playlist.create({
       data: {
@@ -183,7 +190,7 @@ export class PlaylistsService {
         name: series.title.slice(0, 80),
         visibility: 'PRIVATE',
         items: {
-          create: series.episodes.map((episode, position) => ({
+          create: episodes.map((episode, position) => ({
             movieId: episode.movieId,
             position,
             addedById: user.id,

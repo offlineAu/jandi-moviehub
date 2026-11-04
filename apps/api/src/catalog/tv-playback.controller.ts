@@ -48,7 +48,8 @@ export class TvPlaybackController {
           where: { movieId: link.movieId, ...playableAssetWhere() },
         })
       : 0;
-    return { playable: count > 0 };
+    // movieId lets the client open a watch party on the linked, licensed title.
+    return { playable: count > 0, movieId: count > 0 ? link!.movieId : null };
   }
   @Get('tv/:id/seasons/:season/episodes/:episode/playback')
   @RateLimit({ name: 'tv:playback', limit: 120, windowSec: 60, by: 'user' })

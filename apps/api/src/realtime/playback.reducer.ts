@@ -1,4 +1,4 @@
-import { clampRate, expectedPosition, type PlaybackState } from '@jandi/shared';
+import { type RoomTvEpisode, clampRate, expectedPosition, type PlaybackState } from '@jandi/shared';
 
 export type PlaybackAction =
   | { type: 'play'; positionSec?: number }
@@ -6,6 +6,7 @@ export type PlaybackAction =
   | { type: 'seek'; positionSec: number }
   | { type: 'rate'; rate: number }
   | { type: 'load'; movieId: string; mediaAssetId: string; durationSec: number; autoplay: boolean }
+  | { type: 'load-tv'; tvEpisode: RoomTvEpisode; durationSec: number; autoplay: boolean }
   | { type: 'end' }
   | { type: 'unload' };
 
@@ -53,7 +54,7 @@ export function reducePlayback(
     },
   });
   const current = expectedPosition(state, now);
-  const hasMedia = !!state.mediaAssetId;
+  const hasMedia = !!state.mediaAssetId || !!state.tvEpisode;
 
   switch (action.type) {
     case 'play': {
@@ -87,9 +88,21 @@ export function reducePlayback(
         return { ok: false, code: 'INVALID', message: 'Invalid rate' };
       return next({ rate: clampRate(action.rate), positionSec: current, anchorServerTime: now });
     }
+    case 'load-tv':
+      return next({
+        movieId: null,
+        mediaAssetId: null,
+        tvEpisode: action.tvEpisode,
+        durationSec: action.durationSec,
+        status: action.autoplay ? 'playing' : 'paused',
+        positionSec: 0,
+        rate: 1,
+        anchorServerTime: now,
+      });
     case 'load':
       return next({
         movieId: action.movieId,
+        tvEpisode: null,
         mediaAssetId: action.mediaAssetId,
         durationSec: action.durationSec,
         status: action.autoplay ? 'playing' : 'paused',
@@ -105,6 +118,7 @@ export function reducePlayback(
       });
     case 'unload':
       return next({
+        tvEpisode: null,
         movieId: null,
         mediaAssetId: null,
         durationSec: null,

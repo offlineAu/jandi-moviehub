@@ -158,6 +158,38 @@ describe('MovieBox media delivery', () => {
 });
 
 describe('MovieBox free playback', () => {
+  it('does not request nonexistent Part 1 Episode 14 without an explicit source selection', async () => {
+    const fetchMock = network();
+    await expect(
+      new MovieboxController().playback({ ...query, episode: 14 }),
+    ).rejects.toMatchObject({ code: 'MOVIEBOX_SOURCE_SELECTION_REQUIRED' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('uses explicitly selected source coordinates instead of the catalog episode', async () => {
+    const fetchMock = network();
+    await new MovieboxController().playback({
+      ...query,
+      episode: 14,
+      sourcePart: 2,
+      sourceEpisode: 8,
+    });
+    const url = fetchMock.mock.calls
+      .map(([url]) => url)
+      .find((url) => url.includes('/subject/play?'))!;
+    expect(new URL(url).searchParams.get('se')).toBe('2');
+    expect(new URL(url).searchParams.get('ep')).toBe('8');
+  });
+  it.each([
+    { ...query, episode: 14, sourcePart: 2, sourceEpisode: 10 },
+    { ...query, episode: 14, sourcePart: 1 },
+    { ...query, season: 2, sourcePart: 1, sourceEpisode: 1 },
+  ])('rejects invalid explicit source coordinates before calling the provider', async (request) => {
+    const fetchMock = network();
+    await expect(new MovieboxController().playback(request)).rejects.toMatchObject({
+      code: 'MOVIEBOX_INVALID_SOURCE',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it('returns the free MP4 with English WebVTT and requests captions for that MP4 ID', async () => {
     const fetchMock = network();
     const session = await new MovieboxController().playback(query);

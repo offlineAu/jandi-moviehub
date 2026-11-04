@@ -72,3 +72,16 @@ _Decision:_ Build all motion on the existing `motion` package, CSS, and React `<
 fragment shader for the ambient background, rendered at half resolution. Brand violet/pink and
 gradients are kept even though the installed `design-taste-frontend` skill's house rules forbid them.
 _Consequence:_ no new runtime deps; every effect is gated by `useMotionOff()` / `MotionConfig`.
+
+### ADR-12 — Series watch parties reuse the movie pipeline; third-party players stay solo
+
+_Context:_ Users want to watch series together. Episodes reach the app two ways: local `Series`
+episodes / admin-linked TMDB episodes (licensed `Movie` + `MediaAsset`), and third-party sources
+(KissKH iframe, MovieBox) on the TV pages.
+_Decision:_ Watch parties cover only the licensed path. Rooms keep playing one `Movie` at a time;
+"Watch series together" snapshots the series into a playlist and runs it as a marathon, and an
+in-room episode bar uses `series-navigation` + the existing `MOVIE_CHANGE` command for manual
+prev/next (hidden while a marathon owns progression). No schema change. Third-party players are
+not synced: a cross-origin iframe cannot be driven by the server-authoritative sync engine, and
+those sources carry no verified license (CLAUDE.md "Metadata ≠ license").
+_Consequence:_ TV episodes become watch-party capable as soon as an admin links licensed media.

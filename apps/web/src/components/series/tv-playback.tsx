@@ -4,7 +4,7 @@ import * as React from 'react';
 import { providerEpisode } from '@jandi/shared';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Maximize, Play, RotateCw } from 'lucide-react';
+import { Maximize, Play, RotateCw, Users } from 'lucide-react';
 import { LogoMark } from '@/components/layout/logo';
 import { Artwork } from '@/components/movies/artwork';
 import { VideoPlayer } from '@/components/player';
@@ -56,7 +56,7 @@ export function TvPlayback({
   const me = useMe();
   const availability = useQuery({
     queryKey: ['tv-playable', id, season, episode],
-    queryFn: () => apiFetch<{ playable: boolean }>(`${path}/availability`),
+    queryFn: () => apiFetch<{ playable: boolean; movieId?: string | null }>(`${path}/availability`),
     retry: false,
   });
   const playback = useQuery({
@@ -72,6 +72,20 @@ export function TvPlayback({
         <div className="overflow-hidden rounded-2xl shadow-[0_40px_120px_-40px_rgb(168_85_247/0.35)] ring-1 ring-white/10">
           <VideoPlayer sources={playback.data.sources} title={title} mode="solo" autoPlay />
         </div>
+        {availability.data.movieId ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-4 py-2.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
+            <p className="text-sm text-muted">
+              Watch this episode in sync with friends — the host can move the room to the next
+              episode.
+            </p>
+            <Button asChild size="sm">
+              <Link href={`/rooms/new?movieId=${encodeURIComponent(availability.data.movieId)}`}>
+                <Users aria-hidden="true" />
+                Watch together
+              </Link>
+            </Button>
+          </div>
+        ) : null}
         {belowPlayer}
       </>
     );
@@ -88,6 +102,17 @@ export function TvPlayback({
             <option value="moviebox">MovieBox · Original Spanish</option>
           </NativeSelect>
         </div>
+      )}
+      {provider === 'kisskh' && !availability.data?.playable && (
+        <ExternalEpisodes
+          key={`${id}-${season}-${episode}`}
+          title={seriesTitle}
+          season={sourceEpisode.season}
+          episode={sourceEpisode.episode}
+          requireSourceSelection={id === '71446' && season === '1'}
+          onPlayerChange={setExternalPlayer}
+          onStatusChange={setExternalStatus}
+        />
       )}
       {provider === 'moviebox' ? (
         <MovieboxPlayer
@@ -206,16 +231,6 @@ export function TvPlayback({
         </>
       )}
       {belowPlayer}
-      {provider === 'kisskh' && !availability.data?.playable && (
-        <ExternalEpisodes
-          key={`${id}-${season}-${episode}`}
-          title={seriesTitle}
-          season={sourceEpisode.season}
-          episode={sourceEpisode.episode}
-          onPlayerChange={setExternalPlayer}
-          onStatusChange={setExternalStatus}
-        />
-      )}
     </>
   );
 }

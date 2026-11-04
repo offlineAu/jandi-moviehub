@@ -5,6 +5,9 @@ import {
   type RoomSnapshot,
   SocketEvents,
 } from '@jandi/shared';
+import { MovieboxService } from '../src/catalog/moviebox.controller';
+import { PlaybackService } from '../src/realtime/playback.service';
+import { vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { io, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -70,6 +73,75 @@ describe('real-time playback sync (integration)', () => {
     commandId: randomUUID(),
     baseVersion,
     ...extra,
+  });
+
+  it('synchronizes TV episodes, restores them from storage, and enforces host controls', async () => {
+    const provider = vi
+      .spyOn(t.app.get(MovieboxService), 'playback')
+      .mockResolvedValue({
+        durationSec: 3059,
+        audioLanguage: 'es',
+        sources: [],
+        englishVtt: null,
+        subtitleStatus: 'UNAVAILABLE',
+      });
+    try {
+      const host = await registerUser(t);
+      const viewer = await registerUser(t);
+      const created = await host.agent
+        .post('/api/v1/rooms')
+        .send({
+          name: 'TV sync test',
+          visibility: 'PUBLIC',
+          controlPolicy: 'HOSTS',
+          movieId: 'moviebox:71446:2:1',
+        })
+        .expect(201);
+      const roomId = created.body.room.id;
+      await viewer.agent.post(`/api/v1/rooms/${roomId}/join`).send({}).expect(200);
+      const a = await joinSocket(host, roomId);
+      const b = await joinSocket(viewer, roomId);
+      const state = await t.app.get(PlaybackService).getState(roomId);
+      expect(state).toMatchObject({
+        movieId: null,
+        mediaAssetId: null,
+        tvEpisode: { tvId: '71446', season: 2, episode: 1 },
+        status: 'paused',
+      });
+      const denied = await emitAck<Ack>(
+        b.socket,
+        SocketEvents.PLAYBACK_PLAY,
+        cmd(roomId, state.version),
+      );
+      expect(denied).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+      const playing = await emitAck<Ack>(
+        a.socket,
+        SocketEvents.PLAYBACK_PLAY,
+        cmd(roomId, state.version),
+      );
+      expect(playing).toMatchObject({ ok: true, data: { status: 'playing' } });
+      if (!playing.ok) throw new Error('Play failed');
+      const seek = await emitAck<Ack>(
+        a.socket,
+        SocketEvents.PLAYBACK_SEEK,
+        cmd(roomId, playing.data.version, { positionSec: 120 }),
+      );
+      expect(seek).toMatchObject({ ok: true, data: { positionSec: 120 } });
+      await t.redis.del(`pb:${roomId}`);
+      const restored = await t.app.get(PlaybackService).getState(roomId);
+      expect(restored.tvEpisode).toEqual(state.tvEpisode);
+      const changed = await emitAck<Ack>(
+        a.socket,
+        SocketEvents.MOVIE_CHANGE,
+        cmd(roomId, restored.version, { movieId: 'moviebox:71446:2:2' }),
+      );
+      expect(changed).toMatchObject({
+        ok: true,
+        data: { status: 'paused', positionSec: 0, tvEpisode: { episode: 2 } },
+      });
+    } finally {
+      provider.mockRestore();
+    }
   });
 
   it('rejects unauthenticated and cross-origin sockets', async () => {

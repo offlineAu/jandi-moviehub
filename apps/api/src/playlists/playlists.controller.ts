@@ -19,10 +19,12 @@ import {
   reorderPlaylistSchema,
   updatePlaylistSchema,
 } from '@jandi/shared';
-import type { z } from 'zod';
+import { z } from 'zod';
 import { type AuthUser, CurrentUser, Public } from '../common/auth-context';
 import { ValidBody, ValidQuery } from '../common/zod';
 import { PlaylistsService } from './playlists.service';
+
+const fromSeriesQuery = z.object({ fromMovieId: z.uuid().optional() });
 
 @ApiTags('playlists')
 @Controller('playlists')
@@ -51,9 +53,14 @@ export class PlaylistsController {
     return { playlist: await this.playlists.create(user, body) };
   }
 
+  /** `?fromMovieId=` starts the snapshot at that episode (e.g. "watch together from here"). */
   @Post('from-series/:id')
-  async fromSeries(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
-    return { playlist: await this.playlists.fromSeries(user, id) };
+  async fromSeries(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @ValidQuery(fromSeriesQuery) query: z.infer<typeof fromSeriesQuery>,
+  ) {
+    return { playlist: await this.playlists.fromSeries(user, id, query.fromMovieId) };
   }
 
   @Public()

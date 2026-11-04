@@ -1,3 +1,4 @@
+import { parseRoomTvTitle } from '@jandi/shared';
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import {
   type CreateRoomInput,
@@ -228,7 +229,7 @@ export class RoomsService implements OnModuleInit {
   // ───────── CRUD ─────────
 
   async create(user: AuthUser, input: CreateRoomInput) {
-    if (input.movieId)
+    if (input.movieId && !parseRoomTvTitle(input.movieId))
       await this.prisma.movie.findUniqueOrThrow({ where: { id: input.movieId } }).catch(() => {
         throw Errors.badRequest('INVALID_MOVIE', 'Movie not found');
       });
@@ -247,13 +248,18 @@ export class RoomsService implements OnModuleInit {
             allowGuests: input.allowGuests,
             controlPolicy: input.controlPolicy,
             maxMembers: input.maxMembers ?? (await this.settings.get('rooms.maxMembersDefault')),
-            movieId: input.movieId,
+            movieId: input.movieId && !parseRoomTvTitle(input.movieId) ? input.movieId : undefined,
             scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : null,
             members: { create: { userId: user.id, role: 'HOST' } },
           },
           include: roomInclude,
         });
-        await this.events.roomCreated(room.id, user.id, input.movieId ?? null);
+        try {
+          await this.events.roomCreated(room.id, user.id, input.movieId ?? null);
+        } catch (error) {
+          await this.prisma.room.delete({ where: { id: room.id } });
+          throw error;
+        }
         if (room.scheduledFor) await this.scheduleReminder(room.id, room.scheduledFor);
         return this.toDto(room, user.id, { onlineCount: 0 });
       } catch (error) {

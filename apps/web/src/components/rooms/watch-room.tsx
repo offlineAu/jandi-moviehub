@@ -1,4 +1,5 @@
 'use client';
+import { playbackAssetKey } from '@jandi/shared';
 
 import {
   ArrowLeft,
@@ -38,6 +39,7 @@ import { errorMessage } from '@/lib/api';
 import { useMe } from '@/lib/queries/auth';
 import { useCloseRoom, useLeaveRoom, useRoomPlaybackSources, type Room } from '@/lib/queries/rooms';
 import { cn, formatRuntime } from '@/lib/utils';
+import { EpisodeBar } from './episode-bar';
 import { Artwork } from '@/components/movies/artwork';
 import { ChatPanel } from './chat-panel';
 import {
@@ -87,7 +89,7 @@ export function WatchRoom({ room }: { room: Room }) {
   const isHost = myRole === 'HOST';
   const isMod = myRole === 'HOST' || myRole === 'COHOST';
   const marathonActive = !!marathon && ACTIVE_MARATHON_STATES.includes(marathon.state);
-  const assetKey = playback?.mediaAssetId ?? null;
+  const assetKey = playbackAssetKey(playback);
   const sources = useRoomPlaybackSources(room.id, assetKey, session.joined);
 
   // Chat unread badge: count arrivals while chat isn't visible.
@@ -161,7 +163,7 @@ export function WatchRoom({ room }: { room: Room }) {
           <p className="font-display text-xl font-semibold">
             {marathon && marathon.state === 'READY'
               ? 'The marathon is ready'
-              : 'No movie on screen yet'}
+              : 'Nothing on screen yet'}
           </p>
           <p className="text-sm text-muted">
             {marathon && marathon.state === 'READY'
@@ -175,7 +177,7 @@ export function WatchRoom({ room }: { room: Room }) {
           {canControl && !marathonActive ? (
             <Button onClick={() => setMovieOpen(true)}>
               <Film aria-hidden="true" />
-              Pick a movie
+              Pick a title
             </Button>
           ) : null}
         </div>
@@ -356,7 +358,7 @@ export function WatchRoom({ room }: { room: Room }) {
             {canControl && !marathonActive ? (
               <DropdownMenuItem onSelect={() => setMovieOpen(true)}>
                 <Film aria-hidden="true" />
-                {assetKey ? 'Change movie' : 'Pick a movie'}
+                {assetKey ? 'Change title' : 'Pick a title'}
               </DropdownMenuItem>
             ) : null}
             {isHost ? (
@@ -428,6 +430,19 @@ export function WatchRoom({ room }: { room: Room }) {
                 : `Only ${session.controlPolicy === 'HOST_ONLY' ? 'the host' : 'hosts'} can play, pause or seek. Volume and captions are yours.`}
             </p>
           </div>
+          {assetKey ? (
+            <div className={cn('px-3 pb-3 sm:px-6', !(theater && desktop) && 'mx-auto max-w-5xl')}>
+              <EpisodeBar
+                roomId={room.id}
+                movieId={playback?.movieId ?? null}
+                status={playback?.status}
+                socket={session.socket}
+                engine={engine}
+                canControl={canControl}
+                marathonActive={marathonActive}
+              />
+            </div>
+          ) : null}
           {sourcesMovie ? (
             <div
               className={cn(
@@ -447,7 +462,7 @@ export function WatchRoom({ room }: { room: Room }) {
                 <p className="text-xs text-muted">Now showing</p>
                 <h2 className="font-display text-lg font-semibold">
                   <Link
-                    href={`/movies/${sourcesMovie.id}`}
+                    href={sources.data?.detailHref ?? `/movies/${sourcesMovie.id}`}
                     className="rounded hover:underline focus-ring"
                   >
                     {sourcesMovie.title}
@@ -472,9 +487,9 @@ export function WatchRoom({ room }: { room: Room }) {
                     {sourcesMovie.overview}
                   </p>
                 ) : null}
-                {sources.data?.sources[0]?.license.attribution ? (
+                {sources.data?.sources[0]?.license?.attribution ? (
                   <p className="mt-1.5 text-xs text-subtle">
-                    {sources.data.sources[0].license.attribution}
+                    {sources.data.sources[0].license?.attribution}
                   </p>
                 ) : null}
               </div>

@@ -95,7 +95,8 @@ export interface FriendEntry {
 }
 
 export interface RoomPlaybackSources {
-  movieId: string;
+  detailHref?: string;
+  movieId: string | null;
   movie: MovieSummary;
   sources: PlaybackSource[];
 }

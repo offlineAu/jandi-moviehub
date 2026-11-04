@@ -310,3 +310,19 @@ the session); the E2E stack uses web :3400 / API :4400.
 ### MovieBox original Spanish + English captions (2026-11-02)
 
 Implemented the API adapter and native player for the explicit Money Heist mapping. Provider free-access policy and individual unlocked MP4 streams are enforced. Captions are requested against the chosen MP4 ID and converted to WebVTT. Live verification remains blocked by provider DNS/network access. See MOVIEBOX_INTEGRATION.md for behavior and local checks.
+
+### Series watch parties (2026-11-04)
+
+- Series detail: "Watch series together" creates the ordered playlist and opens room setup with it
+  as a marathon; each playable episode gets "Watch together" (room on that episode). "Save as
+  playlist" keeps the old flow.
+- TV episode page: "Watch together" when the episode has admin-linked licensed media
+  (availability now returns `movieId`).
+- Room: new `EpisodeBar` under the player shows the show and S·E; controllers get Previous/Next
+  episode (Next highlighted when the episode ends), switching the title for everyone via
+  `MOVIE_CHANGE`. Hidden during an active marathon.
+- API: `series-navigation` reports `kind`/`current` and falls back to linked TMDB episodes;
+  `from-series` accepts `?fromMovieId=`. `useChangeRoomMovie` hook extracted from
+  `ChangeMovieDialog`.
+- Not covered: third-party (KissKH/MovieBox) episodes — see ADR-12. No browser/E2E run of a
+  multi-user series party yet.

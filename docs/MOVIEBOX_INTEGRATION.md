@@ -137,3 +137,25 @@ subtitle cue loading, not an independent auditory language check.
 Validation: 18 API unit tests and 4 frontend tests passed; API build, web
 typecheck, and targeted API/web/shared lint passed. The API was left running on
 port 4000 with the fixed build; local startup log: `/tmp/jandi-api-playback.log`.
+
+## Catalog Season 1 Episode 14 follow-up — 2026-11-04
+
+The reported production URL requests catalog S1E14 directly. Provider Part 1
+lists 13 episodes; catalog Season 1 has 15 episodes in a different cut. An exact
+one-to-one mapping has not been verified. Do not infer Part 2 Episode 1 by
+subtracting 13; this would silently choose a different cut of the story.
+
+The solo MovieBox UI now requires an explicit Part 1/2 and episode choice for
+Season 1. The catalog title remains visible with a source-selection notice.
+The API accepts bounded sourcePart/sourceEpisode parameters only for Season 1,
+rejects incomplete/out-of-range choices, and rejects automatic S1E14/15 lookup
+with MOVIEBOX_SOURCE_SELECTION_REQUIRED (400) before making provider requests.
+KissKH likewise requires explicit source selection for this recut season, with
+its source controls now above the player so they are visible before playback.
+KissKH remains the default provider.
+
+Validation: 23 mocked MovieBox API tests and 8 targeted frontend tests passed;
+frontend/API typechecks and targeted lint passed. The production endpoint could
+not be fetched from this environment: curl returned DNS resolution failure and
+the web tool could not access it. These changes have not been deployed, and no
+live Season 1 episode playback or exact catalog S1E14 correspondence is claimed.

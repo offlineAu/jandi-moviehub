@@ -664,6 +664,7 @@ model RoomInvite {
 
 /// Durable snapshot of the authoritative playback state (live copy lives in Redis).
 model RoomPlaybackState {
+  tvEpisode    Json?       @map("tv_episode")
   roomId       String      @id @map("room_id") @db.Uuid
   version      Int         @default(0)
   movieId      String?     @map("movie_id") @db.Uuid

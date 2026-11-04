@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiFetch, isApiError } from '@/lib/api';
-import { useMovie, usePlayback } from '@/lib/queries/catalog';
+import { useMovie, usePlayback, useSeriesNavigation } from '@/lib/queries/catalog';
 import { saveProgress, useLibraryStatus } from '@/lib/queries/library';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { qk } from '@/lib/queries/keys';
@@ -101,17 +101,7 @@ function Watch({ id }: { id: string }) {
     retry: false,
   });
   const status = useLibraryStatus(id);
-  const navigation = useQuery({
-    queryKey: ['series-navigation', id],
-    queryFn: () =>
-      apiFetch<{
-        navigation: {
-          series: { id: string; title: string };
-          previous: { movieId: string; title: string; playable: boolean } | null;
-          next: { movieId: string; title: string; playable: boolean } | null;
-        } | null;
-      }>(`/movies/${encodeURIComponent(id)}/series-navigation`),
-  });
+  const navigation = useSeriesNavigation(id);
   const playerRef = React.useRef<VideoPlayerHandle>(null);
   const [theater, setTheater] = React.useState(false);
   const [externalAttempt, setExternalAttempt] = React.useState(0);

@@ -32,9 +32,8 @@ describe('series and episodes', () => {
       await admin.agent.put(endpoint).send({ movieId: unplayable.id, confirmed: true }).expect(400);
       await admin.agent.put(endpoint).send({ movieId: movie.id, confirmed: true }).expect(200);
       expect(
-        (await request(t.app.getHttpServer()).get(`${base}/availability`).expect(200)).body
-          .playable,
-      ).toBe(true);
+        (await request(t.app.getHttpServer()).get(`${base}/availability`).expect(200)).body,
+      ).toEqual({ playable: true, movieId: movie.id });
       await request(t.app.getHttpServer()).get(`${base}/playback`).expect(401);
       const response = await user.agent.get(`${base}/playback`).expect(200);
       expect(response.headers['cache-control']).toContain('no-store');
@@ -44,9 +43,8 @@ describe('series and episodes', () => {
         data: { status: 'DISABLED' },
       });
       expect(
-        (await request(t.app.getHttpServer()).get(`${base}/availability`).expect(200)).body
-          .playable,
-      ).toBe(false);
+        (await request(t.app.getHttpServer()).get(`${base}/availability`).expect(200)).body,
+      ).toEqual({ playable: false, movieId: null });
       await user.agent.get(`${base}/playback`).expect(404);
       await user.agent.delete(endpoint).expect(403);
       await admin.agent.delete(endpoint).expect(204);
@@ -153,6 +151,88 @@ describe('series and episodes', () => {
     ]);
     await other.agent.get(`/api/v1/playlists/${playlist.id}`).expect(404);
   });
+  it('starts a series playlist at a chosen episode for watching together from there', async () => {
+    const admin = await registerUser(t, { role: 'ADMIN' });
+    const user = await registerUser(t);
+    const series = (
+      await admin.agent.post('/api/v1/admin/series').send({ title: 'Resume series' }).expect(201)
+    ).body.series;
+    const movies = [];
+    for (const episodeNumber of [1, 2, 3]) {
+      const movie = await createPlayableMovie(t.prisma, { title: `Ep ${episodeNumber}` });
+      movies.push(movie);
+      await admin.agent
+        .post(`/api/v1/admin/series/${series.id}/episodes`)
+        .send({ movieId: movie.id, seasonNumber: 1, episodeNumber })
+        .expect(201);
+    }
+    const playlist = (
+      await user.agent
+        .post(`/api/v1/playlists/from-series/${series.id}?fromMovieId=${movies[1]!.id}`)
+        .expect(201)
+    ).body.playlist;
+    expect(playlist.items.map((item: { movie: { id: string } }) => item.movie.id)).toEqual([
+      movies[1]!.id,
+      movies[2]!.id,
+    ]);
+    const outsider = await createPlayableMovie(t.prisma, { title: 'Not an episode' });
+    await user.agent
+      .post(`/api/v1/playlists/from-series/${series.id}?fromMovieId=${outsider.id}`)
+      .expect(404);
+    await user.agent
+      .post(`/api/v1/playlists/from-series/${series.id}?fromMovieId=nope`)
+      .expect(400);
+  });
+  it('navigates linked TV episodes so a room can move to the next authorized episode', async () => {
+    const first = await createPlayableMovie(t.prisma, { title: 'Pilot' });
+    const second = await createPlayableMovie(t.prisma, { title: 'Second' });
+    const finale = await createUnplayableMovie(t.prisma, 'Finale');
+    await t.prisma.tvEpisodeMedia.createMany({
+      data: [
+        { tmdbId: 500, season: 1, episode: 1, movieId: first.id },
+        { tmdbId: 500, season: 1, episode: 2, movieId: second.id },
+        { tmdbId: 500, season: 2, episode: 1, movieId: finale.id },
+        // Another show must never leak into this one's sequence.
+        { tmdbId: 501, season: 1, episode: 3, movieId: first.id },
+      ],
+    });
+    const server = request(t.app.getHttpServer());
+    // TMDB is not configured in tests: the title falls back instead of failing navigation.
+    const pilot = (await server.get(`/api/v1/movies/${first.id}/series-navigation`).expect(200))
+      .body.navigation;
+    expect(pilot).toMatchObject({
+      kind: 'tv',
+      series: { id: '500', title: 'TV series' },
+      current: { seasonNumber: 1, episodeNumber: 1 },
+      previous: null,
+      next: { movieId: second.id, seasonNumber: 1, episodeNumber: 2, playable: true },
+    });
+    const middle = (await server.get(`/api/v1/movies/${second.id}/series-navigation`).expect(200))
+      .body.navigation;
+    expect(middle.previous).toMatchObject({ movieId: first.id });
+    expect(middle.next).toMatchObject({
+      movieId: finale.id,
+      seasonNumber: 2,
+      episodeNumber: 1,
+      playable: false,
+    });
+    const tv = t.app.get(TvMetadataService);
+    const detail = vi.spyOn(tv, 'detail').mockResolvedValue({
+      series: { id: 500, title: 'Linked show', posterUrl: null },
+    } as Awaited<ReturnType<TvMetadataService['detail']>>);
+    try {
+      expect(
+        (await server.get(`/api/v1/movies/${second.id}/series-navigation`).expect(200)).body
+          .navigation.series.title,
+      ).toBe('Linked show');
+    } finally {
+      detail.mockRestore();
+    }
+    const loose = await createPlayableMovie(t.prisma, { title: 'Standalone' });
+    expect(
+      (await server.get(`/api/v1/movies/${loose.id}/series-navigation`).expect(200)).body,
+    ).toEqual({ navigation: null });
+  });
   it('limits creation to admins and exposes ordered episodes with current license availability', async () => {
     const admin = await registerUser(t, { role: 'ADMIN' });
     const user = await registerUser(t);
@@ -202,7 +282,11 @@ describe('series and episodes', () => {
     const navigation = await request(t.app.getHttpServer())
       .get(`/api/v1/movies/${blocked.id}/series-navigation`)
       .expect(200);
-    expect(navigation.body.navigation.next).toMatchObject({ movieId: playable.id, playable: true });
+    expect(navigation.body.navigation).toMatchObject({
+      kind: 'series',
+      current: { seasonNumber: 1, episodeNumber: 1 },
+      next: { movieId: playable.id, playable: true },
+    });
     const list = await request(t.app.getHttpServer()).get('/api/v1/series?q=moonlight').expect(200);
     expect(list.body.items).toMatchObject([{ id: series.id, episodeCount: 2 }]);
     const country = await request(t.app.getHttpServer())

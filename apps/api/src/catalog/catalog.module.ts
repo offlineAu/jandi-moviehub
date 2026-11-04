@@ -1,4 +1,4 @@
-import { MovieboxController } from './moviebox.controller';
+import { MovieboxController, MovieboxService } from './moviebox.controller';
 import { Module } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { AppConfig } from '../config/app-config';
@@ -38,6 +38,7 @@ import { ExternalSeriesController } from './external-series.controller';
     MovieboxController,
   ],
   providers: [
+    MovieboxService,
     LocalCatalogProvider,
     {
       provide: AVAILABILITY_PROVIDER,
@@ -107,6 +108,6 @@ import { ExternalSeriesController } from './external-series.controller';
     },
     CatalogService,
   ],
-  exports: [CatalogService, MediaSigner, LocalCatalogProvider],
+  exports: [MovieboxService, TvMetadataService, CatalogService, MediaSigner, LocalCatalogProvider],
 })
 export class CatalogModule {}

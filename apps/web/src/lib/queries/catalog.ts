@@ -96,3 +96,32 @@ export function usePlayback(id: string, enabled = true) {
     retry: false,
   });
 }
+
+export type EpisodeLink = {
+  movieId: string;
+  title: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  playable: boolean;
+};
+export type SeriesNavigation = {
+  /** `series`: a local series; `tv`: admin-linked TMDB TV episodes (series.id is the TMDB id). */
+  kind: 'series' | 'tv';
+  series: { id: string; title: string };
+  current: { seasonNumber: number; episodeNumber: number };
+  previous: EpisodeLink | null;
+  next: EpisodeLink | null;
+};
+
+/** Where a movie sits in a series, if it is an episode — drives prev/next solo and in rooms. */
+export function useSeriesNavigation(movieId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['series-navigation', movieId],
+    queryFn: () =>
+      apiFetch<{ navigation: SeriesNavigation | null }>(
+        `/movies/${encodeURIComponent(movieId!)}/series-navigation`,
+      ),
+    enabled: !!movieId,
+    staleTime: 60_000,
+  });
+}

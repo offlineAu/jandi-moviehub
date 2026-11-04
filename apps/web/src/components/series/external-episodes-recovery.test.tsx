@@ -9,6 +9,43 @@ vi.mock('@/lib/api', async (original) => ({
   apiFetch: vi.fn(),
 }));
 describe('external episode lookup recovery', () => {
+  it('requires a source choice for the recut first season instead of guessing episode 14', async () => {
+    vi.mocked(apiFetch)
+      .mockReset()
+      .mockImplementation(async (path) => {
+        if (path === '/external-series/search')
+          return { items: [{ id: 2510, title: 'Money Heist - Season 1' }] };
+        return {
+          series: {
+            id: 2510,
+            title: 'Money Heist - Season 1',
+            episodes: [{ id: 57281, number: 1 }],
+          },
+        };
+      });
+    const onPlayerChange = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ExternalEpisodes
+          title="Money Heist"
+          season={1}
+          episode={14}
+          requireSourceSelection
+          onPlayerChange={onPlayerChange}
+          onStatusChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    const button = await screen.findByRole('button', { name: 'Episode 1' });
+    expect(onPlayerChange).not.toHaveBeenCalledWith(expect.objectContaining({ id: 57281 }));
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(onPlayerChange).toHaveBeenCalledWith({
+        id: 57281,
+        title: 'Money Heist - Season 1 episode 1',
+      }),
+    );
+  });
   it.each(['search', 'detail'])(
     'retries a failed %s lookup and selects the episode',
     async (stage) => {
