@@ -1,5 +1,21 @@
 # Progress Log
 
+## 2026-11-04 — Free production deployment
+
+- Published https://jandi-moviehub.vercel.app in the selected Hobby workspace and deployed
+  the API and Redis on Render Free in Singapore. Neon remains on Free; no paid upgrade made.
+- Corrected the API compiler's heap limit separately from its runtime limit. Render build,
+  startup migrations and readiness pass. Vercel production build and alias assignment pass.
+- Live browser checks pass for login, cookie-backed API calls, room creation, guest join,
+  cross-domain WebSockets, chat delivery across two browsers and logout. The first chat
+  attempt did not reach the guest; the subsequent run passed after allowing connection setup.
+  Temporary test users and room were removed. Actual media playback was not tested.
+- Resend is configured, but the supplied key belongs to the original account email; the test
+  recipient was rejected. Email delivery remains unverified pending the user's choice.
+- Added `pnpm deploy:web` to upload a committed source archive instead of local build caches.
+  Vercel GitHub auto-deploy needs a GitHub Login Connection in the new account. See
+  FREE_DEPLOYMENT.md for resource IDs, verification and remaining free-tier limits.
+
 ## 2026-11-04 — Vercel project created
 
 - Verified the user's selected Vercel account (`pearljanoplo-9385`) and its Hobby workspace.

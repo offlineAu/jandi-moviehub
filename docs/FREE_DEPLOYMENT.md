@@ -1,6 +1,6 @@
 # Free deployment setup
 
-Prepared on 2026-11-03. The website is not live yet.
+Live as of 2026-11-04: https://jandi-moviehub.vercel.app.
 
 ## Current state
 
@@ -14,14 +14,17 @@ Prepared on 2026-11-03. The website is not live yet.
 - Vercel project `jandi-moviehub` was created on 2026-11-04 in the user's chosen
   `pearljanoplo-9385` Hobby workspace and linked locally. Project ID:
   `prj_aX7DH03GgB15qPT7FPS5T9dNclIE`. Settings: Next.js, Node 24.x, root `apps/web`,
-  shared-package build before frontend build, and frozen-lockfile pnpm install. No deployment
-  has been created yet. The previous workspace had refused project creation due to a fair-use
-  block; no paid upgrade was attempted.
-- Render CLI is installed temporarily under `/private/tmp/jandi-render-cli`. Its browser
-  authorization is pending. Backend and Redis have not been provisioned.
+  shared-package build before frontend build, and frozen-lockfile pnpm install. Production
+  deployment `dpl_5zH5bPFqBapd2wnbKRk5TKMGnHpT` is ready and publicly accessible.
+- Render API `srv-dbli9o942hec738afj7g` is live at
+  `https://jandi-moviehub-api.onrender.com`; Key Value instance
+  `red-dbli9du1egvs73fcdhd0` is available. Both are explicitly on Free in Singapore.
+  Redis has no public IP allowlist and uses `noeviction`. The original empty Redis instance
+  was replaced after a connection credential appeared in CLI diagnostic output.
 - Netlify is no longer needed now that the Vercel project exists. No Netlify site was created.
-- Real email delivery still needs a Resend API key. With no verified sending domain, only
-  the Resend account email can receive messages from `onboarding@resend.dev`.
+- Resend sending key is configured. Its account email is `janoplo.airljoriz@gmail.com`.
+  Resend rejected a test to the user's initially supplied other email (HTTP 403). A test to
+  the authorized account address is awaiting confirmation. There is no verified sending domain.
 
 ## Backend and Redis
 
@@ -41,7 +44,9 @@ Before deployment, provide the values marked `sync: false` through Render's sett
 | `PUBLIC_API_URL`        | Render backend HTTPS origin                               |
 | `RESEND_API_KEY`        | Sending key from Resend; do not commit or paste into chat |
 
-Redis connection and media signing secret are supplied by the Blueprint. Keep the sender
+The deployed service has its Redis connection, generated media signing secret, database,
+Resend key and existing TMDB credentials configured in Render. A future Blueprint deployment
+can supply the Redis connection and signing secret automatically. Keep the sender
 `Jandi MovieHub <onboarding@resend.dev>` until a domain is verified. Add TMDB credentials
 separately if live catalog metadata is desired. Do not copy the entire local `.env`.
 
@@ -57,8 +62,8 @@ pnpm --filter @jandi/shared build && pnpm --filter @jandi/web build
 Configure these before building:
 
 ```dotenv
-API_INTERNAL_URL=https://YOUR-API.onrender.com
-NEXT_PUBLIC_WS_URL=https://YOUR-API.onrender.com
+API_INTERNAL_URL=https://jandi-moviehub-api.onrender.com
+NEXT_PUBLIC_WS_URL=https://jandi-moviehub-api.onrender.com
 ```
 
 REST requests use the Next.js rewrite and keep the HttpOnly cookie on the frontend's domain.
@@ -73,8 +78,29 @@ limits of this test deployment; movie files need separate persistent storage bef
 on uploads. Resend without a domain cannot send verification/reset emails to other users.
 Do not select paid plans to remove these limits; the current budget is zero.
 
-Before sharing, verify signup/email/reset, two-browser watch-party synchronization, logout,
-reconnection, and the backend's readiness endpoint through the frontend proxy.
+Live checks passed: public homepage, loaded TMDB catalog (129 movie links in the checked page),
+database/Redis readiness through Vercel, browser login, host room creation, guest joining,
+two-browser live chat over direct WebSockets, and logout/session invalidation. Temporary test
+users and their room were removed. Media playback and signup/reset email delivery have not
+been verified live. Screenshots and smoke-test results are in ignored `.data/deployment/`.
+
+## Publishing updates
+
+Commit the intended changes, then run `pnpm deploy:web`. It uploads a clean Git archive of HEAD
+using the existing local Vercel project link. `pnpm deploy:web --check` validates source
+packaging without requesting a deployment. This avoids uploading local caches, media and env
+files; the native CLI's first upload scan traversed a large local Turbo cache.
+
+The Vercel GitHub link could not be established because `pearljanoplo-9385` needs a GitHub
+Login Connection in Vercel settings first. The current deployment used the CLI and remains
+public. Until that connection is added, do not assume a GitHub push deploys the website.
+Render was created from the public repository URL; the successful API deployment was
+triggered explicitly with its CLI. To deploy backend changes, use
+`render deploys create srv-dbli9o942hec738afj7g --output json --confirm` after pushing.
+
+API compilation needs more memory than the running process: the build command sets a 2 GB
+Node heap for the compiler, while the API runtime retains its 384 MB heap limit. This does
+not change the Free compute plan.
 
 ## Neon agent tooling
 
