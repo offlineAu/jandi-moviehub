@@ -1,6 +1,6 @@
 import { MovieboxService } from '../catalog/moviebox.controller';
 import { TvMetadataService } from '../catalog/tv.service';
-import { roomTvTitle } from '@jandi/shared';
+import { providerCatalogEpisode, roomTvTitle } from '@jandi/shared';
 import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AllowGuest, type AuthUser, CurrentUser } from '../common/auth-context';
@@ -38,24 +38,30 @@ export class RealtimeController {
     const state = await this.playback.getState(roomId);
     if (state.tvEpisode) {
       const episode = state.tvEpisode;
+      const coordinate =
+        episode.numbering === 'provider'
+          ? providerCatalogEpisode(episode.season, episode.episode)
+          : { season: episode.season, episode: episode.episode };
       const [session, { series }, detail] = await Promise.all([
         this.moviebox.playback(episode),
         this.tv.detail(Number(episode.tvId)),
-        this.tv.episode(Number(episode.tvId), episode.season, episode.episode),
+        coordinate
+          ? this.tv.episode(Number(episode.tvId), coordinate.season, coordinate.episode)
+          : Promise.resolve(null),
       ]);
-      const title = `${series.title} · S${episode.season} E${episode.episode} · ${detail.episode!.title}`;
+      const title = `${series.title} · ${episode.numbering === 'provider' ? 'Part' : 'S'}${episode.season} E${episode.episode}${detail?.episode?.title ? ` · ${detail.episode.title}` : ''}`;
       return {
         movieId: null,
         tvEpisode: episode,
-        detailHref: `/watch/tv/${episode.tvId}/season/${episode.season}/episode/${episode.episode}`,
+        detailHref: `/watch/tv/${episode.tvId}/season/${episode.season}/episode/${episode.episode}${episode.numbering === 'provider' ? '?provider=moviebox&numbering=provider' : ''}`,
         movie: {
           id: roomTvTitle(episode),
           title,
           posterUrl: series.posterUrl,
           backdropUrl: series.backdropUrl,
-          overview: detail.episode!.overview,
-          year: detail.episode!.airDate ? Number(detail.episode!.airDate.slice(0, 4)) : null,
-          runtimeMin: detail.episode!.runtimeMin,
+          overview: detail?.episode?.overview ?? series.overview,
+          year: detail?.episode?.airDate ? Number(detail.episode.airDate.slice(0, 4)) : null,
+          runtimeMin: Math.round(session.durationSec / 60),
           genres: series.genres,
           playable: true,
           isDemo: false,

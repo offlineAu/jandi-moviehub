@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { parseRoomTvTitle, roomTvTitle } from '@jandi/shared';
+import { providerCatalogEpisode, parseRoomTvTitle, roomTvTitle } from '@jandi/shared';
+import { useProviderSeries } from '@/components/series/provider-series';
 import { apiFetch } from '@/lib/api';
 import { useTvSeason } from '@/components/series/tv-episodes';
 import { NativeSelect } from '@/components/ui/native-select';
@@ -21,13 +22,20 @@ export function SelectedRoomEpisode({
   onRemove: () => void;
 }) {
   const episode = parseRoomTvTitle(value)!;
-  const result = useTvSeason(episode.tvId, episode.season);
-  const title = result.data?.season.episodes.find((item) => item.number === episode.episode)?.title;
+  const coordinate =
+    episode.numbering === 'provider'
+      ? providerCatalogEpisode(episode.season, episode.episode)
+      : episode;
+  const result = useTvSeason(episode.tvId, coordinate?.season ?? null);
+  const title = coordinate
+    ? result.data?.season.episodes.find((item) => item.number === coordinate.episode)?.title
+    : `Episode ${episode.episode}`;
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border-strong bg-secondary p-3">
       <div className="min-w-0 flex-1">
         <p className="font-medium">
-          Money Heist · S{episode.season} E{episode.episode}
+          Money Heist · {episode.numbering === 'provider' ? 'Part ' : 'S'}
+          {episode.season} E{episode.episode}
         </p>
         <p className="text-sm text-muted">{title ?? 'Loading episode…'}</p>
         <p className="text-xs text-muted">MovieBox · Original Spanish · Synced playback</p>
@@ -50,10 +58,10 @@ export function TvRoomPicker({
   onSelect: (value: string) => void;
 }) {
   const [series, setSeries] = React.useState<Series | null>(null);
-  const [season, setSeason] = React.useState(2);
+  const [season, setSeason] = React.useState(1);
   React.useEffect(() => {
     setSeries(null);
-    setSeason(2);
+    setSeason(1);
   }, [query]);
   const search = useQuery({
     queryKey: ['room-tv-search', query],
@@ -62,7 +70,8 @@ export function TvRoomPicker({
     enabled: query.length >= 2,
     retry: false,
   });
-  const episodes = useTvSeason('71446', series?.id === 71446 ? season : null);
+  const episodes = useProviderSeries('moviebox', 'Money Heist', series?.id === 71446);
+  const part = episodes.seasons.find((part) => part.number === season) ?? episodes.seasons[0];
   if (query.length < 2) return null;
   return (
     <section className="mt-4 border-t border-white/10 pt-3" aria-label="TV series results">
@@ -102,38 +111,42 @@ export function TvRoomPicker({
           </div>
           <NativeSelect
             aria-label="Episode season"
-            value={season}
+            value={part?.number ?? ''}
             onChange={(e) => setSeason(Number(e.target.value))}
           >
-            <option value="2">Season 2</option>
-            <option value="3">Season 3</option>
+            {!episodes.seasons.length && <option value="">Loading parts…</option>}
+            {episodes.seasons.map((part) => (
+              <option key={part.number} value={part.number}>
+                {part.name} · {part.episodes.length} episodes
+              </option>
+            ))}
           </NativeSelect>
           <p className="my-2 text-xs text-muted">
-            MovieBox · Original Spanish. Season 1 uses a different cut and is not available in rooms
-            yet.
+            MovieBox · Original Spanish. Parts and episode numbers follow MovieBox.
           </p>
-          {episodes.isLoading ? (
+          {episodes.loading ? (
             <p className="text-sm text-muted">Loading episodes…</p>
-          ) : episodes.isError ? (
-            <ErrorState compact error={episodes.error} onRetry={() => void episodes.refetch()} />
+          ) : episodes.error ? (
+            <ErrorState compact error={episodes.error} onRetry={episodes.retry} />
           ) : (
             <ul className="grid max-h-56 gap-1 overflow-y-auto">
-              {episodes.data?.season.episodes.map((item) => (
-                <li key={item.id}>
+              {part?.episodes.map((item) => (
+                <li key={item.id ?? item.number}>
                   <button
                     type="button"
                     onClick={() =>
                       onSelect(
                         roomTvTitle({
                           tvId: '71446',
-                          season: season as 2 | 3,
+                          season: part!.number,
+                          numbering: 'provider',
                           episode: item.number,
                         }),
                       )
                     }
                     className="w-full rounded-lg p-3 text-left text-sm hover:bg-white/5"
                   >
-                    Episode {item.number} · {item.title}
+                    Episode {item.number}
                   </button>
                 </li>
               ))}

@@ -17,12 +17,14 @@ export function MovieboxPlayer({
   id,
   season,
   episode,
+  numbering,
 }: {
   id: string;
   season: string;
   episode: string;
+  numbering?: 'provider';
 }) {
-  const needsSource = id === '71446' && season === '1';
+  const needsSource = !numbering && id === '71446' && season === '1';
   const [part, setPart] = React.useState(1);
   const [sourceEpisode, setSourceEpisode] = React.useState('');
   const selection = needsSource ? (
@@ -81,7 +83,11 @@ export function MovieboxPlayer({
           season={season}
           episode={episode}
           source={
-            needsSource ? { sourcePart: part, sourceEpisode: Number(sourceEpisode) } : undefined
+            numbering
+              ? { numbering }
+              : needsSource
+                ? { sourcePart: part, sourceEpisode: Number(sourceEpisode) }
+                : undefined
           }
         />
       )}
@@ -98,7 +104,7 @@ function MovieboxVideo({
   id: string;
   season: string;
   episode: string;
-  source?: { sourcePart: number; sourceEpisode: number };
+  source?: { sourcePart: number; sourceEpisode: number } | { numbering: 'provider' };
 }) {
   const playback = useQuery({
     queryKey: ['moviebox-playback', id, season, episode, sourceSelection],

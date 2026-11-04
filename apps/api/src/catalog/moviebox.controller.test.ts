@@ -11,6 +11,15 @@ function fixtures() {
       code: 0,
       data: {
         isForbid: false,
+        resource: {
+          seasons: [
+            { se: 1, maxEp: 13 },
+            { se: 2, maxEp: 9 },
+            { se: 3, maxEp: 8 },
+            { se: 4, maxEp: 8 },
+            { se: 5, maxEp: 10 },
+          ],
+        },
         accessStrategy: { requiredVipLevel: 1, freeEpisodeCount: 2, previewSeconds: 300 },
         subject: { subjectId, dubs: [{ subjectId, original: true, lanCode: 'es' }] },
       },
@@ -158,6 +167,60 @@ describe('MovieBox media delivery', () => {
 });
 
 describe('MovieBox free playback', () => {
+  it('lists provider episodes without fetching streams or inventing catalog episodes', async () => {
+    const fetchMock = network();
+    const result = await new MovieboxController().episodes({ tvId: '71446' });
+    expect(result.seasons.map((part) => [part.number, part.episodes.length])).toEqual([
+      [1, 13],
+      [2, 9],
+      [3, 8],
+      [4, 8],
+      [5, 10],
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    [1, 13],
+    [2, 9],
+    [3, 1],
+    [4, 8],
+    [5, 10],
+  ])(
+    'passes provider part %i episode %i directly to playback without catalog remapping',
+    async (season, episode) => {
+      const fetchMock = network();
+      await new MovieboxController().playback({
+        tvId: '71446',
+        season,
+        episode,
+        numbering: 'provider',
+      });
+      const url = fetchMock.mock.calls
+        .map(([url]) => url)
+        .find((url) => url.includes('/subject/play?'))!;
+      expect(new URL(url).searchParams.get('se')).toBe(String(season));
+      expect(new URL(url).searchParams.get('ep')).toBe(String(episode));
+    },
+  );
+  it.each([
+    [1, 14],
+    [2, 10],
+    [6, 1],
+  ])(
+    'rejects provider coordinates %i/%i that are absent from the provider list',
+    async (season, episode) => {
+      const fetchMock = network();
+      await expect(
+        new MovieboxController().playback({
+          tvId: '71446',
+          season,
+          episode,
+          numbering: 'provider',
+        }),
+      ).rejects.toMatchObject({ code: 'MOVIEBOX_INVALID_SOURCE' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    },
+  );
   it('does not request nonexistent Part 1 Episode 14 without an explicit source selection', async () => {
     const fetchMock = network();
     await expect(

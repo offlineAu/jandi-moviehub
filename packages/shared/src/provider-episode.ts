@@ -9,3 +9,11 @@ export function providerEpisode(tvId: string, season: number, episode: number) {
   }
   return { season, episode };
 }
+
+/** Artwork coordinates only. Provider Parts 1–2 have no one-to-one original-cut match. */
+export function providerCatalogEpisode(part: number, episode: number) {
+  if (part === 3) return { season: 2, episode };
+  if (part === 4) return { season: 2, episode: episode + 8 };
+  if (part === 5) return { season: 3, episode };
+  return null;
+}

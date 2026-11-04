@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { useMe } from '@/lib/queries/auth';
 import { SaveTvButton } from './saved-tv';
 import { RecordTvVisit } from './recent-tv';
+import { ProviderSeriesWatch } from './provider-series-watch';
 import { matchesSeries } from './external-episodes';
 import {
   EpisodeListSkeleton,
@@ -290,17 +291,20 @@ export function TvDetail({ id }: { id: string }) {
   const s = result.data.series;
   const year = s.firstAirDate?.slice(0, 4);
   const first = seasons[0];
-  const play = last
-    ? {
-        href: episodeHref(s.id, last.season!, last.episode!),
-        label: `Continue S${last.season} E${last.episode}`,
-      }
-    : first
-      ? {
-          href: episodeHref(s.id, first.season_number, 1),
-          label: `Play S${first.season_number} E1`,
-        }
-      : null;
+  const play =
+    id === '71446'
+      ? { href: '/watch/tv/71446/season/1/episode/1', label: 'Choose provider episode' }
+      : last
+        ? {
+            href: episodeHref(s.id, last.season!, last.episode!),
+            label: `Continue S${last.season} E${last.episode}`,
+          }
+        : first
+          ? {
+              href: episodeHref(s.id, first.season_number, 1),
+              label: `Play S${first.season_number} E1`,
+            }
+          : null;
   const copyLink = () =>
     void navigator.clipboard.writeText(window.location.href).then(
       () => toast.success('Series link copied'),
@@ -450,53 +454,61 @@ export function TvDetail({ id }: { id: string }) {
           ) : null}
         </div>
 
-        <section aria-labelledby="episodes-title" className="mt-14">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h2
-                id="episodes-title"
-                className="font-display text-2xl font-semibold tracking-[-0.02em] sm:text-3xl"
-              >
-                Episodes
-              </h2>
-              {season.data ? (
-                <p className="mt-1 text-sm text-muted">
-                  {season.data.season.name} · {season.data.season.episodes.length}{' '}
-                  {season.data.season.episodes.length === 1 ? 'episode' : 'episodes'}
-                </p>
+        {id === '71446' ? (
+          <section className="mt-14" aria-label="Provider episodes">
+            <ProviderSeriesWatch season="1" episode="1" browseOnly />
+          </section>
+        ) : (
+          <>
+            <section aria-labelledby="episodes-title" className="mt-14">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2
+                    id="episodes-title"
+                    className="font-display text-2xl font-semibold tracking-[-0.02em] sm:text-3xl"
+                  >
+                    Episodes
+                  </h2>
+                  {season.data ? (
+                    <p className="mt-1 text-sm text-muted">
+                      {season.data.season.name} · {season.data.season.episodes.length}{' '}
+                      {season.data.season.episodes.length === 1 ? 'episode' : 'episodes'}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              {seasons.length > 1 ? (
+                <div className="mt-4">
+                  <SeasonTabs seasons={seasons} value={selectedSeason} onChange={setSelected} />
+                </div>
               ) : null}
-            </div>
-          </div>
-          {seasons.length > 1 ? (
-            <div className="mt-4">
-              <SeasonTabs seasons={seasons} value={selectedSeason} onChange={setSelected} />
-            </div>
-          ) : null}
-          <div className="mt-4" role="tabpanel" aria-labelledby="episodes-title">
-            {selectedSeason === null ? (
-              <p className="text-muted">No seasons are listed for this series.</p>
-            ) : season.isLoading ? (
-              <EpisodeListSkeleton />
-            ) : season.isError ? (
-              <ErrorState error={season.error} onRetry={() => void season.refetch()} />
-            ) : season.data?.season.episodes.length ? (
-              <ol key={selectedSeason} className="grid gap-1.5">
-                {season.data.season.episodes.map((e, i) => (
-                  <EpisodeRow
-                    key={e.id}
-                    seriesId={s.id}
-                    season={selectedSeason}
-                    episode={e}
-                    index={i}
-                    current={last?.season === selectedSeason && last?.episode === e.number}
-                  />
-                ))}
-              </ol>
-            ) : (
-              <p className="text-muted">No episodes are listed for this season.</p>
-            )}
-          </div>
-        </section>
+              <div className="mt-4" role="tabpanel" aria-labelledby="episodes-title">
+                {selectedSeason === null ? (
+                  <p className="text-muted">No seasons are listed for this series.</p>
+                ) : season.isLoading ? (
+                  <EpisodeListSkeleton />
+                ) : season.isError ? (
+                  <ErrorState error={season.error} onRetry={() => void season.refetch()} />
+                ) : season.data?.season.episodes.length ? (
+                  <ol key={selectedSeason} className="grid gap-1.5">
+                    {season.data.season.episodes.map((e, i) => (
+                      <EpisodeRow
+                        key={e.id}
+                        seriesId={s.id}
+                        season={selectedSeason}
+                        episode={e}
+                        index={i}
+                        current={last?.season === selectedSeason && last?.episode === e.number}
+                      />
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="text-muted">No episodes are listed for this season.</p>
+                )}
+              </div>
+            </section>
+          </>
+        )}
 
         <ViewingOptions id={id} />
       </div>

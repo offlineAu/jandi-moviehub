@@ -20,13 +20,20 @@ import {
   useTvSeason,
   useTvSeries,
 } from './tv-episodes';
+import { ProviderSeriesWatch } from './provider-series-watch';
 import { TvPlayback } from './tv-playback';
 
 /**
  * Episode page: player first; under it what's playing and previous/next; beside it (below on
  * phones) the season's episode list so the next pick is always one tap away.
  */
-export function TvEpisodeWatch({
+export function TvEpisodeWatch(props: { id: string; season: string; episode: string }) {
+  if (props.id === '71446')
+    return <ProviderSeriesWatch season={props.season} episode={props.episode} />;
+  return <CatalogEpisodeWatch {...props} />;
+}
+
+function CatalogEpisodeWatch({
   id,
   season,
   episode,

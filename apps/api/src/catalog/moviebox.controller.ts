@@ -25,6 +25,7 @@ const querySchema = z.object({
   tvId: z.literal('71446'),
   season: z.coerce.number().int().min(1).max(100),
   episode: z.coerce.number().int().min(1).max(1000),
+  numbering: z.literal('provider').optional(),
   sourcePart: z.coerce.number().int().min(1).max(2).optional(),
   sourceEpisode: z.coerce.number().int().min(1).max(13).optional(),
 });
@@ -65,6 +66,20 @@ const streamSchema = z.object({
       }),
     ),
   }),
+});
+const resourceSchema = z.object({
+  seasons: z
+    .array(
+      z.object({
+        se: z.number().int().min(1).max(100),
+        maxEp: z.number().int().min(1).max(1000),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+const providerDetailSchema = detailSchema.extend({
+  data: detailSchema.shape.data.extend({ resource: resourceSchema }),
 });
 const captionsSchema = z.object({
   code: z.literal(0),
@@ -154,6 +169,31 @@ export function srtToVtt(text: string) {
 
 @Injectable()
 export class MovieboxService {
+  async episodes() {
+    const parsed = providerDetailSchema.safeParse(
+      await json(
+        `https://h5-api.aoneroom.com/wefeed-h5api-bff/detail?${new URLSearchParams({ detailPath: original.detailPath })}`,
+      ),
+    );
+    if (!parsed.success) throw unavailable();
+    const data = parsed.data.data;
+    if (
+      data.isForbid ||
+      !data.subject.dubs.some(
+        (dub) => dub.subjectId === original.subjectId && dub.original && dub.lanCode === 'es',
+      )
+    )
+      throw unavailable();
+    return {
+      seasons: data.resource.seasons
+        .sort((a, b) => a.se - b.se)
+        .map((part) => ({
+          number: part.se,
+          name: `Part ${part.se}`,
+          episodes: Array.from({ length: part.maxEp }, (_, index) => ({ number: index + 1 })),
+        })),
+    };
+  }
   // Only URLs selected by playback() can enter this bounded, short-lived registry.
   private readonly media = new Map<
     string,
@@ -239,16 +279,20 @@ export class MovieboxService {
         query.sourceEpisode > (query.sourcePart === 1 ? 13 : 9))
     )
       throw Errors.badRequest('MOVIEBOX_INVALID_SOURCE', 'Choose a valid source part and episode.');
-    if (query.season === 1 && query.episode > 13 && !explicitSource)
+    if (query.numbering && explicitSource)
+      throw Errors.badRequest(
+        'MOVIEBOX_INVALID_SOURCE',
+        'Use either provider numbering or an explicit source selection.',
+      );
+    if (!query.numbering && query.season === 1 && query.episode > 13 && !explicitSource)
       throw Errors.badRequest(
         'MOVIEBOX_SOURCE_SELECTION_REQUIRED',
         'Season 1 uses a different episode cut. Choose a source part and episode to watch.',
       );
-    const metadata = detailSchema.safeParse(
-      await json(
-        `https://h5-api.aoneroom.com/wefeed-h5api-bff/detail?${new URLSearchParams({ detailPath: original.detailPath })}`,
-      ),
+    const rawMetadata = await json(
+      `https://h5-api.aoneroom.com/wefeed-h5api-bff/detail?${new URLSearchParams({ detailPath: original.detailPath })}`,
     );
+    const metadata = detailSchema.safeParse(rawMetadata);
     if (!metadata.success) throw unavailable();
     const data = metadata.data.data;
     const originalAudio = data.subject.dubs.find(
@@ -263,9 +307,21 @@ export class MovieboxService {
         'MovieBox has marked this title as unavailable for playback.',
         'MOVIEBOX_ACCESS_REQUIRED',
       );
-    const sourceEpisode = explicitSource
-      ? { season: query.sourcePart!, episode: query.sourceEpisode! }
-      : providerEpisode(query.tvId, query.season, query.episode);
+    if (query.numbering) {
+      const resources = providerDetailSchema.safeParse(rawMetadata);
+      if (!resources.success) throw unavailable();
+      const part = resources.data.data.resource.seasons.find((part) => part.se === query.season);
+      if (!part || query.episode > part.maxEp)
+        throw Errors.badRequest(
+          'MOVIEBOX_INVALID_SOURCE',
+          'This episode is not listed by MovieBox.',
+        );
+    }
+    const sourceEpisode = query.numbering
+      ? { season: query.season, episode: query.episode }
+      : explicitSource
+        ? { season: query.sourcePart!, episode: query.sourceEpisode! }
+        : providerEpisode(query.tvId, query.season, query.episode);
     // The public player sends its full page URL. Without this context the provider
     // returns hasResource:false, even for anonymously playable episodes.
     const referer = `https://movie-box.co/spa/videoPlayPage/movies/${original.detailPath}?${new URLSearchParams(
@@ -346,6 +402,12 @@ export class MovieboxService {
 
 @Controller('moviebox')
 export class MovieboxController {
+  @Public()
+  @RateLimit({ name: 'moviebox-episodes', limit: 60, windowSec: 60 })
+  @Get('episodes')
+  episodes(@ValidQuery(z.object({ tvId: z.literal('71446') })) _query: { tvId: '71446' }) {
+    return this.service.episodes();
+  }
   @Public()
   @Header('Content-Type', 'text/vtt; charset=utf-8')
   @Header('Cache-Control', 'no-store')

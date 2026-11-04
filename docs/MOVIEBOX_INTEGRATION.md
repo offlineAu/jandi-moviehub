@@ -159,3 +159,12 @@ frontend/API typechecks and targeted lint passed. The production endpoint could
 not be fetched from this environment: curl returned DNS resolution failure and
 the web tool could not access it. These changes have not been deployed, and no
 live Season 1 episode playback or exact catalog S1E14 correspondence is claimed.
+
+## Provider-native navigation — 2026-11-04
+
+The Money Heist series/watch pages now use the provider episode list directly,
+including Parts 1 and 2, with provider-qualified watch URLs. The previous local
+manual catalog/source picker remains only for legacy component callers. Room
+picks now support provider-coordinate references while retaining older catalog
+references. See `PROVIDER_EPISODE_NAVIGATION.md` for artwork fallback, URL identity,
+compatibility and verification. No new migration is needed.

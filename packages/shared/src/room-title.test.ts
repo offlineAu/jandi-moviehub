@@ -16,3 +16,20 @@ it('accepts mapped room episodes and rejects unsupported titles, seasons and epi
   ])
     expect(roomTitleSchema.safeParse(value).success).toBe(false);
 });
+
+it('keeps legacy catalog IDs separate from provider coordinates', () => {
+  expect(parseRoomTvTitle('moviebox-source:71446:1:13')).toEqual({
+    tvId: '71446',
+    season: 1,
+    episode: 13,
+    numbering: 'provider',
+  });
+  expect(parseRoomTvTitle('moviebox-source:71446:5:10')).toEqual({
+    tvId: '71446',
+    season: 5,
+    episode: 10,
+    numbering: 'provider',
+  });
+  expect(parseRoomTvTitle('moviebox-source:71446:5:10:extra')).toBeNull();
+  expect(parseRoomTvTitle('moviebox-source:71446:0:1')).toBeNull();
+});
