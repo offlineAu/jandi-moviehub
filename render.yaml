@@ -14,7 +14,7 @@ services:
     region: singapore
     repo: https://github.com/offlineAu/jandi-moviehub
     branch: main
-    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter @jandi/shared build && pnpm --filter @jandi/api build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter @jandi/shared build && NODE_OPTIONS=--max-old-space-size=2048 pnpm --filter @jandi/api build
     startCommand: sh scripts/render-start.sh
     healthCheckPath: /api/v1/health/ready
     envVars:
