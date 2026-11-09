@@ -1,6 +1,11 @@
 'use client';
 
-import { SocketEvents, type CommandAck, type PlaybackState } from '@jandi/shared';
+import {
+  parseExternalTitle,
+  SocketEvents,
+  type CommandAck,
+  type PlaybackState,
+} from '@jandi/shared';
 import { Check, Copy, Link2, Send } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
@@ -398,7 +403,9 @@ export function useChangeRoomMovie(
             roomId,
             commandId: uuid(),
             baseVersion: engine.current.version,
-            movieId,
+            ...(parseExternalTitle(movieId)
+              ? { playbackSelection: parseExternalTitle(movieId) }
+              : { movieId }),
           })) as CommandAck<PlaybackState>;
           if (ack.ok) {
             toast.success(successMessage);

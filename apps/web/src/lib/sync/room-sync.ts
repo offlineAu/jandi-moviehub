@@ -1,3 +1,4 @@
+import { NativePlayerAdapter, type PlaybackAdapter } from './player-adapter';
 import {
   ClockSync,
   playbackAssetKey,
@@ -21,7 +22,8 @@ export interface SyncSocket {
 export type PlayerIntent =
   | { type: 'play' | 'pause' }
   | { type: 'seek'; positionSec: number }
-  | { type: 'rate'; rate: number };
+  | { type: 'rate'; rate: number }
+  | { type: 'duration'; durationSec: number };
 
 export interface SyncStats {
   driftMs: number | null;
@@ -64,10 +66,10 @@ const uuid = () =>
 export class RoomSyncEngine {
   readonly clock = new ClockSync(10);
   private state: PlaybackState | null = null;
-  private video: HTMLVideoElement | null = null;
+  private video: PlaybackAdapter | null = null;
   private canControl = false;
   private applying = 0;
-  private lastSeekAt = 0;
+  private lastSeekAt = -Infinity;
   private needsInteraction = false;
   private buffering = false;
   private lastDriftMs: number | null = null;
@@ -172,10 +174,16 @@ export class RoomSyncEngine {
   // ───────── Video element ─────────
 
   attachVideo(video: HTMLVideoElement | null) {
+    this.attachPlayer(video ? new NativePlayerAdapter(video) : null);
+  }
+
+  attachPlayer(video: PlaybackAdapter | null) {
     if (this.video)
       for (const [e, fn] of this.videoListeners) this.video.removeEventListener(e, fn);
     this.videoListeners.length = 0;
     this.video = video;
+    this.lastSeekAt = -Infinity;
+    this.lastDriftMs = null;
     if (!video) return;
     const on = (event: string, fn: () => void) => {
       video.addEventListener(event, fn);
@@ -183,6 +191,13 @@ export class RoomSyncEngine {
     };
     on('play', () => this.onExternalChange('play'));
     on('pause', () => this.onExternalChange('pause'));
+    if (!video.supportsRate) on('ended', () => void this.reportEnded());
+    if (!video.supportsRate)
+      on('seeking', () => {
+        if (this.destroyed || this.applying || !this.state) return;
+        if (this.canControl) void this.intent({ type: 'seek', positionSec: video.currentTime });
+        else this.apply(true);
+      });
     on('waiting', () => this.setBuffering(true));
     on('stalled', () => this.setBuffering(true));
     on('playing', () => this.setBuffering(false));
@@ -234,6 +249,7 @@ export class RoomSyncEngine {
     if (!force && this.state && state.version < this.state.version) return; // out-of-order
     // A new asset means the player is about to swap sources; 'loadedmetadata' re-applies then.
     const movieChanged = !!this.state && playbackAssetKey(this.state) !== playbackAssetKey(state);
+    if (force || !this.state || state.version > this.state.version) this.lastSeekAt = -Infinity;
     this.state = state;
     this.options.onState?.(state);
     this.apply(true, movieChanged);
@@ -246,13 +262,18 @@ export class RoomSyncEngine {
   private apply(hard = false, movieChanged = false) {
     const video = this.video;
     const state = this.state;
+    if (video && !video.supportsRate && !this.socket.connected) return;
     if (!video || !state || !playbackAssetKey(state) || video.readyState < 1 || movieChanged)
       return;
     const expected = expectedPosition(state, this.serverNow);
     const playing = state.status === 'playing';
     const drift = video.currentTime - expected;
 
-    if (hard && Math.abs(drift) > DEFAULT_THRESHOLDS.ignoreSec) {
+    if (
+      hard &&
+      Math.abs(drift) > (video.supportsRate ? DEFAULT_THRESHOLDS.ignoreSec : 2) &&
+      (video.supportsRate || this.now() - this.lastSeekAt >= 10000)
+    ) {
       this.guard(() => (video.currentTime = expected + (playing ? 0.05 : 0)));
       this.lastSeekAt = this.now();
     }
@@ -271,7 +292,7 @@ export class RoomSyncEngine {
     } else if (!playing && !video.paused) {
       this.guard(() => video.pause());
     }
-    if (!playing && video.playbackRate !== state.rate)
+    if (video.supportsRate && !playing && video.playbackRate !== state.rate)
       this.guard(() => (video.playbackRate = state.rate));
   }
 
@@ -287,6 +308,7 @@ export class RoomSyncEngine {
       this.needsInteraction
     )
       return;
+    if (!video.supportsRate && !this.socket.connected) return;
     const playing = state.status === 'playing';
     const expected = expectedPosition(state, this.serverNow);
     const driftSec = video.currentTime - expected;
@@ -295,6 +317,17 @@ export class RoomSyncEngine {
     if (playing && video.paused) return this.apply(true);
     if (!playing && !video.paused) return this.apply(true);
 
+    if (!video.supportsRate) {
+      if (Math.abs(driftSec) > 2 && this.now() - this.lastSeekAt >= 10000) {
+        this.lastSeekAt = this.now();
+        this.corrections.seeks += 1;
+        this.guard(() => {
+          video.currentTime = expected;
+        });
+      }
+      this.emitStats();
+      return;
+    }
     const correction = decideCorrection(driftSec, expected, state.rate, playing && !this.buffering);
     if (correction.kind === 'seek') {
       if (this.now() - this.lastSeekAt < this.opts.seekCooldownMs) return; // avoid seek loops
@@ -314,7 +347,7 @@ export class RoomSyncEngine {
   private async heartbeat() {
     const video = this.video;
     const state = this.state;
-    if (!video || !state || !this.socket.connected) return;
+    if (!video || !state || !this.socket.connected || video.readyState < 2) return;
     const expected = expectedPosition(state, this.serverNow);
     await this.socket
       .timeout(3000)
@@ -352,11 +385,13 @@ export class RoomSyncEngine {
       this.apply(true);
       return false;
     }
+    if (intent.type === 'rate' && this.video && !this.video.supportsRate) return false;
     const event = {
       play: SocketEvents.PLAYBACK_PLAY,
       pause: SocketEvents.PLAYBACK_PAUSE,
       seek: SocketEvents.PLAYBACK_SEEK,
       rate: SocketEvents.PLAYBACK_RATE_CHANGE,
+      duration: SocketEvents.PLAYBACK_METADATA,
     }[intent.type];
     const payload: Record<string, unknown> = {
       roomId: this.roomId,
@@ -365,6 +400,7 @@ export class RoomSyncEngine {
     };
     if (intent.type === 'seek') payload.positionSec = Math.max(0, intent.positionSec);
     if (intent.type === 'rate') payload.rate = intent.rate;
+    if (intent.type === 'duration') payload.durationSec = intent.durationSec;
     if (intent.type === 'pause' && this.video)
       payload.positionSec = Math.max(0, this.video.currentTime);
 

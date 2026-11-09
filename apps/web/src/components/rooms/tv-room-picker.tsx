@@ -1,4 +1,6 @@
 'use client';
+import { useRoomSourceCapabilities } from '@/lib/queries/room-sources';
+import { VidsrcTvPicker } from './vidsrc-tv-picker';
 
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -22,15 +24,19 @@ export function SelectedRoomEpisode({
   onRemove: () => void;
 }) {
   const episode = parseRoomTvTitle(value)!;
-  const provider = episode.provider === 'kisskh' ? 'KissKH' : 'MovieBox';
+  const provider =
+    episode.provider === 'kisskh' || episode.provider === 'kisskh-direct' ? 'KissKH' : 'MovieBox';
   const coordinate =
     episode.numbering === 'provider'
       ? providerCatalogEpisode(episode.season, episode.episode)
       : episode;
   const result = useTvSeason(episode.tvId, coordinate?.season ?? null);
-  const title = coordinate
-    ? result.data?.season.episodes.find((item) => item.number === coordinate.episode)?.title
-    : `Episode ${episode.episode}`;
+  const title =
+    episode.provider === 'kisskh' || episode.provider === 'kisskh-direct'
+      ? `Episode ${episode.episode}`
+      : coordinate
+        ? result.data?.season.episodes.find((item) => item.number === coordinate.episode)?.title
+        : `Episode ${episode.episode}`;
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border-strong bg-secondary p-3">
       <div className="min-w-0 flex-1">
@@ -43,7 +49,9 @@ export function SelectedRoomEpisode({
           {provider} ·{' '}
           {episode.provider === 'kisskh'
             ? 'Shared episode · Individual playback'
-            : 'Original Spanish · Synced playback'}
+            : episode.provider === 'kisskh-direct'
+              ? 'Synced playback · Experimental'
+              : 'Original Spanish · Synced playback'}
         </p>
       </div>
       <Button variant="ghost" size="sm" onClick={onChange}>
@@ -64,8 +72,14 @@ export function TvRoomPicker({
   onSelect: (value: string) => void;
 }) {
   const [series, setSeries] = React.useState<Series | null>(null);
-  const [provider, setProvider] = React.useState<SeriesProvider>('kisskh');
+  const [provider, setProvider] = React.useState<SeriesProvider | 'vidsrc' | 'kisskh-direct'>(
+    'kisskh',
+  );
   const [season, setSeason] = React.useState(1);
+  const capabilities = useRoomSourceCapabilities();
+  React.useEffect(() => {
+    if (capabilities.data?.vidsrcSync) setProvider('vidsrc');
+  }, [capabilities.data?.vidsrcSync]);
   React.useEffect(() => {
     setSeries(null);
     setSeason(1);
@@ -77,7 +91,11 @@ export function TvRoomPicker({
     enabled: query.length >= 2,
     retry: false,
   });
-  const episodes = useProviderSeries(provider, 'Money Heist', series?.id === 71446);
+  const episodes = useProviderSeries(
+    provider === 'vidsrc' || provider === 'kisskh-direct' ? 'kisskh' : provider,
+    'Money Heist',
+    series?.id === 71446 && provider !== 'vidsrc',
+  );
   const part = episodes.seasons.find((part) => part.number === season) ?? episodes.seasons[0];
   if (query.length < 2) return null;
   return (
@@ -93,13 +111,18 @@ export function TvRoomPicker({
             <li key={item.id}>
               <button
                 type="button"
-                disabled={item.id !== 71446}
-                onClick={() => setSeries(item)}
+                disabled={item.id !== 71446 && !capabilities.data?.vidsrcSync}
+                onClick={() => {
+                  setSeries(item);
+                  if (item.id !== 71446) setProvider('vidsrc');
+                }}
                 className="flex w-full items-center justify-between gap-3 rounded-lg p-3 text-left text-sm hover:bg-white/5 disabled:opacity-50"
               >
                 <span>{item.title}</span>
                 <span className="text-xs text-muted">
-                  {item.id === 71446 ? 'Choose episode' : 'Room playback unavailable'}
+                  {item.id === 71446 || capabilities.data?.vidsrcSync
+                    ? 'Choose episode'
+                    : 'Room playback unavailable'}
                 </span>
               </button>
             </li>
@@ -121,78 +144,99 @@ export function TvRoomPicker({
               aria-label="Room playback provider"
               value={provider}
               onChange={(event) => {
-                setProvider(event.target.value as SeriesProvider);
+                setProvider(event.target.value as SeriesProvider | 'vidsrc' | 'kisskh-direct');
                 setSeason(1);
               }}
             >
-              <option value="kisskh">KissKH · Individual playback</option>
-              <option value="moviebox">MovieBox · Synced playback</option>
+              {capabilities.data?.vidsrcSync && (
+                <option value="vidsrc">VidSrc · Synchronized playback</option>
+              )}
+              {series.id === 71446 && (
+                <>
+                  <option value="kisskh">KissKH · Individual playback</option>
+                  {capabilities.data?.kisskhDirectSync && (
+                    <option value="kisskh-direct">KissKH · Synced playback (experimental)</option>
+                  )}
+                  <option value="moviebox">MovieBox · Synced playback</option>
+                </>
+              )}
             </NativeSelect>
           </div>
-          <NativeSelect
-            aria-label="Episode season"
-            value={part?.number ?? ''}
-            disabled={episodes.loading || !!episodes.error || !episodes.seasons.length}
-            onChange={(e) => setSeason(Number(e.target.value))}
-          >
-            {!episodes.seasons.length && (
-              <option value="">
-                {episodes.error
-                  ? 'Parts unavailable'
-                  : episodes.loading
-                    ? 'Loading parts…'
-                    : 'No parts available'}
-              </option>
-            )}
-            {episodes.seasons.map((part) => (
-              <option key={part.number} value={part.number}>
-                {part.name} · {part.episodes.length} episodes
-              </option>
-            ))}
-          </NativeSelect>
-          <p className="my-2 text-xs text-muted">
-            {provider === 'kisskh'
-              ? 'KissKH shares the selected episode and room chat. Each viewer controls play, pause and seeking individually.'
-              : 'MovieBox · Original Spanish. Play, pause and seeking are synchronized for everyone.'}
-          </p>
-          {episodes.loading ? (
-            <p className="text-sm text-muted">Loading episodes…</p>
-          ) : episodes.error ? (
-            <ErrorState compact error={episodes.error} onRetry={episodes.retry} />
+          {provider === 'vidsrc' ? (
+            <VidsrcTvPicker key={series.id} tvId={series.id} onSelect={onSelect} />
           ) : (
-            <ul className="grid max-h-56 gap-1 overflow-y-auto">
-              {part?.episodes.map((item) => (
-                <li key={item.id ?? item.number}>
-                  <button
-                    type="button"
-                    disabled={provider === 'kisskh' && (!part?.id || !item.id)}
-                    onClick={() => {
-                      const coordinate = {
-                        tvId: '71446' as const,
-                        season: part!.number,
-                        episode: item.number,
-                        numbering: 'provider' as const,
-                      };
-                      onSelect(
-                        roomTvTitle(
-                          provider === 'kisskh'
-                            ? {
-                                ...coordinate,
-                                provider: 'kisskh',
-                                seriesId: part!.id!,
-                                episodeId: item.id!,
-                              }
-                            : coordinate,
-                        ),
-                      );
-                    }}
-                    className="w-full rounded-lg p-3 text-left text-sm hover:bg-white/5"
-                  >
-                    Episode {item.number}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <NativeSelect
+                aria-label="Episode season"
+                value={part?.number ?? ''}
+                disabled={episodes.loading || !!episodes.error || !episodes.seasons.length}
+                onChange={(e) => setSeason(Number(e.target.value))}
+              >
+                {!episodes.seasons.length && (
+                  <option value="">
+                    {episodes.error
+                      ? 'Parts unavailable'
+                      : episodes.loading
+                        ? 'Loading parts…'
+                        : 'No parts available'}
+                  </option>
+                )}
+                {episodes.seasons.map((part) => (
+                  <option key={part.number} value={part.number}>
+                    {part.name} · {part.episodes.length} episodes
+                  </option>
+                ))}
+              </NativeSelect>
+              <p className="my-2 text-xs text-muted">
+                {provider === 'kisskh'
+                  ? 'KissKH shares the selected episode and room chat. Each viewer controls play, pause and seeking individually.'
+                  : provider === 'kisskh-direct'
+                    ? 'Experimental direct stream. Play, pause and seeking are synchronized for everyone.'
+                    : 'MovieBox · Original Spanish. Play, pause and seeking are synchronized for everyone.'}
+              </p>
+              {episodes.loading ? (
+                <p className="text-sm text-muted">Loading episodes…</p>
+              ) : episodes.error ? (
+                <ErrorState compact error={episodes.error} onRetry={episodes.retry} />
+              ) : (
+                <ul className="grid max-h-56 gap-1 overflow-y-auto">
+                  {part?.episodes.map((item) => (
+                    <li key={item.id ?? item.number}>
+                      <button
+                        type="button"
+                        disabled={
+                          (provider === 'kisskh' || provider === 'kisskh-direct') &&
+                          (!part?.id || !item.id)
+                        }
+                        onClick={() => {
+                          const coordinate = {
+                            tvId: '71446' as const,
+                            season: part!.number,
+                            episode: item.number,
+                            numbering: 'provider' as const,
+                          };
+                          onSelect(
+                            roomTvTitle(
+                              provider === 'kisskh' || provider === 'kisskh-direct'
+                                ? {
+                                    ...coordinate,
+                                    provider,
+                                    seriesId: part!.id!,
+                                    episodeId: item.id!,
+                                  }
+                                : coordinate,
+                            ),
+                          );
+                        }}
+                        className="w-full rounded-lg p-3 text-left text-sm hover:bg-white/5"
+                      >
+                        Episode {item.number}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </>
       )}

@@ -1,5 +1,8 @@
 'use client';
 
+import { parseExternalTitle } from '@jandi/shared';
+import type { ExternalMedia } from '@jandi/shared';
+
 import type { CreateRoomInput, MarathonSnapshot, UpdateRoomInput } from '@jandi/shared';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../api';
@@ -95,7 +98,15 @@ export interface FriendEntry {
 }
 
 export interface RoomPlaybackSources {
-  embed?: { provider: 'kisskh'; url: string; playbackMode: 'individual' };
+  embed?:
+    | { provider: 'kisskh'; url: string; playbackMode: 'individual' }
+    | {
+        provider: 'vidsrc';
+        url: string;
+        playbackMode: 'synced';
+        media: ExternalMedia;
+        capabilities: { play: true; pause: true; seek: true; rate: false };
+      };
   detailHref?: string;
   movieId: string | null;
   movie: MovieSummary;
@@ -156,7 +167,9 @@ export function useCreateRoom() {
     mutationFn: (input: CreateRoomInput) =>
       apiFetch<{ room: Room }>('/rooms', {
         method: 'POST',
-        body: input as Record<string, unknown>,
+        body: (input.movieId && parseExternalTitle(input.movieId)
+          ? { ...input, movieId: undefined, playbackSelection: parseExternalTitle(input.movieId) }
+          : input) as Record<string, unknown>,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: roomKeys.all }),
   });
@@ -284,7 +297,7 @@ export function useRoomPlaybackSources(roomId: string, assetKey: string | null, 
     queryKey: roomKeys.sources(roomId, assetKey),
     queryFn: () => apiFetch<RoomPlaybackSources>(`/rooms/${enc(roomId)}/playback-sources`),
     enabled: enabled && !!assetKey,
-    staleTime: 30 * 60_000,
+    staleTime: assetKey?.startsWith('kisskh-direct:') ? 60_000 : 30 * 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
   });

@@ -167,9 +167,32 @@ export function srtToVtt(text: string) {
   return `WEBVTT\n\n${cues.join('\n\n')}\n`;
 }
 
+type MovieboxEpisodeList = {
+  seasons: Array<{ number: number; name: string; episodes: Array<{ number: number }> }>;
+};
+
 @Injectable()
 export class MovieboxService {
-  async episodes() {
+  private episodeCatalog: { expires: number; value: MovieboxEpisodeList } | null = null;
+  private episodeRequest: Promise<MovieboxEpisodeList> | null = null;
+
+  async episodes(): Promise<MovieboxEpisodeList> {
+    if (this.episodeCatalog && this.episodeCatalog.expires > Date.now())
+      return structuredClone(this.episodeCatalog.value);
+    if (!this.episodeRequest) {
+      this.episodeRequest = this.fetchEpisodes()
+        .then((value) => {
+          this.episodeCatalog = { value, expires: Date.now() + 120000 };
+          return value;
+        })
+        .finally(() => {
+          this.episodeRequest = null;
+        });
+    }
+    return structuredClone(await this.episodeRequest);
+  }
+
+  private async fetchEpisodes(): Promise<MovieboxEpisodeList> {
     const parsed = providerDetailSchema.safeParse(
       await json(
         `https://h5-api.aoneroom.com/wefeed-h5api-bff/detail?${new URLSearchParams({ detailPath: original.detailPath })}`,

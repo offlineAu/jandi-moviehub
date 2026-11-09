@@ -207,3 +207,78 @@ describe('RoomSyncEngine', () => {
     expect(hb.payload.driftSec as number).toBeCloseTo(0.2, 1);
   });
 });
+
+it('corrects embed drift with seeks, suppresses echoes, and stops without fresh telemetry', async () => {
+  const { VidsrcAdapter } = await import('./vidsrc-adapter');
+  let now = 1000000;
+  const media = {
+    provider: 'vidsrc' as const,
+    type: 'tv' as const,
+    tvId: 1399,
+    tmdbId: 1399,
+    season: 1,
+    episode: 2,
+  };
+  const socket = makeSocket(
+    state({
+      externalMedia: media,
+      movieId: null,
+      mediaAssetId: null,
+      status: 'playing',
+      positionSec: 100,
+      anchorServerTime: now,
+    }),
+    false,
+    () => now,
+  );
+  const engine = new RoomSyncEngine(socket, 'room', { now: () => now });
+  const postMessage = vi.fn();
+  const frameWindow = { postMessage } as unknown as Window;
+  const adapter = new VidsrcAdapter(
+    { contentWindow: frameWindow } as HTMLIFrameElement,
+    media,
+    () => now,
+  );
+  engine.attachPlayer(adapter);
+  const event = (status: string, position: number) => ({
+    origin: 'https://vidsrc.sh',
+    source: frameWindow,
+    data: {
+      type: 'PLAYER_EVENT',
+      data: {
+        player_info: { tmdb: 1399, mediaType: 'tv', season: 1, episode: 2 },
+        player_status: status,
+        player_progress: position,
+        player_duration: 600,
+      },
+    },
+  });
+  try {
+    await engine.join();
+    expect(postMessage).not.toHaveBeenCalled();
+    adapter.accept(event('playing', 20));
+    expect(postMessage).toHaveBeenCalledWith(
+      { player: true, action: 'seek100.050' },
+      'https://vidsrc.sh',
+    );
+    adapter.accept(event('seeked', 100.05));
+    expect(socket.emitted.filter((item) => item.event === SocketEvents.PLAYBACK_SEEK)).toHaveLength(
+      0,
+    );
+    now += 11000;
+    adapter.accept(event('playing', 105));
+    engine.tick();
+    expect(postMessage).toHaveBeenLastCalledWith(
+      { player: true, action: 'seek111.000' },
+      'https://vidsrc.sh',
+    );
+    const sent = postMessage.mock.calls.length;
+    now += 16000;
+    engine.tick();
+    expect(postMessage.mock.calls.length).toBe(sent);
+    expect(await engine.intent({ type: 'rate', rate: 1.5 })).toBe(false);
+  } finally {
+    engine.destroy();
+    adapter.destroy();
+  }
+});

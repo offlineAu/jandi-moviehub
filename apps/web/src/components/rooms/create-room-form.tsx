@@ -167,7 +167,7 @@ function Form() {
       movieId: playlistId ? undefined : initialMovie,
       allowGuests: false,
       controlPolicy: 'HOSTS',
-      maxMembers: 20,
+      maxMembers: 10,
     },
   });
   const { errors, isSubmitting } = form.formState;

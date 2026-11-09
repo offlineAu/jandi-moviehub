@@ -167,6 +167,46 @@ describe('MovieBox media delivery', () => {
 });
 
 describe('MovieBox free playback', () => {
+  it('coalesces catalog requests, reuses successful results and refreshes after two minutes', async () => {
+    let now = 100000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      const fetchMock = network();
+      const controller = new MovieboxController();
+      const [first, second] = await Promise.all([
+        controller.episodes({ tvId: '71446' }),
+        controller.episodes({ tvId: '71446' }),
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(second).toEqual(first);
+      first.seasons[0]!.episodes.length = 0;
+      expect((await controller.episodes({ tvId: '71446' })).seasons[0]!.episodes).toHaveLength(13);
+      now += 120001;
+      await controller.episodes({ tvId: '71446' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+  it('does not cache connection failures or present expired metadata as recovered', async () => {
+    let now = 100000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      const fetchMock = network();
+      const controller = new MovieboxController();
+      await controller.episodes({ tvId: '71446' });
+      now += 120001;
+      fetchMock.mockRejectedValueOnce(new DOMException('timeout', 'TimeoutError'));
+      await expect(controller.episodes({ tvId: '71446' })).rejects.toMatchObject({
+        code: 'MOVIEBOX_TIMEOUT',
+      });
+      expect((await controller.episodes({ tvId: '71446' })).seasons[0]!.episodes).toHaveLength(13);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it('lists provider episodes without fetching streams or inventing catalog episodes', async () => {
     const fetchMock = network();
     const result = await new MovieboxController().episodes({ tvId: '71446' });

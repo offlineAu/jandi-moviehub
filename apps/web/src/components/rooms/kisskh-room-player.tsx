@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -9,10 +10,12 @@ export function KisskhRoomPlayer({
   src,
   title,
   overlay,
+  episodeHref,
 }: {
   src: string;
   title: string;
   overlay?: React.ReactNode;
+  episodeHref?: string;
 }) {
   const [attempt, setAttempt] = React.useState(0);
   const [failed, setFailed] = React.useState(false);
@@ -23,8 +26,8 @@ export function KisskhRoomPlayer({
           key={`${src}-${attempt}`}
           src={src}
           title={`${title} KissKH player`}
-          className="size-full"
-          allow="fullscreen; picture-in-picture"
+          className="absolute inset-0 size-full border-0"
+          allow="autoplay; fullscreen; picture-in-picture"
           allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
           onError={() => setFailed(true)}
@@ -47,6 +50,16 @@ export function KisskhRoomPlayer({
           <RotateCw aria-hidden="true" />
           Reload my player
         </Button>
+        {episodeHref && (
+          <Link
+            href={episodeHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-4"
+          >
+            Player blank? Open this episode separately
+          </Link>
+        )}
       </div>
       {failed && (
         <p role="alert" className="px-4 pb-3 text-sm text-danger">

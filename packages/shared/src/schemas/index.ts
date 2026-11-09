@@ -1,3 +1,4 @@
+import { playbackSelectionSchema } from '../playback-selection';
 import { roomTitleSchema } from '../room-title';
 import { z } from 'zod';
 import {
@@ -159,6 +160,7 @@ const roomFields = {
   visibility: z.enum(ROOM_VISIBILITIES),
   password: z.string().min(4).max(64).optional(),
   movieId: roomTitleSchema.optional(),
+  playbackSelection: playbackSelectionSchema.optional(),
   allowGuests: z.boolean(),
   controlPolicy: z.enum(CONTROL_POLICIES),
   maxMembers: z.number().int().min(2).max(100),
@@ -171,6 +173,10 @@ export const createRoomSchema = z
     controlPolicy: roomFields.controlPolicy.default('HOSTS'),
     // Omitted → the admin setting `rooms.maxMembersDefault`.
     maxMembers: roomFields.maxMembers.optional(),
+  })
+  .refine((v) => !(v.movieId && v.playbackSelection), {
+    message: 'Choose one playback selection',
+    path: ['playbackSelection'],
   })
   .refine((v) => v.visibility !== 'PASSWORD' || !!v.password, {
     message: 'Password-protected rooms need a password',

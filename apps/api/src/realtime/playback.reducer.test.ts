@@ -110,3 +110,88 @@ it('shares a KissKH episode while rejecting unsupported synchronized transport c
   );
   expect(movie).toMatchObject({ ok: true, state: { tvEpisode: null } });
 });
+
+it('synchronizes external selections, learns duration and clears them on native loads', () => {
+  const externalMedia = {
+    provider: 'vidsrc' as const,
+    type: 'tv' as const,
+    tvId: 1399,
+    tmdbId: 1399,
+    season: 1,
+    episode: 2,
+  };
+  const loaded = reducePlayback(
+    initialPlayback('room', 0),
+    { type: 'load-external', externalMedia },
+    0,
+    'host',
+  );
+  if (!loaded.ok) throw new Error('load');
+  expect(loaded.state).toMatchObject({
+    externalMedia,
+    status: 'paused',
+    durationSec: null,
+    mediaAssetId: null,
+    tvEpisode: null,
+  });
+  expect(reducePlayback(loaded.state, { type: 'rate', rate: 1.5 }, 0, 'host')).toMatchObject({
+    ok: false,
+    code: 'INVALID',
+  });
+  const metadata = reducePlayback(loaded.state, { type: 'duration', durationSec: 600 }, 0, 'host');
+  if (!metadata.ok) throw new Error('metadata');
+  const playing = reducePlayback(metadata.state, { type: 'play' }, 1000, 'host');
+  if (!playing.ok) throw new Error('play');
+  const paused = reducePlayback(playing.state, { type: 'pause' }, 5000, 'host');
+  expect(paused.ok && paused.state).toMatchObject({
+    positionSec: 4,
+    status: 'paused',
+    durationSec: 600,
+  });
+  const native = reducePlayback(
+    playing.state,
+    { type: 'load', movieId: 'm', mediaAssetId: 'a', durationSec: 100, autoplay: false },
+    10000,
+    'host',
+  );
+  expect(native.ok && native.state.externalMedia).toBeNull();
+  const unloaded = reducePlayback(playing.state, { type: 'unload' }, 10000, 'host');
+  expect(unloaded.ok && unloaded.state.externalMedia).toBeNull();
+});
+
+it('permits synchronized transport and learns duration for a direct KissKH episode', () => {
+  const selected = reducePlayback(
+    initialPlayback('room', 0),
+    {
+      type: 'load-tv',
+      tvEpisode: {
+        provider: 'kisskh-direct',
+        tvId: '71446',
+        season: 1,
+        episode: 1,
+        numbering: 'provider',
+        seriesId: 2510,
+        episodeId: 57281,
+      },
+      durationSec: null,
+      autoplay: false,
+    },
+    0,
+    'host',
+  );
+  if (!selected.ok) throw new Error('selection');
+  const duration = reducePlayback(
+    selected.state,
+    { type: 'duration', durationSec: 1800 },
+    0,
+    'host',
+  );
+  if (!duration.ok) throw new Error('duration');
+  const play = reducePlayback(duration.state, { type: 'play' }, 1000, 'host');
+  if (!play.ok) throw new Error('play');
+  const seek = reducePlayback(play.state, { type: 'seek', positionSec: 100 }, 2000, 'host');
+  expect(seek).toMatchObject({
+    ok: true,
+    state: { status: 'playing', positionSec: 100, durationSec: 1800 },
+  });
+});

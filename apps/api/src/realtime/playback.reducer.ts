@@ -1,6 +1,14 @@
-import { type RoomTvEpisode, clampRate, expectedPosition, type PlaybackState } from '@jandi/shared';
+import {
+  type ExternalMedia,
+  type RoomTvEpisode,
+  clampRate,
+  expectedPosition,
+  type PlaybackState,
+} from '@jandi/shared';
 
 export type PlaybackAction =
+  | { type: 'duration'; durationSec: number }
+  | { type: 'load-external'; externalMedia: ExternalMedia }
   | { type: 'play'; positionSec?: number }
   | { type: 'pause'; positionSec?: number }
   | { type: 'seek'; positionSec: number }
@@ -54,7 +62,13 @@ export function reducePlayback(
     },
   });
   const current = expectedPosition(state, now);
-  const hasMedia = !!state.mediaAssetId || !!state.tvEpisode;
+  const hasMedia = !!state.mediaAssetId || !!state.tvEpisode || !!state.externalMedia;
+  if (state.externalMedia && action.type === 'rate')
+    return {
+      ok: false,
+      code: 'INVALID',
+      message: 'This provider does not support playback speed commands.',
+    };
 
   if (
     state.tvEpisode?.provider === 'kisskh' &&
@@ -68,6 +82,31 @@ export function reducePlayback(
     };
 
   switch (action.type) {
+    case 'duration':
+      if (
+        (!state.externalMedia && state.tvEpisode?.provider !== 'kisskh-direct') ||
+        !Number.isFinite(action.durationSec) ||
+        action.durationSec <= 0 ||
+        action.durationSec > 86400
+      )
+        return { ok: false, code: 'INVALID', message: 'Invalid provider duration' };
+      return next({
+        durationSec: action.durationSec,
+        positionSec: Math.min(current, action.durationSec),
+        anchorServerTime: now,
+      });
+    case 'load-external':
+      return next({
+        externalMedia: action.externalMedia,
+        tvEpisode: null,
+        mediaAssetId: null,
+        movieId: action.externalMedia.type === 'movie' ? action.externalMedia.movieId : null,
+        durationSec: null,
+        status: 'paused',
+        positionSec: 0,
+        rate: 1,
+        anchorServerTime: now,
+      });
     case 'play': {
       if (!hasMedia) return { ok: false, code: 'NO_MEDIA', message: 'No movie is loaded' };
       let position = clampPosition(action.positionSec ?? current, state.durationSec);
@@ -101,6 +140,7 @@ export function reducePlayback(
     }
     case 'load-tv':
       return next({
+        externalMedia: null,
         movieId: null,
         mediaAssetId: null,
         tvEpisode: action.tvEpisode,
@@ -112,6 +152,7 @@ export function reducePlayback(
       });
     case 'load':
       return next({
+        externalMedia: null,
         movieId: action.movieId,
         tvEpisode: null,
         mediaAssetId: action.mediaAssetId,
@@ -129,6 +170,7 @@ export function reducePlayback(
       });
     case 'unload':
       return next({
+        externalMedia: null,
         tvEpisode: null,
         movieId: null,
         mediaAssetId: null,

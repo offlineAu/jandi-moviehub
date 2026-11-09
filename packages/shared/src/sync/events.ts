@@ -1,3 +1,4 @@
+import type { ExternalMedia, PlaybackSelection } from '../playback-selection';
 import type { RoomTvEpisode } from '../room-title';
 import type { ControlPolicy, MarathonStateName, RoomRole, ReactionEmoji } from '../constants';
 
@@ -19,6 +20,7 @@ export const SocketEvents = {
   PLAYBACK_PAUSE: 'playback:pause',
   PLAYBACK_SEEK: 'playback:seek',
   PLAYBACK_RATE_CHANGE: 'playback:rate',
+  PLAYBACK_METADATA: 'playback:metadata',
   PLAYBACK_SYNC: 'playback:sync',
   PLAYBACK_HEARTBEAT: 'playback:heartbeat',
   PLAYBACK_BUFFERING: 'playback:buffering',
@@ -51,6 +53,7 @@ export type PlaybackStatus = 'idle' | 'playing' | 'paused' | 'ended';
  * `positionSec + (T - anchorServerTime) / 1000 * rate` while playing.
  */
 export interface PlaybackState {
+  externalMedia?: ExternalMedia | null;
   tvEpisode?: RoomTvEpisode | null;
   roomId: string;
   version: number;
@@ -105,7 +108,8 @@ export interface RateCommand extends PlaybackCommandBase {
   rate: number;
 }
 export interface MovieChangeCommand extends PlaybackCommandBase {
-  movieId: string;
+  movieId?: string;
+  playbackSelection?: PlaybackSelection;
 }
 export interface MovieEndReport {
   roomId: string;

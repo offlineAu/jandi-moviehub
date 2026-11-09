@@ -1,3 +1,6 @@
+import { VidsrcService } from './vidsrc.service';
+import type { Redis } from 'ioredis';
+import type { AppConfig } from '../config/app-config';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CatalogController } from './catalog.controller';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -9,6 +12,10 @@ const controller = () =>
     {
       movie: { findUnique: vi.fn(async () => ({ tmdbId: 155 })) },
     } as unknown as PrismaService,
+    new VidsrcService(
+      { get: vi.fn(async () => null), set: vi.fn(async () => 'OK') } as unknown as Redis,
+      {} as AppConfig,
+    ),
   );
 
 afterEach(() => vi.unstubAllGlobals());

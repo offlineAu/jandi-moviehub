@@ -55,3 +55,9 @@ it('round trips KissKH source IDs without interpreting them as MovieBox', () => 
   ])
     expect(parseRoomTvTitle(invalid)).toBeNull();
 });
+
+it('preserves the direct KissKH mode in the room identity', () => {
+  const value = parseRoomTvTitle('kisskh-direct:71446:1:3:2510:57283');
+  expect(value).toMatchObject({ provider: 'kisskh-direct', seriesId: 2510, episodeId: 57283 });
+  expect(roomTvTitle(value!)).toBe('kisskh-direct:71446:1:3:2510:57283');
+});

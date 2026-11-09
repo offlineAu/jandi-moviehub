@@ -1,3 +1,4 @@
+import { VidsrcService } from './vidsrc.service';
 import { Controller, Get, Header, HttpStatus, Param, ParseUUIDPipe, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { type MovieListQuery, movieListQuerySchema } from '@jandi/shared';
@@ -8,13 +9,6 @@ import { ValidQuery } from '../common/zod';
 import { PrismaService } from '../prisma/prisma.service';
 import { ARTWORK_FILE, type ArtworkKind, artworkUrl, renderArtwork } from './artwork';
 import { CatalogService } from './catalog.service';
-import { z } from 'zod';
-
-const externalMovie = z.object({
-  status_code: z.literal(200),
-  type: z.literal('movie'),
-  tmdb_id: z.coerce.number().int().positive(),
-});
 
 @ApiTags('catalog')
 @Controller()
@@ -22,6 +16,7 @@ export class CatalogController {
   constructor(
     private readonly catalog: CatalogService,
     private readonly prisma: PrismaService,
+    private readonly vidsrc: VidsrcService,
   ) {}
 
   @Public()
@@ -56,32 +51,17 @@ export class CatalogController {
     const movie = await this.prisma.movie.findUnique({ where: { id }, select: { tmdbId: true } });
     if (!movie) throw Errors.notFound('Movie');
     if (!movie.tmdbId) return { available: false, embedUrl: null };
-    let response: globalThis.Response;
-    try {
-      response = await fetch(`https://vidsrc.sh/info/movie/${movie.tmdbId}.json`, {
-        signal: AbortSignal.timeout(8000),
-        redirect: 'error',
-        headers: { Accept: 'application/json' },
-      });
-    } catch {
-      throw Errors.unavailable(
-        'EXTERNAL_SOURCE_UNAVAILABLE',
-        'The external source is unavailable.',
-      );
-    }
-    if (response.status === 404) return { available: false, embedUrl: null };
-    if (!response.ok)
-      throw Errors.unavailable(
-        'EXTERNAL_SOURCE_UNAVAILABLE',
-        'The external source is unavailable.',
-      );
-    const parsed = externalMovie.safeParse(await response.json().catch(() => null));
-    if (!parsed.success || parsed.data.tmdb_id !== movie.tmdbId)
-      throw Errors.unavailable(
-        'EXTERNAL_SOURCE_UNAVAILABLE',
-        'The external source could not be checked.',
-      );
-    return { available: true, embedUrl: `https://vidsrc.sh/embed/movie/${movie.tmdbId}` };
+    const media = {
+      provider: 'vidsrc' as const,
+      type: 'movie' as const,
+      movieId: id,
+      tmdbId: movie.tmdbId,
+    };
+    const available = await this.vidsrc.listed(media);
+    return {
+      available,
+      embedUrl: available ? `https://vidsrc.sh/embed/movie/${movie.tmdbId}` : null,
+    };
   }
 
   @Public()

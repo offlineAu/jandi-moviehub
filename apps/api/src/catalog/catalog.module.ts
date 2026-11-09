@@ -1,3 +1,6 @@
+import { KisskhStreamService } from './kisskh-stream.service';
+import { VidsrcService } from './vidsrc.service';
+import { ExternalMediaResolver, RoomSourcesController } from './room-sources.controller';
 import { MovieboxController, MovieboxService } from './moviebox.controller';
 import { Module } from '@nestjs/common';
 import type { Redis } from 'ioredis';
@@ -25,6 +28,7 @@ import { ExternalSeriesController, ExternalSeriesService } from './external-seri
 
 @Module({
   controllers: [
+    RoomSourcesController,
     CatalogController,
     SeriesController,
     MediaController,
@@ -38,6 +42,9 @@ import { ExternalSeriesController, ExternalSeriesService } from './external-seri
     MovieboxController,
   ],
   providers: [
+    VidsrcService,
+    KisskhStreamService,
+    ExternalMediaResolver,
     ExternalSeriesService,
     MovieboxService,
     LocalCatalogProvider,
@@ -110,6 +117,9 @@ import { ExternalSeriesController, ExternalSeriesService } from './external-seri
     CatalogService,
   ],
   exports: [
+    VidsrcService,
+    KisskhStreamService,
+    ExternalMediaResolver,
     ExternalSeriesService,
     MovieboxService,
     TvMetadataService,

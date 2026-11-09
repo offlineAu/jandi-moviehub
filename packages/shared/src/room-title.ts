@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseExternalTitle, selectionTitle } from './playback-selection';
 import type { PlaybackState } from './sync/events';
 
 const legacyRoomEpisodeSchema = z
@@ -18,7 +19,7 @@ const providerRoomEpisodeSchema = z.object({
   numbering: z.literal('provider'),
 });
 const kisskhRoomEpisodeSchema = z.object({
-  provider: z.literal('kisskh'),
+  provider: z.enum(['kisskh', 'kisskh-direct']),
   tvId: z.literal('71446'),
   season: z.number().int().min(1).max(100),
   episode: z.number().int().min(1).max(1000),
@@ -33,10 +34,14 @@ export const roomTvEpisodeSchema = z.union([
 ]);
 export type RoomTvEpisode = z.infer<typeof roomTvEpisodeSchema>;
 const kisskhTitle =
-  /^kisskh:71446:([1-9]\d?|100):([1-9]\d{0,2}|1000):([1-9]\d{0,9}):([1-9]\d{0,9})$/;
+  /^(?:kisskh|kisskh-direct):71446:([1-9]\d?|100):([1-9]\d{0,2}|1000):([1-9]\d{0,9}):([1-9]\d{0,9})$/;
 const providerTitle = /^moviebox-source:71446:([1-9]\d?|100):([1-9]\d{0,2}|1000)$/;
 export const roomTitleSchema = z.union([
   z.uuid(),
+  z
+    .string()
+    .max(120)
+    .refine((value) => parseExternalTitle(value) !== null),
   z.string().regex(/^moviebox:71446:(?:2:(?:[1-9]|1[0-6])|3:(?:[1-9]|10))$/),
   z.string().regex(providerTitle),
   z
@@ -50,7 +55,7 @@ export const roomTitleSchema = z.union([
 export function parseRoomTvTitle(value: string): RoomTvEpisode | null {
   const [provider, tvId, season, episode, seriesId, episodeId] = value.split(':');
   if (
-    !['moviebox', 'moviebox-source', 'kisskh'].includes(provider!) ||
+    !['moviebox', 'moviebox-source', 'kisskh', 'kisskh-direct'].includes(provider!) ||
     !roomTitleSchema.safeParse(value).success
   )
     return null;
@@ -58,18 +63,21 @@ export function parseRoomTvTitle(value: string): RoomTvEpisode | null {
     tvId,
     season: Number(season),
     episode: Number(episode),
-    ...(provider === 'moviebox-source' || provider === 'kisskh' ? { numbering: 'provider' } : {}),
-    ...(provider === 'kisskh'
+    ...(provider === 'moviebox-source' || provider === 'kisskh' || provider === 'kisskh-direct'
+      ? { numbering: 'provider' }
+      : {}),
+    ...(provider === 'kisskh' || provider === 'kisskh-direct'
       ? { provider, seriesId: Number(seriesId), episodeId: Number(episodeId) }
       : {}),
   });
   return parsed.success ? parsed.data : null;
 }
 export function roomTvTitle(value: RoomTvEpisode) {
-  if (value.provider === 'kisskh')
-    return `kisskh:${value.tvId}:${value.season}:${value.episode}:${value.seriesId}:${value.episodeId}`;
+  if (value.provider === 'kisskh' || value.provider === 'kisskh-direct')
+    return `${value.provider}:${value.tvId}:${value.season}:${value.episode}:${value.seriesId}:${value.episodeId}`;
   return `${value.numbering === 'provider' ? 'moviebox-source' : 'moviebox'}:${value.tvId}:${value.season}:${value.episode}`;
 }
 export function playbackAssetKey(state: PlaybackState | null | undefined) {
+  if (state?.externalMedia) return selectionTitle(state.externalMedia);
   return state?.tvEpisode ? roomTvTitle(state.tvEpisode) : (state?.mediaAssetId ?? null);
 }

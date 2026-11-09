@@ -1,4 +1,4 @@
-import { parseRoomTvTitle } from '@jandi/shared';
+import { parseRoomTvTitle, parseExternalTitle, selectionTitle } from '@jandi/shared';
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import {
   type CreateRoomInput,
@@ -229,7 +229,11 @@ export class RoomsService implements OnModuleInit {
   // ───────── CRUD ─────────
 
   async create(user: AuthUser, input: CreateRoomInput) {
-    if (input.movieId && !parseRoomTvTitle(input.movieId))
+    input = {
+      ...input,
+      movieId: input.playbackSelection ? selectionTitle(input.playbackSelection) : input.movieId,
+    };
+    if (input.movieId && !parseRoomTvTitle(input.movieId) && !parseExternalTitle(input.movieId))
       await this.prisma.movie.findUniqueOrThrow({ where: { id: input.movieId } }).catch(() => {
         throw Errors.badRequest('INVALID_MOVIE', 'Movie not found');
       });
@@ -248,7 +252,12 @@ export class RoomsService implements OnModuleInit {
             allowGuests: input.allowGuests,
             controlPolicy: input.controlPolicy,
             maxMembers: input.maxMembers ?? (await this.settings.get('rooms.maxMembersDefault')),
-            movieId: input.movieId && !parseRoomTvTitle(input.movieId) ? input.movieId : undefined,
+            movieId:
+              input.movieId &&
+              !parseRoomTvTitle(input.movieId) &&
+              !parseExternalTitle(input.movieId)
+                ? input.movieId
+                : undefined,
             scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : null,
             members: { create: { userId: user.id, role: 'HOST' } },
           },

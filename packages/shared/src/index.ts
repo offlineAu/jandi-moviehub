@@ -5,3 +5,4 @@ export * from './sync/events';
 export * from './sync/playback';
 
 export * from './room-title';
+export * from './playback-selection';

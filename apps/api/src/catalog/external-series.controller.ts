@@ -30,7 +30,9 @@ async function readJson(path: string): Promise<unknown> {
 
 @Injectable()
 export class ExternalSeriesService {
-  async resolveRoomEpisode(episode: Extract<RoomTvEpisode, { provider: 'kisskh' }>) {
+  async resolveRoomEpisode(
+    episode: Extract<RoomTvEpisode, { provider: 'kisskh' | 'kisskh-direct' }>,
+  ) {
     const { series } = await this.show(String(episode.seriesId));
     const normalized = series.title
       .toLowerCase()

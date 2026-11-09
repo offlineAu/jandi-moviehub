@@ -1,6 +1,14 @@
+import { KisskhStreamService } from '../catalog/kisskh-stream.service';
+import { ExternalMediaResolver } from '../catalog/room-sources.controller';
+import { VidsrcService } from '../catalog/vidsrc.service';
 import { ExternalSeriesService } from '../catalog/external-series.controller';
 import { Prisma } from '@prisma/client';
-import { parseRoomTvTitle, roomTvEpisodeSchema } from '@jandi/shared';
+import {
+  parseExternalTitle,
+  externalMediaSchema,
+  parseRoomTvTitle,
+  roomTvEpisodeSchema,
+} from '@jandi/shared';
 import { MovieboxService } from '../catalog/moviebox.controller';
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import {
@@ -74,6 +82,9 @@ export class PlaybackService implements OnModuleInit {
     private readonly media: MediaResolver,
     private readonly moviebox: MovieboxService,
     private readonly kisskh: ExternalSeriesService,
+    private readonly external: ExternalMediaResolver,
+    private readonly vidsrc: VidsrcService,
+    private readonly kisskhStream: KisskhStreamService,
   ) {
     (this.redis as CasRedis).defineCommand?.('playbackCas', { numberOfKeys: 2, lua: CAS_SCRIPT });
   }
@@ -103,6 +114,9 @@ export class PlaybackService implements OnModuleInit {
           tvEpisode: roomTvEpisodeSchema.safeParse(row.tvEpisode).success
             ? roomTvEpisodeSchema.parse(row.tvEpisode)
             : null,
+          externalMedia: externalMediaSchema.safeParse(row.externalMedia).success
+            ? externalMediaSchema.parse(row.externalMedia)
+            : null,
           mediaAssetId: row.mediaAssetId,
           status: row.status as PlaybackState['status'],
           positionSec: row.positionSec,
@@ -121,6 +135,7 @@ export class PlaybackService implements OnModuleInit {
 
   private async persist(state: PlaybackState) {
     const data = {
+      externalMedia: state.externalMedia ? { ...state.externalMedia } : Prisma.DbNull,
       version: state.version,
       movieId: state.movieId,
       tvEpisode: state.tvEpisode ? { ...state.tvEpisode } : Prisma.DbNull,
@@ -160,6 +175,16 @@ export class PlaybackService implements OnModuleInit {
         state: current,
       };
     }
+    if (
+      current.externalMedia &&
+      ['play', 'pause', 'seek', 'rate', 'duration'].includes(action.type)
+    )
+      this.vidsrc.assertEnabled();
+    if (
+      current.tvEpisode?.provider === 'kisskh-direct' &&
+      ['play', 'pause', 'seek', 'rate', 'duration'].includes(action.type)
+    )
+      this.kisskhStream.assertEnabled();
     const result = reducePlayback(current, action, Date.now(), ctx.actorId, ctx.commandId);
     if (!result.ok)
       return {
@@ -226,17 +251,45 @@ export class PlaybackService implements OnModuleInit {
     movieId: string,
     opts: { autoplay: boolean; actorId?: string; ctx?: CommandContext },
   ) {
+    const externalSelection = parseExternalTitle(movieId);
+    if (externalSelection) {
+      const media = await this.external.resolve(externalSelection);
+      const action: PlaybackAction = { type: 'load-external', externalMedia: media };
+      const state = opts.ctx
+        ? await this.applyCommand(roomId, action, opts.ctx)
+        : await this.applySystem(roomId, action).then((value) =>
+            value
+              ? { ok: true as const, data: value }
+              : {
+                  ok: false as const,
+                  error: { code: 'CONFLICT' as const, message: 'Could not load provider source' },
+                },
+          );
+      if (state.ok)
+        await this.prisma.room.update({
+          where: { id: roomId },
+          data: { movieId: media.type === 'movie' ? media.movieId : null },
+        });
+      return state;
+    }
     const tvEpisode = parseRoomTvTitle(movieId);
     if (tvEpisode) {
       const source =
-        tvEpisode.provider === 'kisskh'
-          ? await this.kisskh.resolveRoomEpisode(tvEpisode).then(() => ({ durationSec: null }))
+        tvEpisode.provider === 'kisskh' || tvEpisode.provider === 'kisskh-direct'
+          ? await this.kisskh.resolveRoomEpisode(tvEpisode).then(async () => {
+              if (tvEpisode.provider === 'kisskh-direct')
+                await this.kisskhStream.resolve(tvEpisode);
+              return { durationSec: null };
+            })
           : await this.moviebox.playback(tvEpisode);
       const action: PlaybackAction = {
         type: 'load-tv',
         tvEpisode,
         durationSec: source.durationSec,
-        autoplay: tvEpisode.provider === 'kisskh' ? false : opts.autoplay,
+        autoplay:
+          tvEpisode.provider === 'kisskh' || tvEpisode.provider === 'kisskh-direct'
+            ? false
+            : opts.autoplay,
       };
       const ack = opts.ctx
         ? await this.applyCommand(roomId, action, opts.ctx)

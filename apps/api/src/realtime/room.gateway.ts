@@ -1,3 +1,5 @@
+import { Errors } from '../common/errors';
+import { playbackSelectionSchema, selectionTitle } from '@jandi/shared';
 import { roomTitleSchema } from '@jandi/shared';
 import { type BeforeApplicationShutdown, Logger } from '@nestjs/common';
 import {
@@ -64,8 +66,16 @@ const commandSchemas = {
   play: commandBase.extend({ positionSec: z.number().min(0).max(86_400).optional() }),
   pause: commandBase.extend({ positionSec: z.number().min(0).max(86_400).optional() }),
   seek: commandBase.extend({ positionSec: z.number().min(0).max(86_400) }),
+  metadata: commandBase.extend({ durationSec: z.number().min(1).max(86400) }),
   rate: commandBase.extend({ rate: z.number().min(0.25).max(2) }),
-  movie: commandBase.extend({ movieId: roomTitleSchema }),
+  movie: commandBase
+    .extend({
+      movieId: roomTitleSchema.optional(),
+      playbackSelection: playbackSelectionSchema.optional(),
+    })
+    .refine((v) => Boolean(v.movieId) !== Boolean(v.playbackSelection), {
+      message: 'Choose one playback selection',
+    }),
 };
 const roomRef = z.object({ roomId: uuidSchema });
 const heartbeatSchema = z.object({
@@ -157,8 +167,10 @@ export class RoomGateway
     this.roomEvents.register({
       presenceChanged: async (roomId) => this.schedulePresence(roomId),
       roomCreated: async (roomId, _hostId, movieId) => {
-        if (movieId) await this.playback.loadMovie(roomId, movieId, { autoplay: false });
-        else await this.playback.getState(roomId);
+        if (movieId) {
+          const loaded = await this.playback.loadMovie(roomId, movieId, { autoplay: false });
+          if (!loaded.ok) throw Errors.badRequest(loaded.error.code, loaded.error.message);
+        } else await this.playback.getState(roomId);
       },
       roomClosed: async (roomId) => {
         await this.playback.clear(roomId);
@@ -384,6 +396,14 @@ export class RoomGateway
     }));
   }
 
+  @SubscribeMessage(SocketEvents.PLAYBACK_METADATA)
+  metadata(@ConnectedSocket() socket: AppSocket, @MessageBody() body: unknown) {
+    return this.command(socket, body, commandSchemas.metadata, (p: { durationSec: number }) => ({
+      type: 'duration',
+      durationSec: p.durationSec,
+    }));
+  }
+
   @SubscribeMessage(SocketEvents.PLAYBACK_RATE_CHANGE)
   rate(@ConnectedSocket() socket: AppSocket, @MessageBody() body: unknown) {
     return this.command(socket, body, commandSchemas.rate, (p: { rate: number }) => ({
@@ -399,14 +419,15 @@ export class RoomGateway
       await this.authorizeControl(socket, p.roomId);
       if (await this.marathon.isActive(p.roomId))
         return fail('CONFLICT', 'Stop the marathon before changing the movie');
-      const ack = await this.playback.loadMovie(p.roomId, p.movieId, {
+      const title = p.playbackSelection ? selectionTitle(p.playbackSelection) : p.movieId!;
+      const ack = await this.playback.loadMovie(p.roomId, title, {
         autoplay: false,
         ctx: { actorId: socket.data.user.id, commandId: p.commandId, baseVersion: p.baseVersion },
       });
       if (ack.ok) {
         this.emitter.toRoom(p.roomId, SocketEvents.MOVIE_CHANGE, {
           roomId: p.roomId,
-          movieId: p.movieId,
+          movieId: title,
           state: ack.data,
         });
       }

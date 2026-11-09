@@ -1,5 +1,7 @@
 'use client';
 
+import { selectionTitle } from '@jandi/shared';
+import { useRoomSourceCapabilities } from '@/lib/queries/room-sources';
 import { Ban, Clapperboard, Play, Star, Users } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -116,6 +118,7 @@ function DetailSkeleton() {
 
 export function MovieDetailView({ id }: { id: string }) {
   const me = useMe();
+  const roomCapabilities = useRoomSourceCapabilities();
   const movieQuery = useMovie(id);
   const similar = useSimilar(id);
   const recommendations = useRecommendations(id);
@@ -319,9 +322,11 @@ export function MovieDetailView({ id }: { id: string }) {
           ) : (
             <LibraryActions movie={movie} me={user} />
           )}
-          {movie.playable ? (
+          {movie.playable || (roomCapabilities.data?.vidsrcSync && external.data?.available) ? (
             <Button asChild variant="outline" size="lg">
-              <Link href={`/rooms/new?movieId=${movie.id}`}>
+              <Link
+                href={`/rooms/new?movieId=${encodeURIComponent(movie.playable ? movie.id : selectionTitle({ provider: 'vidsrc', type: 'movie', movieId: movie.id }))}`}
+              >
                 <Users aria-hidden="true" />
                 Start a watch party
               </Link>

@@ -1,9 +1,40 @@
 import type { NextConfig } from 'next';
+import { networkInterfaces } from 'node:os';
 
 const apiInternalUrl = (process.env.API_INTERNAL_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 const publicApiOrigin = new URL(process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000').origin;
 const wsApiOrigin = publicApiOrigin.replace(/^http/, 'ws');
 const isDev = process.env.NODE_ENV !== 'production';
+
+function developmentHosts(): string[] {
+  if (!isDev) return [];
+  const hosts = (process.env.WEB_DEV_ORIGINS ?? '')
+    .split(',')
+    .map((host) => host.trim())
+    .filter(Boolean);
+  try {
+    for (const network of Object.values(networkInterfaces()))
+      for (const address of network ?? [])
+        if (!address.internal && address.family === 'IPv4') hosts.push(address.address);
+  } catch {
+    // Restricted environments can supply explicit hostnames using WEB_DEV_ORIGINS.
+  }
+  return [...new Set(hosts)];
+}
+
+const extraMediaOrigins = (process.env.KISSKH_MEDIA_ORIGINS ?? '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value) => {
+    if (/^https:\/\/\*\.(?:[a-z0-9-]+\.)+[a-z]{2,}$/i.test(value)) return true;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && url.origin === value && !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  })
+  .join(' ');
 
 const csp = [
   "default-src 'self'",
@@ -16,8 +47,8 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: https://image.tmdb.org ${publicApiOrigin}`,
   "font-src 'self' data:",
-  `media-src 'self' blob: https://bcdnxw.hakunaymatata.com ${publicApiOrigin}`,
-  `connect-src 'self' ws: wss: ${publicApiOrigin} ${wsApiOrigin}`,
+  `media-src 'self' blob: https://bcdnxw.hakunaymatata.com ${publicApiOrigin} ${extraMediaOrigins}`,
+  `connect-src 'self' ws: wss: ${publicApiOrigin} ${wsApiOrigin} ${extraMediaOrigins}`,
   'frame-src https://www.youtube-nocookie.com https://video.blender.org https://archive.org https://vidsrc.sh https://kisskh.megaplay.su',
   "worker-src 'self' blob:",
   "manifest-src 'self'",
@@ -31,12 +62,13 @@ const securityHeaders = [
   {
     key: 'Permissions-Policy',
     value:
-      'camera=(), microphone=(self), geolocation=(), payment=(), usb=(), fullscreen=(self), picture-in-picture=(self), autoplay=(self)',
+      'camera=(), microphone=(self), geolocation=(), payment=(), usb=(), fullscreen=(self "https://kisskh.megaplay.su" "https://vidsrc.sh"), picture-in-picture=(self "https://kisskh.megaplay.su" "https://vidsrc.sh"), autoplay=(self "https://kisskh.megaplay.su" "https://vidsrc.sh")',
   },
 ];
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  allowedDevOrigins: developmentHosts(),
   // Lets the E2E stack build into its own directory without disturbing `next dev`.
   distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,

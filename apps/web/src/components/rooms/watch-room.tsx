@@ -1,5 +1,7 @@
 'use client';
-import { playbackAssetKey } from '@jandi/shared';
+
+import { VidsrcRoomPlayer } from './vidsrc-room-player';
+import { playbackAssetKey, roomTvTitle, selectionTitle } from '@jandi/shared';
 
 import {
   ArrowLeft,
@@ -116,6 +118,26 @@ export function WatchRoom({ room }: { room: Room }) {
   );
   const onEnded = React.useCallback(() => void engine?.reportEnded(), [engine]);
 
+  const lastDurationReport = React.useRef(0);
+  const onTimeUpdate = React.useCallback(
+    (_position: number, duration: number) => {
+      if (
+        !isHost ||
+        playback?.tvEpisode?.provider !== 'kisskh-direct' ||
+        playback.durationSec != null ||
+        !assetKey ||
+        !Number.isFinite(duration) ||
+        duration < 1 ||
+        duration > 86400 ||
+        Date.now() - lastDurationReport.current < 5000
+      )
+        return;
+      lastDurationReport.current = Date.now();
+      void engine?.intent({ type: 'duration', durationSec: duration });
+    },
+    [isHost, playback, assetKey, engine],
+  );
+
   const sourcesMovie = sources.data?.movie;
   const nowTitle = sourcesMovie?.title ?? (assetKey ? room.movie?.title : null) ?? null;
 
@@ -192,12 +214,27 @@ export function WatchRoom({ room }: { room: Room }) {
         <Spinner className="size-8" label="Loading the stream" />
       </div>
     );
+  } else if (!sources.isError && sources.data?.embed?.provider === 'vidsrc') {
+    stage = (
+      <VidsrcRoomPlayer
+        key={assetKey}
+        src={sources.data.embed.url}
+        title={sources.data.movie.title}
+        media={sources.data.embed.media}
+        engine={engine}
+        canControl={canControl}
+        connected={session.connected}
+        episodeHref={sources.data.detailHref}
+        overlay={<ReactionOverlay bursts={session.bursts} />}
+      />
+    );
   } else if (!sources.isError && sources.data?.embed?.provider === 'kisskh') {
     stage = (
       <KisskhRoomPlayer
         key={assetKey}
         src={sources.data.embed.url}
         title={sources.data.movie.title}
+        episodeHref={sources.data.detailHref}
         overlay={<ReactionOverlay bursts={session.bursts} />}
       />
     );
@@ -221,6 +258,7 @@ export function WatchRoom({ room }: { room: Room }) {
         canControl={canControl}
         onIntent={onIntent}
         onEnded={onEnded}
+        onTimeUpdate={onTimeUpdate}
         theater={theater}
         onTheaterChange={setTheater}
         overlay={overlay}
@@ -340,7 +378,11 @@ export function WatchRoom({ room }: { room: Room }) {
             ) : null}
           </p>
         </div>
-        {individualPlayback ? (
+        {playback?.externalMedia ? (
+          <span role="status" className="text-xs text-muted">
+            {!session.connected ? 'Connection lost' : 'Shared playback · See player status'}
+          </span>
+        ) : individualPlayback ? (
           <span
             role="status"
             className="rounded-full border border-border-strong px-3 py-1.5 text-xs text-muted"
@@ -460,7 +502,7 @@ export function WatchRoom({ room }: { room: Room }) {
             <div className={cn('px-3 pb-3 sm:px-6', !(theater && desktop) && 'mx-auto max-w-5xl')}>
               <EpisodeBar
                 roomId={room.id}
-                movieId={playback?.movieId ?? null}
+                movieId={playback?.externalMedia ? null : (playback?.movieId ?? null)}
                 status={playback?.status}
                 socket={session.socket}
                 engine={engine}
@@ -548,7 +590,13 @@ export function WatchRoom({ room }: { room: Room }) {
         onOpenChange={setMovieOpen}
         socket={session.socket}
         engine={engine}
-        currentMovieId={playback?.movieId ?? null}
+        currentMovieId={
+          playback?.externalMedia
+            ? selectionTitle(playback.externalMedia)
+            : playback?.tvEpisode
+              ? roomTvTitle(playback.tvEpisode)
+              : (playback?.movieId ?? null)
+        }
       />
       <ConfirmDialog
         open={confirm === 'leave'}

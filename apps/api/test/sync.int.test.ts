@@ -1,3 +1,4 @@
+import { VidsrcService } from '../src/catalog/vidsrc.service';
 import {
   type CommandAck,
   expectedPosition,
@@ -75,16 +76,109 @@ describe('real-time playback sync (integration)', () => {
     ...extra,
   });
 
-  it('synchronizes TV episodes, restores them from storage, and enforces host controls', async () => {
-    const provider = vi
-      .spyOn(t.app.get(MovieboxService), 'playback')
-      .mockResolvedValue({
-        durationSec: 3059,
-        audioLanguage: 'es',
-        sources: [],
-        englishVtt: null,
-        subtitleStatus: 'UNAVAILABLE',
+  it('shares external movie state, restores it, and rejects viewer commands and unsupported rates', async () => {
+    const provider = t.app.get(VidsrcService);
+    const enabled = vi.spyOn(provider, 'enabled', 'get').mockReturnValue(true);
+    const listed = vi.spyOn(provider, 'listed').mockResolvedValue(true);
+    try {
+      const { host, viewer, roomId, movie } = await setup();
+      await t.prisma.movie.update({ where: { id: movie.id }, data: { tmdbId: 155 } });
+      const { socket: hs, snapshot } = await joinSocket(host, roomId);
+      const { socket: vs } = await joinSocket(viewer, roomId);
+      const loaded = await emitAck<Ack>(
+        hs,
+        SocketEvents.MOVIE_CHANGE,
+        cmd(roomId, snapshot.playback.version, {
+          playbackSelection: { provider: 'vidsrc', type: 'movie', movieId: movie.id },
+        }),
+      );
+      if (!loaded.ok) throw new Error(JSON.stringify(loaded));
+      expect(loaded.data.externalMedia).toMatchObject({ tmdbId: 155, movieId: movie.id });
+      expect(
+        (await emitAck<Ack>(vs, SocketEvents.PLAYBACK_PLAY, cmd(roomId, loaded.data.version))).ok,
+      ).toBe(false);
+      expect(
+        (
+          await emitAck<Ack>(
+            hs,
+            SocketEvents.PLAYBACK_RATE_CHANGE,
+            cmd(roomId, loaded.data.version, { rate: 1.5 }),
+          )
+        ).ok,
+      ).toBe(false);
+      const metadata = await emitAck<Ack>(
+        hs,
+        SocketEvents.PLAYBACK_METADATA,
+        cmd(roomId, loaded.data.version, { durationSec: 600 }),
+      );
+      if (!metadata.ok) throw new Error(JSON.stringify(metadata));
+      const playing = await emitAck<Ack>(
+        hs,
+        SocketEvents.PLAYBACK_PLAY,
+        cmd(roomId, metadata.data.version),
+      );
+      if (!playing.ok) throw new Error(JSON.stringify(playing));
+      const seek = await emitAck<Ack>(
+        hs,
+        SocketEvents.PLAYBACK_SEEK,
+        cmd(roomId, playing.data.version, { positionSec: 100 }),
+      );
+      expect(seek.ok && seek.data.positionSec).toBe(100);
+      await t.redis.del(`pb:${roomId}`);
+      const restored = await t.app.get(PlaybackService).getState(roomId);
+      expect(restored.externalMedia).toEqual(loaded.data.externalMedia);
+      expect(restored.durationSec).toBe(600);
+      const response = await viewer.agent
+        .get(`/api/v1/rooms/${roomId}/playback-sources`)
+        .expect(200);
+      expect(response.body.embed).toMatchObject({
+        provider: 'vidsrc',
+        playbackMode: 'synced',
+        capabilities: { rate: false },
       });
+      enabled.mockReturnValue(false);
+      await viewer.agent.get(`/api/v1/rooms/${roomId}/playback-sources`).expect(503);
+    } finally {
+      enabled.mockRestore();
+      listed.mockRestore();
+    }
+  });
+
+  it('keeps two rooms isolated with ten connected viewers each', async () => {
+    const rooms = [];
+    for (let index = 0; index < 2; index++) {
+      const { host, viewer, roomId } = await setup();
+      const joined = await joinSocket(host, roomId);
+      await joinSocket(viewer, roomId);
+      for (let member = 0; member < 8; member++) {
+        const user = await registerUser(t);
+        await user.agent.post(`/api/v1/rooms/${roomId}/join`).send({}).expect(200);
+        await joinSocket(user, roomId);
+      }
+      rooms.push({ roomId, ...joined });
+    }
+    for (const room of rooms) {
+      const ack = await emitAck<Ack>(
+        room.socket,
+        SocketEvents.PLAYBACK_SEEK,
+        cmd(room.roomId, room.snapshot.playback.version, {
+          positionSec: room === rooms[0] ? 50 : 100,
+        }),
+      );
+      expect(ack.ok).toBe(true);
+    }
+    expect((await t.app.get(PlaybackService).getState(rooms[0]!.roomId)).positionSec).toBe(50);
+    expect((await t.app.get(PlaybackService).getState(rooms[1]!.roomId)).positionSec).toBe(100);
+  }, 60000);
+
+  it('synchronizes TV episodes, restores them from storage, and enforces host controls', async () => {
+    const provider = vi.spyOn(t.app.get(MovieboxService), 'playback').mockResolvedValue({
+      durationSec: 3059,
+      audioLanguage: 'es',
+      sources: [],
+      englishVtt: null,
+      subtitleStatus: 'UNAVAILABLE',
+    });
     try {
       const host = await registerUser(t);
       const viewer = await registerUser(t);

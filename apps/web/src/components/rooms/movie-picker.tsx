@@ -1,7 +1,9 @@
 'use client';
 
-import { parseRoomTvTitle } from '@jandi/shared';
+import { parseRoomTvTitle, parseExternalTitle, selectionTitle } from '@jandi/shared';
 import { SelectedRoomEpisode, TvRoomPicker } from './tv-room-picker';
+import { useRoomSourceCapabilities, useRoomSourceCheck } from '@/lib/queries/room-sources';
+import { SelectedExternalEpisode } from './vidsrc-tv-picker';
 import { Ban, Check, Film, Play } from 'lucide-react';
 import * as React from 'react';
 import { Artwork } from '@/components/movies/artwork';
@@ -19,14 +21,26 @@ function MovieRow({
 }: {
   movie: MovieSummary;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (value?: string) => void;
 }) {
-  const disabled = !movie.playable;
+  const capabilities = useRoomSourceCapabilities();
+  const check = useRoomSourceCheck(
+    { movieId: movie.id },
+    !!capabilities.data?.vidsrcSync && !movie.playable,
+  );
+  const listed = !movie.playable && check.data?.listed;
+  const disabled = !movie.playable && !listed;
   return (
     <li>
       <button
         type="button"
-        onClick={onSelect}
+        onClick={() =>
+          onSelect(
+            listed
+              ? selectionTitle({ provider: 'vidsrc', type: 'movie', movieId: movie.id })
+              : movie.id,
+          )
+        }
         disabled={disabled}
         aria-pressed={selected}
         className={cn(
@@ -47,17 +61,26 @@ function MovieRow({
         {disabled ? (
           <span className="flex shrink-0 items-center gap-1 text-xs text-muted">
             <Ban className="size-3.5" aria-hidden="true" />
-            Not available to stream
+            {check.isFetching
+              ? 'Checking source…'
+              : check.isError
+                ? 'Source check failed'
+                : 'No source listed'}
           </span>
         ) : selected ? (
           <Check className="size-4 shrink-0 text-primary" aria-label="Selected" />
         ) : (
           <span className="flex shrink-0 items-center gap-1 text-xs text-[#6ee7b7]">
             <Play className="size-3 fill-current" aria-hidden="true" />
-            Playable
+            {listed ? 'VidSrc source listed' : 'Playable'}
           </span>
         )}
       </button>
+      {check.isError && (
+        <Button size="sm" variant="ghost" onClick={() => void check.refetch()}>
+          Retry source check
+        </Button>
+      )}
     </li>
   );
 }
@@ -82,12 +105,35 @@ export function MoviePicker({
     return () => window.clearTimeout(t);
   }, [text]);
   const selectedTv = value ? parseRoomTvTitle(value) : null;
-  const selected = useMovie(selectedTv ? '' : (value ?? ''));
+  const external = value ? parseExternalTitle(value) : null;
+  const selected = useMovie(
+    selectedTv || external?.type === 'tv'
+      ? ''
+      : external?.type === 'movie'
+        ? external.movieId
+        : (value ?? ''),
+  );
   const results = useMovies(
     q ? { q, pageSize: 8 } : { playable: true, sort: 'popularity', pageSize: 8 },
     { enabled: browsing },
   );
 
+  if (external && !browsing)
+    return (
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border-strong p-3">
+        {external.type === 'tv' ? (
+          <SelectedExternalEpisode media={{ ...external, tmdbId: external.tvId }} />
+        ) : (
+          <span>{selected.data?.title ?? 'Movie'} · VidSrc synchronized playback</span>
+        )}
+        <Button variant="ghost" size="sm" onClick={() => setBrowsing(true)}>
+          Change
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => onChange(undefined)}>
+          Remove
+        </Button>
+      </div>
+    );
   if (value && selectedTv && !browsing)
     return (
       <SelectedRoomEpisode
@@ -167,8 +213,8 @@ export function MoviePicker({
               key={m.id}
               movie={m}
               selected={m.id === value}
-              onSelect={() => {
-                onChange(m.id);
+              onSelect={(value) => {
+                onChange(value ?? m.id);
                 setBrowsing(false);
               }}
             />

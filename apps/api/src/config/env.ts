@@ -86,11 +86,27 @@ export const envSchema = z
     OTEL_EXPORTER_OTLP_ENDPOINT: optionalString,
     ERROR_WEBHOOK_URL: optionalString,
     ENABLE_DEV_ROUTES: bool(false),
+    ENABLE_VIDSRC_ROOM_SYNC: bool(false),
+    ENABLE_KISSKH_DIRECT_SYNC: bool(false),
+    KISSKH_STREAM_RESOLVER_URL: optionalString,
     /** Scales every rate limit (load/E2E environments only; must be 1 in production). */
     RATE_LIMIT_MULTIPLIER: z.coerce.number().min(1).max(1000).default(1),
     QUEUE_WORKERS: bool(true),
   })
   .superRefine((env, ctx) => {
+    if (env.ENABLE_KISSKH_DIRECT_SYNC) {
+      try {
+        const url = new URL(env.KISSKH_STREAM_RESOLVER_URL ?? '');
+        if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash)
+          throw new Error();
+      } catch {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['KISSKH_STREAM_RESOLVER_URL'],
+          message: 'must be an HTTPS resolver base URL when direct sync is enabled',
+        });
+      }
+    }
     if (env.NODE_ENV === 'production') {
       if (!env.COOKIE_SECURE)
         ctx.addIssue({

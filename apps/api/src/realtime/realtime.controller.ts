@@ -1,8 +1,10 @@
+import { KisskhStreamService } from '../catalog/kisskh-stream.service';
+import { VidsrcService } from '../catalog/vidsrc.service';
 import { ExternalSeriesService } from '../catalog/external-series.controller';
 import { MovieboxService } from '../catalog/moviebox.controller';
 import { TvMetadataService } from '../catalog/tv.service';
 import { providerCatalogEpisode, roomTvTitle } from '@jandi/shared';
-import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Header, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AllowGuest, type AuthUser, CurrentUser } from '../common/auth-context';
 import { CatalogService } from '../catalog/catalog.service';
@@ -19,6 +21,8 @@ export class RealtimeController {
     private readonly moviebox: MovieboxService,
     private readonly tv: TvMetadataService,
     private readonly kisskh: ExternalSeriesService,
+    private readonly vidsrc: VidsrcService,
+    private readonly kisskhStream: KisskhStreamService,
   ) {}
 
   /** Current authoritative playback state (REST fallback for the socket snapshot). */
@@ -35,16 +39,59 @@ export class RealtimeController {
    */
   @AllowGuest()
   @Get('playback-sources')
+  @Header('Cache-Control', 'private, no-store')
   async sources(@CurrentUser() user: AuthUser, @Param('roomId', ParseUUIDPipe) roomId: string) {
     await this.rooms.requireMember(roomId, user.id);
     const state = await this.playback.getState(roomId);
+    if (state.externalMedia) {
+      this.vidsrc.assertEnabled();
+      const media = state.externalMedia;
+      const movie =
+        media.type === 'movie'
+          ? await this.catalog.getSummary(media.movieId)
+          : await (async () => {
+              const [{ series }, { episode }] = await Promise.all([
+                this.tv.detail(media.tvId),
+                this.tv.episode(media.tvId, media.season, media.episode),
+              ]);
+              return {
+                id: `vidsrc:tv:${media.tvId}:${media.season}:${media.episode}`,
+                title: `${series.title} · S${media.season} E${media.episode} · ${episode?.title ?? 'Episode'}`,
+                posterUrl: series.posterUrl,
+                backdropUrl: episode?.stillUrl ?? series.backdropUrl,
+                overview: episode?.overview ?? series.overview,
+                year: null,
+                runtimeMin: episode?.runtimeMin ?? null,
+                genres: series.genres,
+                playable: false,
+                isDemo: false,
+                source: 'TMDB',
+              };
+            })();
+      return {
+        movieId: state.movieId,
+        movie,
+        sources: [],
+        externalMedia: media,
+        detailHref: `/watch/embed?media=${encodeURIComponent(JSON.stringify(media))}`,
+        embed: {
+          provider: 'vidsrc',
+          url: this.vidsrc.embedUrl(media),
+          playbackMode: 'synced',
+          media,
+          capabilities: { play: true, pause: true, seek: true, rate: false },
+        },
+      };
+    }
     if (state.tvEpisode) {
       const episode = state.tvEpisode;
-      if (episode.provider === 'kisskh') {
+      if (episode.provider === 'kisskh' || episode.provider === 'kisskh-direct') {
         const source = await this.kisskh.resolveRoomEpisode(episode);
         const metadata = await this.tv.detail(Number(episode.tvId)).catch(() => null);
         const series = metadata?.series;
         const title = `${source.series.title} · Episode ${episode.episode}`;
+        const direct =
+          episode.provider === 'kisskh-direct' ? await this.kisskhStream.resolve(episode) : null;
         return {
           movieId: null,
           tvEpisode: episode,
@@ -62,12 +109,29 @@ export class RealtimeController {
             isDemo: false,
             source: 'TMDB',
           },
-          sources: [],
-          embed: {
-            provider: 'kisskh',
-            url: `https://kisskh.megaplay.su/kisskh/${source.episode.id}`,
-            playbackMode: 'individual',
-          },
+          sources: direct
+            ? [
+                {
+                  assetId: roomTvTitle(episode),
+                  label: 'KissKH',
+                  format: direct.format,
+                  mimeType: direct.mimeType,
+                  durationSec: 0,
+                  url: direct.url,
+                  captions: [],
+                  license: null,
+                },
+              ]
+            : [],
+          ...(direct
+            ? {}
+            : {
+                embed: {
+                  provider: 'kisskh' as const,
+                  url: `https://kisskh.megaplay.su/kisskh/${source.episode.id}`,
+                  playbackMode: 'individual' as const,
+                },
+              }),
         };
       }
       const coordinate =
@@ -81,7 +145,7 @@ export class RealtimeController {
           ? this.tv.episode(Number(episode.tvId), coordinate.season, coordinate.episode)
           : Promise.resolve(null),
       ]);
-      const title = `${series.title} · ${episode.numbering === 'provider' ? 'Part' : 'S'}${episode.season} E${episode.episode}${detail?.episode?.title ? ` · ${detail.episode.title}` : ''}`;
+      const title = `${series.title} · ${episode.numbering === 'provider' ? 'Part' : 'S'}${episode.season} E${episode.episode}${detail?.episode?.title ? ` · ${detail.episode?.title ?? 'Episode'}` : ''}`;
       return {
         movieId: null,
         tvEpisode: episode,
