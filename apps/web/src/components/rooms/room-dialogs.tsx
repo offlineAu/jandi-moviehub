@@ -399,7 +399,8 @@ export function useChangeRoomMovie(
       setBusy(true);
       try {
         for (let attempt = 0; attempt < 2; attempt++) {
-          const ack = (await socket.timeout(45000).emitWithAck(SocketEvents.MOVIE_CHANGE, {
+          const timeout = movieId.startsWith('kisskh-direct:') ? 120000 : 45000;
+          const ack = (await socket.timeout(timeout).emitWithAck(SocketEvents.MOVIE_CHANGE, {
             roomId,
             commandId: uuid(),
             baseVersion: engine.current.version,

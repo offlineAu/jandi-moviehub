@@ -213,7 +213,12 @@ export function WatchRoom({ room }: { room: Room }) {
   } else if (sources.isLoading) {
     stage = (
       <div className="grid aspect-video place-items-center bg-black text-muted">
-        <Spinner className="size-8" label="Loading the stream" />
+        <div className="grid justify-items-center gap-3 px-6 text-center">
+          <Spinner className="size-8" label="Loading the stream" />
+          {playback?.tvEpisode?.provider === 'kisskh-direct' ? (
+            <p className="text-sm">Starting KissKH. This can take about a minute.</p>
+          ) : null}
+        </div>
       </div>
     );
   } else if (!sources.isError && sources.data?.embed?.provider === 'vidsrc') {
@@ -402,7 +407,7 @@ export function WatchRoom({ room }: { room: Room }) {
             joined={session.joined}
             stats={session.stats}
             hasMedia={!!assetKey}
-            playerFailed={playerFailed}
+            playerFailed={playerFailed || sources.isError}
           />
         )}
         <Button

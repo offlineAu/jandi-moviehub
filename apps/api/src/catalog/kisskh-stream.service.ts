@@ -56,7 +56,8 @@ export class KisskhStreamService {
     try {
       response = await fetch(`${base}/stream/series/${encodeURIComponent(id)}.json`, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(12000),
+        // The free resolver may need up to a minute to wake after being idle.
+        signal: AbortSignal.timeout(85000),
         redirect: 'error',
       });
       if (!response.ok) throw new Error('resolver unavailable');
@@ -82,7 +83,13 @@ export class KisskhStreamService {
           /* Ignore malformed provider URLs. */
         }
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw Errors.unavailable(
+          'KISSKH_DIRECT_UNAVAILABLE',
+          'KissKH is taking too long to start. Please try again.',
+        );
+      }
       throw Errors.unavailable(
         'KISSKH_DIRECT_UNAVAILABLE',
         'The KissKH stream resolver is unavailable. Try again later.',

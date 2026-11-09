@@ -18,7 +18,11 @@ const service = (enabled = true) =>
       KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
     },
   } as unknown as AppConfig);
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 describe('KissKH direct stream resolution', () => {
   it('requests the selected provider series and episode and picks the KissKH stream', async () => {
     const fetchMock = vi.fn(async (_url: string) =>
@@ -65,5 +69,34 @@ describe('KissKH direct stream resolution', () => {
     await expect(service().resolve(episode)).rejects.toMatchObject({
       code: 'KISSKH_DIRECT_UNAVAILABLE',
     });
+  });
+  it('allows an idle resolver to start and shares the pending request among viewers', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException('Timed out', 'TimeoutError')), ms);
+      return controller.signal;
+    });
+    const fetchMock = vi.fn(
+      (_url: string, options: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          options.signal?.addEventListener('abort', () => reject(options.signal?.reason));
+          setTimeout(
+            () =>
+              resolve(
+                Response.json({ streams: [{ name: 'kisskh', url: 'https://cdn.example/e.m3u8' }] }),
+              ),
+            30000,
+          );
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const resolver = service();
+    const first = resolver.resolve(episode);
+    const second = resolver.resolve(episode);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect((await first).format).toBe('HLS');
+    expect(await second).toEqual(await first);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
