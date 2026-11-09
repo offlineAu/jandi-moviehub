@@ -9,6 +9,7 @@ import { randomToken, sha256 } from '../common/crypto';
 import { Errors } from '../common/errors';
 import { AppConfig } from '../config/app-config';
 import { MailService } from '../mail/mail.service';
+import { mailTemplates } from '../mail/templates';
 import { PrismaService } from '../prisma/prisma.service';
 import { avatarUrl } from '../users/user-view';
 import { hashPassword, verifyPassword } from './password';
@@ -55,9 +56,13 @@ export class AuthService {
         });
         return created;
       });
-      await this.sendVerification(user.id, input.email);
+      // The account exists now: a mail outage must not turn a successful sign-up into an error.
+      const verificationEmailSent = await this.sendVerification(
+        { id: user.id, email: input.email, displayName: input.displayName },
+        { required: false },
+      );
       const session = await this.sessions.create(user.id, false, meta);
-      return { userId: user.id, session };
+      return { userId: user.id, session, verificationEmailSent };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const target = String((error.meta?.target as string[] | undefined)?.join(',') ?? '');
@@ -164,19 +169,33 @@ export class AuthService {
     return record;
   }
 
-  async sendVerification(userId: string, email: string) {
-    const token = await this.issueToken(userId, 'EMAIL_VERIFY');
-    const link = `${this.config.env.PUBLIC_WEB_URL}/verify-email?token=${token}`;
-    await this.mail.send({
-      to: email,
-      subject: 'Verify your Jandi MovieHub email',
-      text: `Welcome to Jandi MovieHub!\n\nConfirm your email address: ${link}\n\nThis link expires in 48 hours.`,
-    });
+  /** Issues a fresh verification link and emails it. Returns whether delivery succeeded. */
+  async sendVerification(
+    user: { id: string; email: string; displayName: string },
+    { required }: { required: boolean },
+  ): Promise<boolean> {
+    const token = await this.issueToken(user.id, 'EMAIL_VERIFY');
+    const message = {
+      to: user.email,
+      ...mailTemplates.verifyEmail({
+        displayName: user.displayName,
+        link: `${this.config.env.PUBLIC_WEB_URL}/verify-email?token=${token}`,
+        expiresInHours: TOKEN_TTL.EMAIL_VERIFY / 3600_000,
+      }),
+    };
+    if (required) {
+      await this.mail.send(message, 'verification');
+      return true;
+    }
+    return this.mail.trySend(message, 'verification');
   }
 
   async resendVerification(user: AuthUser) {
     if (user.emailVerified || !user.email) return;
-    await this.sendVerification(user.id, user.email);
+    await this.sendVerification(
+      { id: user.id, email: user.email, displayName: user.displayName },
+      { required: true },
+    );
   }
 
   async verifyEmail(token: string) {
@@ -193,11 +212,17 @@ export class AuthService {
     if (!user || user.isGuest || user.suspendedAt) return;
     const token = await this.issueToken(user.id, 'PASSWORD_RESET');
     const link = `${this.config.env.PUBLIC_WEB_URL}/reset-password?token=${token}`;
-    await this.mail.send({
-      to: email,
-      subject: 'Reset your Jandi MovieHub password',
-      text: `Someone (hopefully you) asked to reset your password.\n\nReset it here: ${link}\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.`,
-    });
+    // Never surface delivery failures here: a 503 only for existing accounts would reveal them.
+    await this.mail.trySend(
+      {
+        to: email,
+        ...mailTemplates.passwordReset({
+          link,
+          expiresInMinutes: TOKEN_TTL.PASSWORD_RESET / 60_000,
+        }),
+      },
+      'password reset',
+    );
     await this.audit.record({
       actorId: user.id,
       action: 'auth.password_reset_requested',

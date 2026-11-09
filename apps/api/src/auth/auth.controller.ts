@@ -68,10 +68,10 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { session } = await this.auth.register(body, meta(req));
+    const { session, verificationEmailSent } = await this.auth.register(body, meta(req));
     this.sessions.setCookie(res, session.token, session.expiresAt);
     const user = await this.sessions.resolve(session.token);
-    return { user: await this.auth.me(user!) };
+    return { user: await this.auth.me(user!), verificationEmailSent };
   }
 
   @Public()

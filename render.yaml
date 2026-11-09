@@ -43,6 +43,16 @@ services:
         value: 'true'
       - key: TRUST_PROXY
         value: 'true'
+      - key: ENABLE_VIDSRC_ROOM_SYNC
+        value: 'false'
+      # The direct-sync flag remains opt-in until the resolver and devices are tested.
+      - key: ENABLE_KISSKH_DIRECT_SYNC
+        sync: false
+      - key: KISSKH_STREAM_RESOLVER_URL
+        fromService:
+          name: jandi-moviehub-kisskh-resolver
+          type: web
+          envVarKey: PUBLIC_RESOLVER_URL
       - key: ENABLE_DEV_ROUTES
         value: 'false'
       - key: MEDIA_SIGNING_SECRET
@@ -57,3 +67,28 @@ services:
         value: local
       - key: STORAGE_LOCAL_DIR
         value: /tmp/jandi-storage
+
+  # Experimental Stremio-compatible resolver. Its public URL is accessible on the internet.
+  - type: web
+    name: jandi-moviehub-kisskh-resolver
+    runtime: image
+    image:
+      url: docker.io/tamthai/yastream:latest
+    plan: free
+    region: singapore
+    healthCheckPath: /manifest.json
+    envVars:
+      - key: PORT
+        value: '55913'
+      - key: TMDB_API_KEY
+        sync: false
+      - key: DOMAIN
+        fromService:
+          name: jandi-moviehub-kisskh-resolver
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+      - key: PUBLIC_RESOLVER_URL
+        fromService:
+          name: jandi-moviehub-kisskh-resolver
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL

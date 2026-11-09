@@ -174,3 +174,15 @@ multi-browser Playwright test), behaviour over real networks/latency.
   with these changes stashed (catalog count/filter expectations: expected total 14, got 10).
 - `pnpm --filter @jandi/web build`: compiled successfully.
 - Not run: Playwright multi-browser series party.
+
+## 2026-11-05 — Emailer
+
+- `pnpm --filter @jandi/api typecheck` / `@jandi/web typecheck`: pass. ESLint on changed files: pass.
+- API unit: 160 passed (33 files), incl. `mail.service.test.ts` (12: no retry on 403, retry on
+  429/500, gives up after 3 attempts, logs contain no address, resend.dev warning, template
+  escaping).
+- `test/auth.int.test.ts`: 14 passed, incl. new outage test (register 201 with
+  `verificationEmailSent: false` and a working session; resend → 503; reset request → 202 for
+  both existing and unknown emails) and HTML alternative stored by the dev transport.
+- Web: `register-form.test.tsx` 3 passed (new: failed-delivery toast).
+- Not run: full integration suite, E2E, live Resend delivery (no verified domain).

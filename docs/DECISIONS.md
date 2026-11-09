@@ -85,3 +85,20 @@ prev/next (hidden while a marathon owns progression). No schema change. Third-pa
 not synced: a cross-origin iframe cannot be driven by the server-authoritative sync engine, and
 those sources carry no verified license (CLAUDE.md "Metadata ≠ license").
 _Consequence:_ TV episodes become watch-party capable as soon as an admin links licensed media.
+
+### ADR-13 — Email is best-effort unless the email is the whole action
+
+_Context:_ Registration called `MailService.send` after creating the user. In production the
+sender is `onboarding@resend.dev`, which Resend only delivers to the account owner, so every
+other sign-up got 503 `EMAIL_DELIVERY_FAILED` although the account existed (the user could log
+in; re-submitting said "email taken"). Password reset had the same throw, which also revealed
+whether an account existed (503 vs 202).
+_Decision:_ `MailService` has two entry points. `send` throws 503 and is used only where the email
+is the point of the request (`verify-email/resend`). `trySend` never throws and returns success;
+registration (returns `verificationEmailSent`) and password reset use it. Transports (resend /
+smtp / dev) sit behind one interface; temporary failures (network, timeout, 429, 5xx, SMTP 4xx)
+retry twice (0.4 s, 1.5 s); logs carry only a sanitized reason, never addresses or provider
+messages. All mail renders from `mail/templates.ts` (shared HTML layout + plain-text twin, values
+escaped).
+_Consequence:_ No durable outbox yet: an email that fails all retries is not re-sent
+automatically; the user resends from the unverified-email banner.

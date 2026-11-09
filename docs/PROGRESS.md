@@ -326,3 +326,15 @@ Implemented the API adapter and native player for the explicit Money Heist mappi
   `ChangeMovieDialog`.
 - Not covered: third-party (KissKH/MovieBox) episodes — see ADR-12. No browser/E2E run of a
   multi-user series party yet.
+
+## 2026-11-05 — Emailer: sign-up no longer fails on mail delivery
+
+- Root cause of "could not send email" on sign-up while login works: the user row was committed,
+  then the verification email threw 503 (production sender `onboarding@resend.dev` only reaches
+  the Resend account owner). See ADR-13.
+- `MailService` rewritten around resend/smtp/dev transports with retries, sanitized logs, a
+  startup warning for the resend.dev sender, and `send` (throws) vs `trySend` (boolean).
+- New `mail/templates.ts`: branded HTML + text for verification and password reset.
+- Register returns `verificationEmailSent`; the web toast says when the email failed and points
+  to "Resend email". Password reset always returns 202 even when delivery fails.
+- Still needed (external): verify a sending domain in Resend and set `MAIL_FROM` (B-03).

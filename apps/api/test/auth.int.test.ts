@@ -1,5 +1,6 @@
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MailService } from '../src/mail/mail.service';
 import {
   createGuest,
   createTestApp,
@@ -37,6 +38,7 @@ describe('auth (integration)', () => {
     expect(setCookie).toMatch(/HttpOnly/i);
     expect(setCookie).toMatch(/SameSite=Lax/i);
     expect(res.body.user.email).toBe('ann@example.com');
+    expect(res.body.verificationEmailSent).toBe(true);
     expect(JSON.stringify(res.body)).not.toMatch(/password/i);
 
     const session = await t.prisma.session.findFirstOrThrow();
@@ -160,6 +162,51 @@ describe('auth (integration)', () => {
       .post('/api/v1/auth/login')
       .send({ email: u.email, password: 'brand-new-password' })
       .expect(200);
+  });
+
+  it('completes registration and password-reset requests when email delivery is down', async () => {
+    const outage = vi.spyOn(t.app.get(MailService), 'trySend').mockResolvedValue(false);
+    try {
+      const res = await request(t.app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .set('origin', ORIGIN)
+        .send({
+          email: 'outage@example.com',
+          username: 'outage',
+          displayName: 'Outage',
+          password: 'correct-horse-battery',
+        })
+        .expect(201);
+      expect(res.body.verificationEmailSent).toBe(false);
+      expect(res.body.user.emailVerified).toBe(false);
+      const cookie = (res.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!;
+      await request(t.app.getHttpServer()).get('/api/v1/auth/me').set('cookie', cookie).expect(200);
+      // Resending is the one place the failure is reported, since the email is the whole point.
+      await request(t.app.getHttpServer())
+        .post('/api/v1/auth/verify-email/resend')
+        .set('origin', ORIGIN)
+        .set('cookie', cookie)
+        .expect(503)
+        .expect((r) => expect(r.body.error.code).toBe('EMAIL_DELIVERY_FAILED'));
+      // Existing and unknown accounts must stay indistinguishable even when delivery fails.
+      for (const email of ['outage@example.com', 'nobody@example.com']) {
+        await request(t.app.getHttpServer())
+          .post('/api/v1/auth/password-reset/request')
+          .set('origin', ORIGIN)
+          .send({ email })
+          .expect(202);
+      }
+    } finally {
+      outage.mockRestore();
+    }
+  });
+
+  it('reports a delivered verification email and sends an HTML alternative', async () => {
+    const u = await registerUser(t);
+    const mail = await request(t.app.getHttpServer())
+      .get(`/api/v1/dev/mail?to=${u.email}`)
+      .expect(200);
+    expect(mail.body.items[0].html).toContain('Verify email');
   });
 
   it('verifies email with the emailed token', async () => {

@@ -74,7 +74,10 @@ export function useRegister() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: RegisterInput) =>
-      apiFetch<{ user: Me }>('/auth/register', { method: 'POST', body: input }),
+      apiFetch<{ user: Me; verificationEmailSent?: boolean }>('/auth/register', {
+        method: 'POST',
+        body: input,
+      }),
     onSuccess: ({ user }) => {
       qc.clear();
       qc.setQueryData(qk.me, user);

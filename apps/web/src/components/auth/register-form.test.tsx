@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { toast } from 'sonner';
 import { RegisterForm } from './register-form';
 
 const replace = vi.fn();
@@ -83,5 +84,30 @@ describe('RegisterForm', () => {
     await waitFor(() => expect(screen.getByText('That username is taken')).toBeTruthy());
     expect(screen.getByLabelText(/^username$/i).getAttribute('aria-invalid')).toBe('true');
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('tells the user when the account was created but the confirmation email failed', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/auth/me')) return new Response('{}', { status: 401 });
+      return new Response(
+        JSON.stringify({
+          user: { id: 'u1', email: 'film@example.com', displayName: 'Film Fan' },
+          verificationEmailSent: false,
+        }),
+        { status: 201 },
+      );
+    });
+    renderForm();
+    fill(/^email$/i, 'film@example.com');
+    fill(/^display name$/i, 'Film Fan');
+    fill(/^username$/i, 'film_fan');
+    fill(/^password$/i, 'a-very-long-password');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /create account/i }));
+    });
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(toast.success).toHaveBeenCalledWith('Welcome to Jandi, Film Fan', {
+      description: expect.stringContaining('couldn’t send the confirmation email'),
+    });
   });
 });

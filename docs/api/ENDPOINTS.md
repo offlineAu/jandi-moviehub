@@ -90,7 +90,7 @@ handshake field. Limited to 60 tickets per user per minute; normal origin checks
 
 | Method | Path                                         | Notes                                                                       |
 | ------ | -------------------------------------------- | --------------------------------------------------------------------------- |
-| POST   | `/auth/register`                             | `{email, username, displayName, password}` → 201 `{user: Me}` + cookie      |
+| POST   | `/auth/register`                             | `{email, username, displayName, password}` → 201 `{user: Me, verificationEmailSent}` + cookie |
 | POST   | `/auth/login`                                | `{email, password}` → `{user: Me}` + cookie                                 |
 | POST   | `/auth/guest`                                | `{displayName}` → 201 `{user: Me}` (isGuest)                                |
 | POST   | `/auth/logout`                               | 204                                                                         |

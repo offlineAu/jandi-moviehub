@@ -38,9 +38,13 @@ export function RegisterForm() {
 
   const onSubmit = async (values: RegisterOutput) => {
     try {
-      const { user } = await register.mutateAsync(values);
+      const { user, verificationEmailSent } = await register.mutateAsync(values);
       toast.success(`Welcome to Jandi, ${user.displayName}`, {
-        description: user.email ? `We sent a confirmation link to ${user.email}.` : undefined,
+        description: !user.email
+          ? undefined
+          : verificationEmailSent === false
+            ? 'Your account is ready, but we couldn’t send the confirmation email. Use “Resend email” in the banner to try again.'
+            : `We sent a confirmation link to ${user.email}.`,
       });
       router.replace(next);
       router.refresh();
