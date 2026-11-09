@@ -69,6 +69,7 @@ export interface VideoPlayerProps {
   onTimeUpdate?: (positionSec: number, durationSec: number) => void;
   onEnded?: () => void;
   onBufferingChange?: (buffering: boolean) => void;
+  onPlaybackErrorChange?: (failed: boolean) => void;
   onNext?: () => void;
   onPrevious?: () => void;
   nextLabel?: string;
@@ -147,6 +148,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       onTimeUpdate,
       onEnded,
       onBufferingChange,
+      onPlaybackErrorChange,
       onNext,
       onPrevious,
       nextLabel,
@@ -189,6 +191,10 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
           selectSource(sources, {
             canPlayType: (mime) => video.canPlayType(mime),
             hlsJsSupported: HlsCtor.isSupported(),
+            preferNativeHls:
+              !sources.some((source) => source.assetId.startsWith('kisskh-direct:')) ||
+              /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
           }),
         );
       })();
@@ -226,6 +232,9 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     const lastCaption = React.useRef(0);
     const mediaRecoveries = React.useRef(0);
 
+    React.useEffect(() => {
+      onPlaybackErrorChange?.(!!error || selected === null);
+    }, [error, selected, onPlaybackErrorChange]);
     const selectedSource = selected?.source ?? null;
     const captions = React.useMemo(() => selectedSource?.captions ?? [], [selectedSource]);
 

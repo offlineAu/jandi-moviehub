@@ -9,11 +9,14 @@ export function SyncStatus({
   connected,
   joined,
   stats,
+  hasMedia = false,
+  playerFailed = false,
 }: {
   connected: boolean;
   joined: boolean;
   stats: SyncStats | null;
-  buffering?: boolean;
+  hasMedia?: boolean;
+  playerFailed?: boolean;
 }) {
   const drift = stats?.driftMs ?? null;
   let tone: 'ok' | 'warn' | 'bad' = 'ok';
@@ -24,6 +27,12 @@ export function SyncStatus({
   } else if (!joined) {
     tone = 'warn';
     label = 'Joining';
+  } else if (playerFailed) {
+    tone = 'bad';
+    label = 'Playback unavailable';
+  } else if (hasMedia && drift === null) {
+    tone = 'warn';
+    label = 'Waiting for player';
   } else if (drift !== null && Math.abs(drift) >= 1000) {
     tone = 'warn';
     label = 'Catching up';

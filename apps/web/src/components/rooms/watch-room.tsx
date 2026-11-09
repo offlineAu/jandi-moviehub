@@ -84,6 +84,7 @@ export function WatchRoom({ room }: { room: Room }) {
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [movieOpen, setMovieOpen] = React.useState(false);
+  const [playerFailed, setPlayerFailed] = React.useState(false);
   const [confirm, setConfirm] = React.useState<'leave' | 'close' | null>(null);
   const leave = useLeaveRoom();
   const close = useCloseRoom();
@@ -95,6 +96,7 @@ export function WatchRoom({ room }: { room: Room }) {
   const marathonActive = !!marathon && ACTIVE_MARATHON_STATES.includes(marathon.state);
   const assetKey = playbackAssetKey(playback);
   const sources = useRoomPlaybackSources(room.id, assetKey, session.joined);
+  React.useEffect(() => setPlayerFailed(false), [assetKey]);
 
   // Chat unread badge: count arrivals while chat isn't visible.
   const chatVisible = tab === 'chat' && (panelOpen || !desktop);
@@ -258,6 +260,7 @@ export function WatchRoom({ room }: { room: Room }) {
         canControl={canControl}
         onIntent={onIntent}
         onEnded={onEnded}
+        onPlaybackErrorChange={setPlayerFailed}
         onTimeUpdate={onTimeUpdate}
         theater={theater}
         onTheaterChange={setTheater}
@@ -398,7 +401,8 @@ export function WatchRoom({ room }: { room: Room }) {
             connected={session.connected}
             joined={session.joined}
             stats={session.stats}
-            buffering={false}
+            hasMedia={!!assetKey}
+            playerFailed={playerFailed}
           />
         )}
         <Button

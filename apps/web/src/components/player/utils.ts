@@ -46,12 +46,14 @@ export interface SourceSupport {
   canPlayType: (mimeType: string) => string;
   /** Whether hls.js can run here (Media Source Extensions available). */
   hlsJsSupported: boolean;
+  /** Prefer the browser player on iOS, where native HLS is well supported. */
+  preferNativeHls?: boolean;
 }
 
 /**
  * Picks the first playable source, in API order.
  * WEBM/MP4 → native `src` when the browser can play the MIME type.
- * HLS → native when the browser plays HLS itself (Safari/iOS), otherwise hls.js when MSE exists.
+ * HLS → native on iOS when available; otherwise prefer hls.js when MSE exists.
  */
 export function selectSource(
   sources: readonly PlaybackSource[],
@@ -59,8 +61,10 @@ export function selectSource(
 ): SelectedSource | null {
   for (const source of sources) {
     if (source.format === 'HLS') {
-      if (support.canPlayType(HLS_MIME) !== '') return { source, engine: 'native' };
+      if (support.preferNativeHls !== false && support.canPlayType(HLS_MIME) !== '')
+        return { source, engine: 'native' };
       if (support.hlsJsSupported) return { source, engine: 'hls.js' };
+      if (support.canPlayType(HLS_MIME) !== '') return { source, engine: 'native' };
       continue;
     }
     const mime = source.mimeType || (source.format === 'WEBM' ? 'video/webm' : 'video/mp4');

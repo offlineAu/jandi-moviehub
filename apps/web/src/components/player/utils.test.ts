@@ -63,12 +63,22 @@ describe('selectSource', () => {
     expect(picked?.source.format).toBe('WEBM');
   });
 
-  it('uses native HLS when the browser supports it (Safari)', () => {
+  it('prefers native HLS on iOS when requested', () => {
     const picked = selectSource([source('HLS', 'application/vnd.apple.mpegurl')], {
       canPlayType: (m) => (m === 'application/vnd.apple.mpegurl' ? 'maybe' : ''),
       hlsJsSupported: true,
+      preferNativeHls: true,
     });
     expect(picked?.engine).toBe('native');
+  });
+
+  it('prefers hls.js when a desktop browser reports partial native HLS support', () => {
+    const picked = selectSource([source('HLS', 'application/vnd.apple.mpegurl')], {
+      canPlayType: () => 'maybe',
+      hlsJsSupported: true,
+      preferNativeHls: false,
+    });
+    expect(picked?.engine).toBe('hls.js');
   });
 
   it('falls back to hls.js for HLS when MSE is available', () => {
