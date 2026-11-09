@@ -78,6 +78,11 @@ export function TvRoomPicker({
   const [season, setSeason] = React.useState(1);
   const capabilities = useRoomSourceCapabilities();
   React.useEffect(() => {
+    if (series?.id === 71446 && capabilities.data?.kisskhDirectSync) {
+      void apiFetch('/room-sources/kisskh/warm', { method: 'POST' }).catch(() => {});
+    }
+  }, [series?.id, capabilities.data?.kisskhDirectSync]);
+  React.useEffect(() => {
     if (capabilities.data?.vidsrcSync) setProvider('vidsrc');
   }, [capabilities.data?.vidsrcSync]);
   React.useEffect(() => {

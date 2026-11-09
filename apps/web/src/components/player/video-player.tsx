@@ -70,6 +70,7 @@ export interface VideoPlayerProps {
   onEnded?: () => void;
   onBufferingChange?: (buffering: boolean) => void;
   onPlaybackErrorChange?: (failed: boolean) => void;
+  onRetrySource?: () => void;
   onNext?: () => void;
   onPrevious?: () => void;
   nextLabel?: string;
@@ -149,6 +150,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       onEnded,
       onBufferingChange,
       onPlaybackErrorChange,
+      onRetrySource,
       onNext,
       onPrevious,
       nextLabel,
@@ -326,6 +328,10 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     }, [attach]);
 
     const retry = () => {
+      if (onRetrySource) {
+        onRetrySource();
+        return;
+      }
       const video = videoRef.current;
       const at = video?.currentTime ?? 0;
       setError(null);

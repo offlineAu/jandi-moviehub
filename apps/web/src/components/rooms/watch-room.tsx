@@ -96,6 +96,7 @@ export function WatchRoom({ room }: { room: Room }) {
   const marathonActive = !!marathon && ACTIVE_MARATHON_STATES.includes(marathon.state);
   const assetKey = playbackAssetKey(playback);
   const sources = useRoomPlaybackSources(room.id, assetKey, session.joined);
+  const [sourceAttempt, setSourceAttempt] = React.useState(0);
   React.useEffect(() => setPlayerFailed(false), [assetKey]);
 
   // Chat unread badge: count arrivals while chat isn't visible.
@@ -210,7 +211,7 @@ export function WatchRoom({ room }: { room: Room }) {
         {overlay}
       </div>
     );
-  } else if (sources.isLoading) {
+  } else if (sources.isLoading || (sources.isFetching && playerFailed)) {
     stage = (
       <div className="grid aspect-video place-items-center bg-black text-muted">
         <div className="grid justify-items-center gap-3 px-6 text-center">
@@ -257,7 +258,7 @@ export function WatchRoom({ room }: { room: Room }) {
   } else {
     stage = (
       <VideoPlayer
-        key={assetKey}
+        key={`${assetKey}:${sourceAttempt}`}
         ref={playerRef}
         sources={sources.data.sources}
         title={sources.data.movie.title}
@@ -266,6 +267,17 @@ export function WatchRoom({ room }: { room: Room }) {
         onIntent={onIntent}
         onEnded={onEnded}
         onPlaybackErrorChange={setPlayerFailed}
+        onRetrySource={
+          playback?.tvEpisode?.provider === 'kisskh-direct'
+            ? () =>
+                void sources.refetch().then((result) => {
+                  if (!result.isError) {
+                    setPlayerFailed(false);
+                    setSourceAttempt((attempt) => attempt + 1);
+                  }
+                })
+            : undefined
+        }
         onTimeUpdate={onTimeUpdate}
         theater={theater}
         onTheaterChange={setTheater}

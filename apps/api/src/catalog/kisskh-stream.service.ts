@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { RoomTvEpisode } from '@jandi/shared';
 import { z } from 'zod';
 import { AppConfig } from '../config/app-config';
@@ -14,6 +14,8 @@ const streamsSchema = z.object({
 /** Experimental Stremio-compatible resolver. Stream bytes always travel directly to the viewer. */
 @Injectable()
 export class KisskhStreamService {
+  private readonly logger = new Logger(KisskhStreamService.name);
+  private warming: Promise<void> | null = null;
   private readonly pending = new Map<
     string,
     Promise<{ url: string; format: 'HLS' | 'MP4'; mimeType: string }>
@@ -34,6 +36,31 @@ export class KisskhStreamService {
       );
   }
 
+  warm() {
+    this.assertEnabled();
+    if (this.warming) return;
+    const started = Date.now();
+    const base = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
+    this.warming = (async () => {
+      try {
+        const response = await fetch(`${base}/manifest.json`, {
+          signal: AbortSignal.timeout(85000),
+          redirect: 'error',
+        });
+        this.logger.log(
+          `Resolver warm-up ${response.ok ? 'ready' : 'unavailable'} in ${Date.now() - started}ms (HTTP ${response.status})`,
+        );
+        await response.body?.cancel();
+      } catch (error) {
+        this.logger.warn(
+          `Resolver warm-up ${error instanceof Error && error.name === 'TimeoutError' ? 'timed out' : 'failed'} after ${Date.now() - started}ms`,
+        );
+      } finally {
+        this.warming = null;
+      }
+    })();
+  }
+
   async resolve(episode: KisskhEpisode) {
     this.assertEnabled();
     const key = `${episode.seriesId}:${episode.episode}:${episode.episodeId}`;
@@ -49,6 +76,7 @@ export class KisskhStreamService {
   }
 
   private async fetchStream(episode: KisskhEpisode) {
+    const started = Date.now();
     const base = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
     // Provider series ID and episode number are validated against the provider catalog first.
     const id = `kisskh:${episode.seriesId}:1:${episode.episode}`;
@@ -74,6 +102,7 @@ export class KisskhStreamService {
           const path = url.pathname.toLowerCase();
           const format = path.endsWith('.m3u8') ? 'HLS' : path.endsWith('.mp4') ? 'MP4' : null;
           if (!format) continue;
+          this.logger.log(`Resolver returned a compatible stream in ${Date.now() - started}ms`);
           return {
             url: url.href,
             format,
@@ -84,6 +113,9 @@ export class KisskhStreamService {
         }
       }
     } catch (error) {
+      this.logger.warn(
+        `Resolver ${error instanceof Error && error.name === 'TimeoutError' ? 'timed out' : 'failed'} after ${Date.now() - started}ms`,
+      );
       if (error instanceof Error && error.name === 'TimeoutError') {
         throw Errors.unavailable(
           'KISSKH_DIRECT_UNAVAILABLE',
@@ -95,6 +127,7 @@ export class KisskhStreamService {
         'The KissKH stream resolver is unavailable. Try again later.',
       );
     }
+    this.logger.warn(`Resolver returned no compatible stream after ${Date.now() - started}ms`);
     throw Errors.unavailable(
       'KISSKH_DIRECT_NO_STREAM',
       'No compatible direct KissKH stream was found for this episode.',

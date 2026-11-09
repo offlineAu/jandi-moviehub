@@ -41,6 +41,19 @@ beforeEach(() => {
       throw new Error(`Unexpected request ${path}`);
     });
 });
+it('warms the direct resolver when a host chooses the series', async () => {
+  const original = vi.mocked(apiFetch).getMockImplementation()!;
+  vi.mocked(apiFetch).mockImplementation(async (...args) => {
+    if (args[0] === '/room-sources/capabilities') return { kisskhDirectSync: true };
+    if (args[0] === '/room-sources/kisskh/warm') return { starting: true };
+    return original(...args);
+  });
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: /Money Heist/ }));
+  await waitFor(() =>
+    expect(apiFetch).toHaveBeenCalledWith('/room-sources/kisskh/warm', { method: 'POST' }),
+  );
+});
 it('defaults to KissKH and selects a shared provider episode for the room', async () => {
   const onSelect = mount();
   fireEvent.click(await screen.findByRole('button', { name: /Money Heist/ }));

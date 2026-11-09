@@ -1,7 +1,7 @@
-import { Controller, Get, Injectable } from '@nestjs/common';
+import { Controller, Get, HttpCode, Injectable, Post } from '@nestjs/common';
 import { z } from 'zod';
 import { externalSelectionSchema, type ExternalMedia } from '@jandi/shared';
-import { Public, RateLimit } from '../common/auth-context';
+import { AllowGuest, Public, RateLimit } from '../common/auth-context';
 import { ValidQuery } from '../common/zod';
 import { AppError, Errors } from '../common/errors';
 import { PrismaService } from '../prisma/prisma.service';
@@ -47,6 +47,14 @@ export class RoomSourcesController {
   @Get('capabilities')
   capabilities() {
     return { vidsrcSync: this.vidsrc.enabled, kisskhDirectSync: this.kisskhStream.enabled };
+  }
+  @AllowGuest()
+  @RateLimit({ name: 'room-sources:warm', limit: 10, windowSec: 60, by: 'user' })
+  @Post('kisskh/warm')
+  @HttpCode(202)
+  warmKisskh() {
+    this.kisskhStream.warm();
+    return { starting: true };
   }
   @Public()
   @RateLimit({ name: 'room-sources:check', limit: 120, windowSec: 60, by: 'user' })

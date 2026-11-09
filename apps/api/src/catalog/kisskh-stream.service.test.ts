@@ -99,4 +99,25 @@ describe('KissKH direct stream resolution', () => {
     expect(await second).toEqual(await first);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  it('starts only one warm-up while multiple pickers are open', async () => {
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      (_url: string) =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const resolver = service();
+    resolver.warm();
+    resolver.warm();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://resolver.example/manifest.json');
+    finish(new Response(null, { status: 200 }));
+    await vi.waitFor(() => {
+      resolver.warm();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+    finish(new Response(null, { status: 200 }));
+  });
 });
