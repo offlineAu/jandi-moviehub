@@ -1,6 +1,6 @@
 # Experimental KissKH direct synchronization
 
-This is an opt-in feasibility experiment for the existing Money Heist KissKH catalog. The KissKH iframe has no documented incoming play, pause or seek commands. This mode instead asks a Stremio-compatible resolver for a direct KissKH HLS or MP4 URL and plays it in Jandi's native room player. The existing KissKH iframe remains available as individual playback. The experiment has not yet been verified on a real device or against a live resolver.
+This is an opt-in integration for the Money Heist KissKH catalog and movie candidates. The KissKH iframe has no documented incoming play, pause or seek commands. This mode instead asks a Stremio-compatible resolver for a direct KissKH HLS or MP4 URL and plays it in Jandi's native room player. The existing KissKH iframe remains available as individual playback. A movie lookup does not confirm browser playback, the correct edition, or availability for every title.
 
 ## Configuration
 
@@ -10,6 +10,8 @@ This is an opt-in feasibility experiment for the existing Money Heist KissKH cat
 4. In the room picker, select Money Heist, then **KissKH · Synced playback (experimental)** and the provider episode. The ordinary KissKH choice continues to use the iframe.
 
 The API fetches `/stream/series/kisskh:<seriesId>:1:<episode>.json` from the configured resolver. It accepts a KissKH-labelled HTTPS `.m3u8` or `.mp4` URL only. The episode is first checked against the existing KissKH catalog. Requests in flight for the same episode are coalesced, but resolved URLs are not put in shared room state or logged. Playback source responses are private and not cacheable by HTTP intermediaries. Every viewer fetches media directly; the API does not proxy media bytes.
+
+For movies, the picker checks the selected title on demand using `/stream/movie/tmdb:<id>.json`. The TMDB ID comes from the server's movie record, and each viewer obtains a fresh URL through the room's authenticated playback-sources endpoint. A missing candidate is shown as unavailable; upstream failures remain retryable. The host should check that the actual movie and edition match before watching together.
 
 ## Device test and limits
 

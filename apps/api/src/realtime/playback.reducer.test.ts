@@ -13,6 +13,35 @@ const loaded = () => {
 };
 
 describe('reducePlayback', () => {
+  it('synchronizes direct provider movies with duration, play and seek commands', () => {
+    const media = {
+      provider: 'kisskh-direct' as const,
+      type: 'movie' as const,
+      movieId: '00000000-0000-4000-8000-000000000001',
+      tmdbId: 672,
+    };
+    const loadedMovie = reducePlayback(
+      initialPlayback('room', 0),
+      { type: 'load-external', externalMedia: media },
+      0,
+      'host',
+    );
+    if (!loadedMovie.ok) throw new Error('load failed');
+    const duration = reducePlayback(
+      loadedMovie.state,
+      { type: 'duration', durationSec: 600 },
+      0,
+      'host',
+    );
+    if (!duration.ok) throw new Error('duration failed');
+    const playing = reducePlayback(duration.state, { type: 'play' }, 1000, 'host');
+    if (!playing.ok) throw new Error('play failed');
+    const seek = reducePlayback(playing.state, { type: 'seek', positionSec: 60 }, 2000, 'host');
+    expect(seek).toMatchObject({
+      ok: true,
+      state: { externalMedia: media, positionSec: 60, status: 'playing' },
+    });
+  });
   it('rejects transport commands without media', () => {
     const r = reducePlayback(initialPlayback('room', 0), { type: 'play' }, 0, 'u');
     expect(r).toMatchObject({ ok: false, code: 'NO_MEDIA' });

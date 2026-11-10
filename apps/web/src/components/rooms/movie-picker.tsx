@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { SearchInput } from '@/components/ui/search-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMovie, useMovies } from '@/lib/queries/catalog';
+import { apiFetch } from '@/lib/api';
 import type { MovieSummary } from '@/lib/types';
 import { cn, formatRuntime } from '@/lib/utils';
 
@@ -24,23 +25,29 @@ function MovieRow({
   onSelect: (value?: string) => void;
 }) {
   const capabilities = useRoomSourceCapabilities();
+  const direct = !!capabilities.data?.kisskhDirectSync;
   const check = useRoomSourceCheck(
-    { movieId: movie.id },
-    !!capabilities.data?.vidsrcSync && !movie.playable,
+    { movieId: movie.id, provider: direct ? 'kisskh-direct' : 'vidsrc' },
+    !!capabilities.data?.vidsrcSync && !direct && !movie.playable,
   );
   const listed = !movie.playable && check.data?.listed;
-  const disabled = !movie.playable && !listed;
+  const disabled =
+    !movie.playable && !listed && (!direct || check.isFetching || check.data?.listed === false);
   return (
     <li>
       <button
         type="button"
-        onClick={() =>
-          onSelect(
-            listed
-              ? selectionTitle({ provider: 'vidsrc', type: 'movie', movieId: movie.id })
-              : movie.id,
-          )
-        }
+        onClick={async () => {
+          if (movie.playable) return onSelect(movie.id);
+          if (direct) {
+            const result = await check.refetch();
+            if (result.data?.listed)
+              onSelect(
+                selectionTitle({ provider: 'kisskh-direct', type: 'movie', movieId: movie.id }),
+              );
+          } else if (listed)
+            onSelect(selectionTitle({ provider: 'vidsrc', type: 'movie', movieId: movie.id }));
+        }}
         disabled={disabled}
         aria-pressed={selected}
         className={cn(
@@ -65,7 +72,7 @@ function MovieRow({
               ? 'Checking providers…'
               : capabilities.isError
                 ? 'Provider status unavailable'
-                : !capabilities.data?.vidsrcSync
+                : !direct && !capabilities.data?.vidsrcSync
                   ? 'Movie provider unavailable'
                   : check.isFetching
                     ? 'Checking source…'
@@ -78,11 +85,11 @@ function MovieRow({
         ) : (
           <span className="flex shrink-0 items-center gap-1 text-xs text-[#6ee7b7]">
             <Play className="size-3 fill-current" aria-hidden="true" />
-            {listed ? 'VidSrc source listed' : 'Playable'}
+            {movie.playable ? 'Playable' : direct ? 'Check KissKH source' : 'VidSrc source listed'}
           </span>
         )}
       </button>
-      {check.isError && (
+      {(check.isError || (direct && check.data?.listed === false)) && (
         <Button size="sm" variant="ghost" onClick={() => void check.refetch()}>
           Retry source check
         </Button>
@@ -91,7 +98,7 @@ function MovieRow({
   );
 }
 
-/** Search the catalog for a playable movie. Unlicensed titles are listed but can't be picked. */
+/** Search the catalog and check provider availability before selecting a movie. */
 export function MoviePicker({
   value,
   onChange,
@@ -106,6 +113,14 @@ export function MoviePicker({
   const [text, setText] = React.useState('');
   const [q, setQ] = React.useState('');
   const [browsing, setBrowsing] = React.useState(!value);
+  const capabilities = useRoomSourceCapabilities();
+  const warmed = React.useRef(false);
+  React.useEffect(() => {
+    if (browsing && q.length >= 2 && capabilities.data?.kisskhDirectSync && !warmed.current) {
+      warmed.current = true;
+      void apiFetch('/room-sources/kisskh/warm', { method: 'POST' }).catch(() => {});
+    }
+  }, [browsing, q, capabilities.data?.kisskhDirectSync]);
   React.useEffect(() => {
     const t = window.setTimeout(() => setQ(text.trim()), 250);
     return () => window.clearTimeout(t);
@@ -130,7 +145,10 @@ export function MoviePicker({
         {external.type === 'tv' ? (
           <SelectedExternalEpisode media={{ ...external, tmdbId: external.tvId }} />
         ) : (
-          <span>{selected.data?.title ?? 'Movie'} · VidSrc synchronized playback</span>
+          <span>
+            {selected.data?.title ?? 'Movie'} ·{' '}
+            {external.provider === 'kisskh-direct' ? 'KissKH' : 'VidSrc'} synchronized playback
+          </span>
         )}
         <Button variant="ghost" size="sm" onClick={() => setBrowsing(true)}>
           Change

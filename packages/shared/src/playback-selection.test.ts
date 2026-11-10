@@ -13,6 +13,7 @@ describe('external playback selection', () => {
   it('round trips movie and episode references without caller supplied URLs', () => {
     for (const selection of [
       { provider: 'vidsrc' as const, type: 'movie' as const, movieId },
+      { provider: 'kisskh-direct' as const, type: 'movie' as const, movieId },
       { provider: 'vidsrc' as const, type: 'tv' as const, tvId: 1399, season: 1, episode: 2 },
     ]) {
       const title = selectionTitle(selection);

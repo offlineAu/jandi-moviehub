@@ -126,7 +126,8 @@ export function WatchRoom({ room }: { room: Room }) {
     (_position: number, duration: number) => {
       if (
         !isHost ||
-        playback?.tvEpisode?.provider !== 'kisskh-direct' ||
+        (playback?.tvEpisode?.provider !== 'kisskh-direct' &&
+          playback?.externalMedia?.provider !== 'kisskh-direct') ||
         playback.durationSec != null ||
         !assetKey ||
         !Number.isFinite(duration) ||
@@ -216,7 +217,8 @@ export function WatchRoom({ room }: { room: Room }) {
       <div className="grid aspect-video place-items-center bg-black text-muted">
         <div className="grid justify-items-center gap-3 px-6 text-center">
           <Spinner className="size-8" label="Loading the stream" />
-          {playback?.tvEpisode?.provider === 'kisskh-direct' ? (
+          {playback?.tvEpisode?.provider === 'kisskh-direct' ||
+          playback?.externalMedia?.provider === 'kisskh-direct' ? (
             <p className="text-sm">Starting KissKH. This can take about a minute.</p>
           ) : null}
         </div>
@@ -268,7 +270,8 @@ export function WatchRoom({ room }: { room: Room }) {
         onEnded={onEnded}
         onPlaybackErrorChange={setPlayerFailed}
         onRetrySource={
-          playback?.tvEpisode?.provider === 'kisskh-direct'
+          playback?.tvEpisode?.provider === 'kisskh-direct' ||
+          playback?.externalMedia?.provider === 'kisskh-direct'
             ? () =>
                 void sources.refetch().then((result) => {
                   if (!result.isError) {
@@ -398,7 +401,7 @@ export function WatchRoom({ room }: { room: Room }) {
             ) : null}
           </p>
         </div>
-        {playback?.externalMedia ? (
+        {playback?.externalMedia?.provider === 'vidsrc' ? (
           <span role="status" className="text-xs text-muted">
             {!session.connected ? 'Connection lost' : 'Shared playback · See player status'}
           </span>

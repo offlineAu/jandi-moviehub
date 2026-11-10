@@ -62,11 +62,19 @@ export class KisskhStreamService {
   }
 
   async resolve(episode: KisskhEpisode) {
-    this.assertEnabled();
     const key = `${episode.seriesId}:${episode.episode}:${episode.episodeId}`;
+    return this.resolveId('series', `kisskh:${episode.seriesId}:1:${episode.episode}`, key);
+  }
+
+  async resolveMovie(tmdbId: number) {
+    return this.resolveId('movie', `tmdb:${tmdbId}`, `movie:${tmdbId}`);
+  }
+
+  private async resolveId(type: 'series' | 'movie', id: string, key: string) {
+    this.assertEnabled();
     const previous = this.pending.get(key);
     if (previous) return previous;
-    const request = this.fetchStream(episode);
+    const request = this.fetchStream(type, id);
     this.pending.set(key, request);
     try {
       return await request;
@@ -75,14 +83,12 @@ export class KisskhStreamService {
     }
   }
 
-  private async fetchStream(episode: KisskhEpisode) {
+  private async fetchStream(type: 'series' | 'movie', id: string) {
     const started = Date.now();
     const base = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
-    // Provider series ID and episode number are validated against the provider catalog first.
-    const id = `kisskh:${episode.seriesId}:1:${episode.episode}`;
     let response: Response;
     try {
-      response = await fetch(`${base}/stream/series/${encodeURIComponent(id)}.json`, {
+      response = await fetch(`${base}/stream/${type}/${encodeURIComponent(id)}.json`, {
         headers: { Accept: 'application/json' },
         // The free resolver may need up to a minute to wake after being idle.
         signal: AbortSignal.timeout(85000),
@@ -130,7 +136,7 @@ export class KisskhStreamService {
     this.logger.warn(`Resolver returned no compatible stream after ${Date.now() - started}ms`);
     throw Errors.unavailable(
       'KISSKH_DIRECT_NO_STREAM',
-      'No compatible direct KissKH stream was found for this episode.',
+      'No compatible direct KissKH stream was found for this title.',
     );
   }
 }

@@ -12,7 +12,9 @@ export function useRoomSourceCapabilities() {
   });
 }
 export function useRoomSourceCheck(
-  query: { movieId: string } | { tvId: number; season: number; episode: number },
+  query:
+    | { movieId: string; provider?: 'vidsrc' | 'kisskh-direct' }
+    | { tvId: number; season: number; episode: number },
   enabled: boolean,
 ) {
   return useQuery({

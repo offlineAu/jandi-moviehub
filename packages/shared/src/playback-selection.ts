@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
 const id = z.number().int().positive().max(2147483647);
-export const externalSelectionSchema = z.discriminatedUnion('type', [
+export const externalSelectionSchema = z.union([
   z.object({ provider: z.literal('vidsrc'), type: z.literal('movie'), movieId: z.uuid() }),
+  z.object({ provider: z.literal('kisskh-direct'), type: z.literal('movie'), movieId: z.uuid() }),
   z.object({
     provider: z.literal('vidsrc'),
     type: z.literal('tv'),
@@ -36,13 +37,13 @@ export function selectionTitle(value: PlaybackSelection): string {
   if (value.provider === 'kisskh')
     return `kisskh:${value.tvId}:${value.season}:${value.episode}:${value.seriesId}:${value.episodeId}`;
   return value.type === 'movie'
-    ? `vidsrc:movie:${value.movieId}`
+    ? `${value.provider}:movie:${value.movieId}`
     : `vidsrc:tv:${value.tvId}:${value.season}:${value.episode}`;
 }
 export function parseExternalTitle(value: string) {
   const [provider, type, id, season, episode, ...extra] = value.split(':');
   if (
-    provider !== 'vidsrc' ||
+    !['vidsrc', 'kisskh-direct'].includes(provider ?? '') ||
     extra.length ||
     (type === 'tv' &&
       [id, season, episode].some((part) => !part || String(Number(part)) !== part)) ||

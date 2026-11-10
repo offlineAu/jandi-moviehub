@@ -14,7 +14,8 @@ export function EmbedWatch() {
     input = null;
   }
   const parsed = externalMediaSchema.safeParse(input);
-  if (!parsed.success) return <p className="p-6">Invalid player selection.</p>;
+  if (!parsed.success || parsed.data.provider !== 'vidsrc')
+    return <p className="p-6">Invalid player selection.</p>;
   if (capabilities.isPending) return <p className="p-6">Checking player availability…</p>;
   if (!capabilities.data?.vidsrcSync) return <p className="p-6">This player is not enabled.</p>;
   const media = parsed.data;

@@ -24,6 +24,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('KissKH direct stream resolution', () => {
+  it('requests movies using their TMDB identity', async () => {
+    const fetchMock = vi.fn(async (_url: string) =>
+      Response.json({ streams: [{ name: 'kisskh', url: 'https://cdn.example/movie.m3u8' }] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    expect((await service().resolveMovie(672)).format).toBe('HLS');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://resolver.example/stream/movie/tmdb%3A672.json',
+    );
+  });
   it('requests the selected provider series and episode and picks the KissKH stream', async () => {
     const fetchMock = vi.fn(async (_url: string) =>
       Response.json({

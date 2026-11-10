@@ -3,7 +3,7 @@ import { VidsrcService } from '../catalog/vidsrc.service';
 import { ExternalSeriesService } from '../catalog/external-series.controller';
 import { MovieboxService } from '../catalog/moviebox.controller';
 import { TvMetadataService } from '../catalog/tv.service';
-import { providerCatalogEpisode, roomTvTitle } from '@jandi/shared';
+import { providerCatalogEpisode, roomTvTitle, selectionTitle } from '@jandi/shared';
 import { Controller, Get, Header, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AllowGuest, type AuthUser, CurrentUser } from '../common/auth-context';
@@ -44,8 +44,29 @@ export class RealtimeController {
     await this.rooms.requireMember(roomId, user.id);
     const state = await this.playback.getState(roomId);
     if (state.externalMedia) {
-      this.vidsrc.assertEnabled();
       const media = state.externalMedia;
+      if (media.provider === 'kisskh-direct') {
+        const [movie, source] = await Promise.all([
+          this.catalog.getSummary(media.movieId),
+          this.kisskhStream.resolveMovie(media.tmdbId),
+        ]);
+        return {
+          movieId: media.movieId,
+          movie,
+          externalMedia: media,
+          sources: [
+            {
+              assetId: selectionTitle(media),
+              label: 'KissKH',
+              format: source.format,
+              mimeType: source.mimeType,
+              durationSec: 0,
+              url: source.url,
+            },
+          ],
+        };
+      }
+      this.vidsrc.assertEnabled();
       const movie =
         media.type === 'movie'
           ? await this.catalog.getSummary(media.movieId)

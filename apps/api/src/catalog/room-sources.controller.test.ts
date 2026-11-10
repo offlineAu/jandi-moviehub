@@ -3,20 +3,24 @@ import { ExternalMediaResolver, RoomSourcesController } from './room-sources.con
 import type { PrismaService } from '../prisma/prisma.service';
 import type { TvMetadataService } from './tv.service';
 import type { VidsrcService } from './vidsrc.service';
+import { Errors } from '../common/errors';
 const movieId = '00000000-0000-4000-8000-000000000001';
 function setup() {
   const prisma = { movie: { findUnique: vi.fn(async () => ({ tmdbId: 155 })) } };
   const tv = { episode: vi.fn(async () => ({ episode: { number: 2 } })) };
   const vidsrc = { assertEnabled: vi.fn(), listed: vi.fn(async () => true), enabled: true };
+  const kisskh = { assertEnabled: vi.fn(), resolveMovie: vi.fn(async () => ({})), enabled: true };
   const resolver = new ExternalMediaResolver(
     prisma as unknown as PrismaService,
     tv as unknown as TvMetadataService,
     vidsrc as unknown as VidsrcService,
+    kisskh as never,
   );
   return {
     prisma,
     tv,
     vidsrc,
+    kisskh,
     resolver,
     controller: new RoomSourcesController(vidsrc as unknown as VidsrcService, resolver, {
       enabled: false,
@@ -55,5 +59,26 @@ describe('room external media resolution', () => {
     vidsrc.listed.mockRejectedValueOnce(new Error('upstream timeout'));
     await expect(controller.check({ movieId })).rejects.toThrow('upstream timeout');
     expect(await controller.check({ movieId })).toEqual({ listed: true, playbackConfirmed: false });
+  });
+  it('checks direct movie sources using the server-derived TMDB identity', async () => {
+    const { controller, resolver, kisskh, vidsrc } = setup();
+    expect(
+      await resolver.resolve({ provider: 'kisskh-direct', type: 'movie', movieId }),
+    ).toMatchObject({ tmdbId: 155 });
+    expect(kisskh.resolveMovie).toHaveBeenCalledWith(155);
+    expect(vidsrc.listed).not.toHaveBeenCalled();
+    kisskh.resolveMovie.mockRejectedValueOnce(
+      Errors.unavailable('KISSKH_DIRECT_NO_STREAM', 'No stream'),
+    );
+    expect(await controller.check({ movieId, provider: 'kisskh-direct' })).toEqual({
+      listed: false,
+      playbackConfirmed: false,
+    });
+    kisskh.resolveMovie.mockRejectedValueOnce(
+      Errors.unavailable('KISSKH_DIRECT_UNAVAILABLE', 'Timeout'),
+    );
+    await expect(controller.check({ movieId, provider: 'kisskh-direct' })).rejects.toMatchObject({
+      code: 'KISSKH_DIRECT_UNAVAILABLE',
+    });
   });
 });

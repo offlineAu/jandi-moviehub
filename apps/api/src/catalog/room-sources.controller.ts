@@ -15,9 +15,11 @@ export class ExternalMediaResolver {
     private readonly prisma: PrismaService,
     private readonly tv: TvMetadataService,
     private readonly vidsrc: VidsrcService,
+    private readonly kisskhStream: KisskhStreamService,
   ) {}
   async resolve(input: z.infer<typeof externalSelectionSchema>): Promise<ExternalMedia> {
-    this.vidsrc.assertEnabled();
+    if (input.provider === 'vidsrc') this.vidsrc.assertEnabled();
+    else this.kisskhStream.assertEnabled();
     let media: ExternalMedia;
     if (input.type === 'movie') {
       const movie = await this.prisma.movie.findUnique({
@@ -31,7 +33,8 @@ export class ExternalMediaResolver {
       if (!result.episode) throw Errors.notFound('Episode');
       media = { ...input, tmdbId: input.tvId };
     }
-    if (!(await this.vidsrc.listed(media))) throw Errors.notFound('Provider source');
+    if (media.provider === 'kisskh-direct') await this.kisskhStream.resolveMovie(media.tmdbId);
+    else if (!(await this.vidsrc.listed(media))) throw Errors.notFound('Provider source');
     return media;
   }
 }
@@ -64,6 +67,7 @@ export class RoomSourcesController {
       z
         .object({
           movieId: z.uuid().optional(),
+          provider: z.enum(['vidsrc', 'kisskh-direct']).default('vidsrc'),
           tvId: z.coerce.number().int().positive().max(2147483647).optional(),
           season: z.coerce.number().int().min(0).max(1000).optional(),
           episode: z.coerce.number().int().min(1).max(10000).optional(),
@@ -76,6 +80,7 @@ export class RoomSourcesController {
     )
     query: {
       movieId?: string;
+      provider?: 'vidsrc' | 'kisskh-direct';
       tvId?: number;
       season?: number;
       episode?: number;
@@ -84,7 +89,7 @@ export class RoomSourcesController {
     try {
       await this.resolver.resolve(
         query.movieId
-          ? { provider: 'vidsrc', type: 'movie', movieId: query.movieId }
+          ? { provider: query.provider ?? 'vidsrc', type: 'movie', movieId: query.movieId }
           : {
               provider: 'vidsrc',
               type: 'tv',
@@ -95,7 +100,10 @@ export class RoomSourcesController {
       );
       return { listed: true, playbackConfirmed: false };
     } catch (error) {
-      if (error instanceof AppError && error.getStatus() === 404)
+      if (
+        error instanceof AppError &&
+        (error.getStatus() === 404 || error.code === 'KISSKH_DIRECT_NO_STREAM')
+      )
         return { listed: false, playbackConfirmed: false };
       throw error;
     }

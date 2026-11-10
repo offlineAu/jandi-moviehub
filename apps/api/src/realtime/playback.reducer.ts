@@ -63,7 +63,7 @@ export function reducePlayback(
   });
   const current = expectedPosition(state, now);
   const hasMedia = !!state.mediaAssetId || !!state.tvEpisode || !!state.externalMedia;
-  if (state.externalMedia && action.type === 'rate')
+  if (state.externalMedia?.provider === 'vidsrc' && action.type === 'rate')
     return {
       ok: false,
       code: 'INVALID',

@@ -176,10 +176,15 @@ export class PlaybackService implements OnModuleInit {
       };
     }
     if (
-      current.externalMedia &&
+      current.externalMedia?.provider === 'vidsrc' &&
       ['play', 'pause', 'seek', 'rate', 'duration'].includes(action.type)
     )
       this.vidsrc.assertEnabled();
+    if (
+      current.externalMedia?.provider === 'kisskh-direct' &&
+      ['play', 'pause', 'seek', 'rate', 'duration'].includes(action.type)
+    )
+      this.kisskhStream.assertEnabled();
     if (
       current.tvEpisode?.provider === 'kisskh-direct' &&
       ['play', 'pause', 'seek', 'rate', 'duration'].includes(action.type)
