@@ -1,4 +1,13 @@
-import { Controller, Get, HttpCode, Injectable, Post } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  Injectable,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { externalSelectionSchema, type ExternalMedia } from '@jandi/shared';
 import { AllowGuest, Public, RateLimit } from '../common/auth-context';
@@ -7,6 +16,7 @@ import { AppError, Errors } from '../common/errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { TvMetadataService } from './tv.service';
 import { KisskhStreamService } from './kisskh-stream.service';
+import { ExternalSeriesService } from './external-series.controller';
 import { VidsrcService } from './vidsrc.service';
 
 @Injectable()
@@ -45,6 +55,7 @@ export class RoomSourcesController {
     private readonly vidsrc: VidsrcService,
     private readonly resolver: ExternalMediaResolver,
     private readonly kisskhStream: KisskhStreamService,
+    private readonly series: ExternalSeriesService,
   ) {}
   @Public()
   @Get('capabilities')
@@ -58,6 +69,87 @@ export class RoomSourcesController {
   warmKisskh() {
     this.kisskhStream.warm();
     return { starting: true };
+  }
+  @Public()
+  @RateLimit({ name: 'room-sources:captions', limit: 120, windowSec: 60 })
+  @Header('Content-Type', 'text/vtt; charset=utf-8')
+  @Header('Cache-Control', 'private, max-age=300')
+  @Get('kisskh/captions/:token')
+  caption(@Param('token') token: string) {
+    return this.kisskhStream.caption(token);
+  }
+  @AllowGuest()
+  @RateLimit({ name: 'kisskh:solo', limit: 30, windowSec: 60, by: 'user' })
+  @Header('Cache-Control', 'private, no-store')
+  @Get('kisskh/movie/:id')
+  async movie(@Param('id', ParseUUIDPipe) movieId: string) {
+    const media = await this.resolver.resolve({
+      provider: 'kisskh-direct',
+      type: 'movie',
+      movieId,
+    });
+    const [source, captions] = await Promise.all([
+      this.kisskhStream.resolveMovie(media.tmdbId),
+      this.kisskhStream.captions('movie', `tmdb:${media.tmdbId}`),
+    ]);
+    return {
+      sources: [
+        {
+          assetId: `kisskh-direct:movie:${movieId}`,
+          label: 'KissKH',
+          ...source,
+          durationSec: 0,
+          captions,
+          license: null,
+        },
+      ],
+    };
+  }
+
+  @AllowGuest()
+  @RateLimit({ name: 'kisskh:solo-episode', limit: 30, windowSec: 60, by: 'user' })
+  @Header('Cache-Control', 'private, no-store')
+  @Get('kisskh/episode')
+  async episode(
+    @ValidQuery(
+      z.object({
+        season: z.coerce.number().int().min(1).max(100),
+        episode: z.coerce.number().int().min(1).max(1000),
+        seriesId: z.coerce.number().int().positive().max(2147483647),
+        episodeId: z.coerce.number().int().positive().max(2147483647),
+      }),
+    )
+    query: {
+      season: number;
+      episode: number;
+      seriesId: number;
+      episodeId: number;
+    },
+  ) {
+    const episode = {
+      provider: 'kisskh-direct' as const,
+      tvId: '71446' as const,
+      numbering: 'provider' as const,
+      ...query,
+    };
+    await this.series.resolveRoomEpisode(episode);
+    const source = await this.kisskhStream.resolve(episode);
+    const captions = await this.kisskhStream.captions(
+      'series',
+      `kisskh:${episode.seriesId}:1:${episode.episode}`,
+    );
+    return {
+      sources: [
+        {
+          assetId: `kisskh-direct:71446:${episode.season}:${episode.episode}:${episode.seriesId}:${episode.episodeId}`,
+          label: 'KissKH',
+          ...source,
+          durationSec: 0,
+          captions,
+          license: null,
+        },
+      ],
+    };
   }
   @Public()
   @RateLimit({ name: 'room-sources:check', limit: 120, windowSec: 60, by: 'user' })

@@ -119,6 +119,8 @@ function MovieboxVideo({
   });
   const [failed, setFailed] = React.useState(false);
   const [captionUrl, setCaptionUrl] = React.useState<string | null>(null);
+  const [sourceId, setSourceId] = React.useState<string | null>(null);
+  const resume = React.useRef<{ time: number; playing: boolean } | null>(null);
   const video = React.useRef<HTMLVideoElement>(null);
   React.useEffect(() => {
     setFailed(false);
@@ -156,7 +158,8 @@ function MovieboxVideo({
         onRetry={() => void playback.refetch()}
       />
     );
-  const source = playback.data.sources[0];
+  const source =
+    playback.data.sources.find((item) => item.id === sourceId) ?? playback.data.sources[0];
   if (!source) return <p>No free MP4 source is available for this episode.</p>;
   return (
     <section aria-label="MovieBox original audio player">
@@ -171,7 +174,15 @@ function MovieboxVideo({
         aria-label="Original Spanish audio"
         className="aspect-video w-full rounded-2xl bg-black"
         onError={() => setFailed(true)}
-        onLoadedMetadata={enableCaptions}
+        onLoadedMetadata={() => {
+          enableCaptions();
+          const previous = resume.current;
+          resume.current = null;
+          if (previous && video.current) {
+            video.current.currentTime = previous.time;
+            if (previous.playing) void video.current.play().catch(() => {});
+          }
+        }}
       >
         {captionUrl && (
           <track
@@ -189,6 +200,26 @@ function MovieboxVideo({
           Original Spanish audio · {source.resolution}p ·{' '}
           {captionUrl ? 'English subtitles' : 'English subtitles unavailable'}
         </p>
+        {playback.data.sources.length > 1 ? (
+          <NativeSelect
+            aria-label="Video quality"
+            value={source.id}
+            onChange={(event) => {
+              if (video.current)
+                resume.current = {
+                  time: video.current.currentTime,
+                  playing: !video.current.paused,
+                };
+              setSourceId(event.target.value);
+            }}
+          >
+            {playback.data.sources.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.resolution}p
+              </option>
+            ))}
+          </NativeSelect>
+        ) : null}
         <Button variant="secondary" size="sm" onClick={() => void playback.refetch()}>
           Refresh video and subtitles
         </Button>

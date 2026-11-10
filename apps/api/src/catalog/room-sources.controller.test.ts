@@ -22,9 +22,14 @@ function setup() {
     vidsrc,
     kisskh,
     resolver,
-    controller: new RoomSourcesController(vidsrc as unknown as VidsrcService, resolver, {
-      enabled: false,
-    } as never),
+    controller: new RoomSourcesController(
+      vidsrc as unknown as VidsrcService,
+      resolver,
+      {
+        enabled: false,
+      } as never,
+      {} as never,
+    ),
   };
 }
 describe('room external media resolution', () => {

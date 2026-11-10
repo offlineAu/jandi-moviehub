@@ -19,6 +19,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { qk } from '@/lib/queries/keys';
 import { cn, formatRuntime } from '@/lib/utils';
 import { isExternalPlaybackEvent } from './external-player-events';
+import { useRoomSourceCapabilities } from '@/lib/queries/room-sources';
+import type { PlaybackSource } from '@/lib/types';
 
 const SAVE_INTERVAL_MS = 10_000;
 
@@ -89,6 +91,22 @@ function Watch({ id }: { id: string }) {
   const router = useRouter();
   const movie = useMovie(id);
   const playback = usePlayback(id);
+  const capabilities = useRoomSourceCapabilities();
+  const direct = useQuery({
+    queryKey: ['kisskh-solo-movie', id],
+    queryFn: () =>
+      apiFetch<{ sources: PlaybackSource[] }>(
+        `/room-sources/kisskh/movie/${encodeURIComponent(id)}`,
+      ),
+    enabled:
+      !!capabilities.data?.kisskhDirectSync &&
+      playback.isError &&
+      isApiError(playback.error) &&
+      playback.error.code === 'NOT_PLAYABLE',
+    retry: false,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
   const external = useQuery({
     queryKey: ['external-source', id],
     queryFn: () =>
@@ -96,7 +114,10 @@ function Watch({ id }: { id: string }) {
         `/movies/${encodeURIComponent(id)}/external-source`,
       ),
     enabled:
-      playback.isError && isApiError(playback.error) && playback.error.code === 'NOT_PLAYABLE',
+      playback.isError &&
+      isApiError(playback.error) &&
+      playback.error.code === 'NOT_PLAYABLE' &&
+      (!capabilities.data?.kisskhDirectSync || direct.isError),
     staleTime: 300000,
     retry: false,
   });
@@ -107,7 +128,7 @@ function Watch({ id }: { id: string }) {
   const [externalAttempt, setExternalAttempt] = React.useState(0);
   const [externalStarted, setExternalStarted] = React.useState(false);
   const externalFrame = React.useRef<HTMLIFrameElement>(null);
-  const sources = playback.data?.sources;
+  const sources = playback.data?.sources ?? direct.data?.sources;
   const previousEpisode = navigation.data?.navigation?.previous;
   const nextEpisode = navigation.data?.navigation?.next;
   const ready = !!sources?.length && !status.isLoading;
@@ -134,6 +155,21 @@ function Watch({ id }: { id: string }) {
   let stage: React.ReactNode;
   if (playback.isLoading || status.isLoading) {
     stage = <Skeleton className="aspect-video w-full rounded-2xl" />;
+  } else if (playback.isError && direct.isFetching) {
+    stage = <Skeleton className="aspect-video w-full rounded-2xl" />;
+  } else if (playback.isError && direct.data?.sources.length) {
+    stage = (
+      <VideoPlayer
+        ref={playerRef}
+        sources={direct.data.sources}
+        title={title}
+        mode="solo"
+        startAtSec={startAt}
+        autoPlay
+        onTimeUpdate={onTimeUpdate}
+        onRetrySource={() => void direct.refetch()}
+      />
+    );
   } else if (playback.isError) {
     const notPlayable =
       isApiError(playback.error) &&

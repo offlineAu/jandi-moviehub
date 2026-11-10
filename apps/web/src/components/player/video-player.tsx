@@ -70,6 +70,7 @@ export interface VideoPlayerProps {
   onEnded?: () => void;
   onBufferingChange?: (buffering: boolean) => void;
   onPlaybackErrorChange?: (failed: boolean) => void;
+  onSourceSwitch?: (switching: boolean) => void;
   onRetrySource?: () => void;
   onNext?: () => void;
   onPrevious?: () => void;
@@ -150,6 +151,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       onEnded,
       onBufferingChange,
       onPlaybackErrorChange,
+      onSourceSwitch,
       onRetrySource,
       onNext,
       onPrevious,
@@ -221,6 +223,9 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     const [pip, setPip] = React.useState(false);
     const [pipSupported, setPipSupported] = React.useState(false);
     const [captionIndex, setCaptionIndex] = React.useState(-1);
+    const [captionChoices, setCaptionChoices] = React.useState<
+      Array<{ index: number; lang: string; label: string }>
+    >([]);
     const [levels, setLevels] = React.useState<QualityLevel[]>([]);
     const [level, setLevel] = React.useState(-1);
     const [scrub, setScrub] = React.useState<number | null>(null);
@@ -231,14 +236,47 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     } | null>(null);
     const [announcement, setAnnouncement] = React.useState('');
     const startApplied = React.useRef(false);
+    const resumeAfterSource = React.useRef<{ time: number; playing: boolean } | null>(null);
     const lastCaption = React.useRef(0);
     const mediaRecoveries = React.useRef(0);
+    const onSourceSwitchRef = React.useRef(onSourceSwitch);
+    onSourceSwitchRef.current = onSourceSwitch;
 
     React.useEffect(() => {
       onPlaybackErrorChange?.(!!error || selected === null);
     }, [error, selected, onPlaybackErrorChange]);
     const selectedSource = selected?.source ?? null;
     const captions = React.useMemo(() => selectedSource?.captions ?? [], [selectedSource]);
+    React.useEffect(() => {
+      const video = videoRef.current;
+      if (!video) return;
+      const list = video.textTracks;
+      const refresh = () => {
+        const next = Array.from(list).flatMap((track, index) =>
+          track.kind === 'subtitles' || track.kind === 'captions'
+            ? [
+                {
+                  index,
+                  lang: track.language,
+                  label: track.label || track.language || `Subtitles ${index + 1}`,
+                },
+              ]
+            : [],
+        );
+        setCaptionChoices((current) =>
+          JSON.stringify(current) === JSON.stringify(next) ? current : next,
+        );
+      };
+      refresh();
+      list.addEventListener('addtrack', refresh);
+      list.addEventListener('removetrack', refresh);
+      video.addEventListener('loadedmetadata', refresh);
+      return () => {
+        list.removeEventListener('addtrack', refresh);
+        list.removeEventListener('removetrack', refresh);
+        video.removeEventListener('loadedmetadata', refresh);
+      };
+    }, [selectedSource, captions]);
 
     const showFlash = React.useCallback((text: string, side?: 'left' | 'right') => {
       setFlash({ id: Date.now(), text, side });
@@ -303,6 +341,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
             return;
           }
           setBuffering(false);
+          onSourceSwitchRef.current?.(false);
           setError(
             data.type === HlsCtor.ErrorTypes.NETWORK_ERROR
               ? 'The stream stopped loading. Check your connection and try again.'
@@ -398,9 +437,20 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
         },
         durationchange: () => setDuration(Number.isFinite(video.duration) ? video.duration : 0),
         loadedmetadata: () => {
+          onSourceSwitchRef.current?.(false);
           setDuration(Number.isFinite(video.duration) ? video.duration : 0);
           if (!startApplied.current) {
             startApplied.current = true;
+            const resume = resumeAfterSource.current;
+            resumeAfterSource.current = null;
+            if (resume && mode === 'solo') {
+              video.currentTime = Math.min(
+                resume.time,
+                Math.max(0, (video.duration || Infinity) - 1),
+              );
+              if (resume.playing) void video.play().catch(() => {});
+              return;
+            }
             if (startAtSec && startAtSec > 0 && startAtSec < (video.duration || Infinity) - 1) {
               video.currentTime = startAtSec;
               setCurrent(startAtSec);
@@ -425,6 +475,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
         },
         error: () => {
           if (hlsRef.current) return; // hls.js reports its own errors
+          onSourceSwitchRef.current?.(false);
           setBuf(false);
           setError('This video couldn’t be played. Try again.');
         },
@@ -451,25 +502,24 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       const tracks = video.textTracks;
       for (let i = 0; i < tracks.length; i += 1) {
         const track = tracks[i];
-        if (track) track.mode = i === captionIndex ? 'showing' : 'hidden';
+        if (track && (track.kind === 'subtitles' || track.kind === 'captions'))
+          track.mode = i === captionIndex ? 'showing' : 'hidden';
       }
-    }, [captionIndex, captions]);
+    }, [captionIndex, captionChoices]);
 
     // Default captions from preferences once tracks are known.
     React.useEffect(() => {
-      if (!captions.length) {
+      if (!captionChoices.length) {
         setCaptionIndex(-1);
         return;
       }
       const lang = typeof navigator !== 'undefined' ? navigator.language.slice(0, 2) : 'en';
-      const preferred = Math.max(
-        0,
-        captions.findIndex((c) => c.lang.slice(0, 2) === lang),
-      );
+      const preferred = (captionChoices.find((c) => c.lang.slice(0, 2) === lang) ??
+        captionChoices[0])!.index;
       lastCaption.current = preferred;
       setCaptionIndex(prefs.captionsByDefault ? preferred : -1);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [captions]);
+    }, [captionChoices]);
 
     // ---------- controls visibility ----------
     const [controlsVisible, setControlsVisible] = React.useState(true);
@@ -597,7 +647,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     };
 
     const doToggleCaptions = React.useCallback(() => {
-      if (!captions.length) return;
+      if (!captionChoices.length) return;
       setCaptionIndex((index) => {
         if (index >= 0) {
           lastCaption.current = index;
@@ -607,13 +657,33 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
         showFlash('Captions on');
         return lastCaption.current;
       });
-    }, [captions.length, showFlash]);
+    }, [captionChoices.length, showFlash]);
 
     const doQuality = (index: number) => {
       const hls = hlsRef.current;
       if (!hls) return;
       hls.currentLevel = index;
       setLevel(index);
+    };
+
+    const doSourceQuality = async (assetId: string) => {
+      const source = sources.find((item) => item.assetId === assetId);
+      const video = videoRef.current;
+      if (!source || !video) return;
+      const { default: HlsCtor } = await import('hls.js');
+      const next = selectSource([source], {
+        canPlayType: (mime) => video.canPlayType(mime),
+        hlsJsSupported: HlsCtor.isSupported(),
+        preferNativeHls: true,
+      });
+      if (!next) {
+        showFlash('This quality is not supported on this device');
+        return;
+      }
+      if (mode === 'solo')
+        resumeAfterSource.current = { time: video.currentTime, playing: !video.paused };
+      else onSourceSwitch?.(true);
+      setSelected(next);
     };
 
     const runShortcut = (action: ShortcutAction) => {
@@ -949,7 +1019,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
               </p>
 
               <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
-                {captions.length ? (
+                {captionChoices.length ? (
                   <DropdownMenu modal={false} onOpenChange={onMenuOpenChange}>
                     <Tooltip label="Captions">
                       <DropdownMenuTrigger
@@ -970,8 +1040,8 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
                         onValueChange={(v) => setCaptionIndex(Number(v))}
                       >
                         <DropdownMenuRadioItem value="-1">Off</DropdownMenuRadioItem>
-                        {captions.map((c, i) => (
-                          <DropdownMenuRadioItem key={c.url} value={String(i)}>
+                        {captionChoices.map((c) => (
+                          <DropdownMenuRadioItem key={c.index} value={String(c.index)}>
                             {c.label}
                           </DropdownMenuRadioItem>
                         ))}
@@ -1030,7 +1100,30 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
                           ))}
                         </DropdownMenuRadioGroup>
                       </>
-                    ) : null}
+                    ) : sources.length > 1 && selectedSource?.format !== 'HLS' ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Quality</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={selectedSource?.assetId ?? ''}
+                          onValueChange={(v) => void doSourceQuality(v)}
+                        >
+                          {sources
+                            .filter((source) => source.format !== 'HLS')
+                            .map((source) => (
+                              <DropdownMenuRadioItem key={source.assetId} value={source.assetId}>
+                                {source.label}
+                              </DropdownMenuRadioItem>
+                            ))}
+                        </DropdownMenuRadioGroup>
+                      </>
+                    ) : (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Quality</DropdownMenuLabel>
+                        <p className="px-2 py-1 text-xs text-muted">Automatic / source quality</p>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
 

@@ -5,7 +5,7 @@ import { providerCatalogEpisode } from '@jandi/shared';
 import { apiFetch } from '@/lib/api';
 import { matchesSeries } from './external-episodes';
 
-export type SeriesProvider = 'moviebox' | 'kisskh';
+export type SeriesProvider = 'moviebox' | 'kisskh' | 'kisskh-direct';
 export type SourceEpisode = { number: number; id?: number };
 export type SourceSeason = { number: number; name: string; episodes: SourceEpisode[]; id?: number };
 type Series = { id: number; title: string };
@@ -26,7 +26,7 @@ export function useProviderSeries(provider: SeriesProvider, title: string, enabl
     queryKey: ['external-series-search', title],
     queryFn: ({ signal }) =>
       apiFetch<{ items: Series[] }>('/external-series/search', { query: { q: title }, signal }),
-    enabled: enabled && provider === 'kisskh',
+    enabled: enabled && provider !== 'moviebox',
     retry: false,
     staleTime: 300000,
   });
@@ -46,7 +46,7 @@ export function useProviderSeries(provider: SeriesProvider, title: string, enabl
           `/external-series/${item.id}`,
           { signal },
         ),
-      enabled: enabled && provider === 'kisskh',
+      enabled: enabled && provider !== 'moviebox',
       retry: false,
       staleTime: 300000,
     })),

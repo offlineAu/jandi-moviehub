@@ -19,7 +19,7 @@ For movies, the picker checks the selected title on demand using `/stream/movie/
 - Open the same room on a desktop host and on Android Chrome/Samsung Internet and iOS Chrome. Each viewer may have to tap to start playback.
 - Test play, pause, seek, late join, buffering and reconnect. Compare timestamps after each action; seek correction is handled by the existing native room sync engine.
 - Test for at least 30 minutes and record startup time and buffering. A room sync success does not establish that the provider will support larger concurrent audiences.
-- This experiment does not currently provide KissKH subtitle tracks, refresh expiring media URLs during playback, or guarantee that the resolver URL is playable in a web browser. Yastream marks its KissKH streams as not web-ready. Resolve CORS, required headers, URL expiry, bitrate and codec issues before considering a broader rollout.
+- KissKH subtitle tracks are offered when the resolver returns a supported track; selected subtitles are converted to WebVTT. Tracks, quality choices and language availability vary by title. Playback URLs are refreshed on retry, but may expire during playback. Yastream marks its KissKH streams as not web-ready, so CORS, codec and device support still require testing.
 - If the direct source fails, choose **KissKH · Individual playback** again. Disabling the API flag blocks direct sources and their playback commands, and removes the picker option for newly loaded clients.
 
 The separate VidSrc implementation in this working tree has its own deployment settings and database migration; see [EMBED_SYNC.md](./EMBED_SYNC.md). This KissKH experiment adds no migration of its own.

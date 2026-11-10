@@ -144,6 +144,16 @@ describe('RoomSyncEngine', () => {
     expect(engine.current?.version).toBe(4);
   });
 
+  it('does not broadcast a pause caused by switching local video quality', async () => {
+    const { socket, video, engine } = await setup(state({ status: 'playing' }), true);
+    engine.setSourceSwitching(true);
+    video.paused = true;
+    video.fire('pause');
+    expect(socket.emitted.some((event) => event.event === SocketEvents.PLAYBACK_PAUSE)).toBe(false);
+    engine.setSourceSwitching(false);
+    expect(video.paused).toBe(false);
+  });
+
   it('retries once on STALE using the fresh state', async () => {
     const { socket, engine } = await setup(state(), true);
     let calls = 0;

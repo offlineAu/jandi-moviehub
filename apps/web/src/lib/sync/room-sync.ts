@@ -73,6 +73,7 @@ export class RoomSyncEngine {
   private lastSeekAt = -Infinity;
   private needsInteraction = false;
   private buffering = false;
+  private sourceSwitching = false;
   private lastDriftMs: number | null = null;
   private corrections = { seeks: 0, rateNudges: 0 };
   private timers: Array<ReturnType<typeof setInterval>> = [];
@@ -119,6 +120,11 @@ export class RoomSyncEngine {
 
   setCanControl(canControl: boolean) {
     this.canControl = canControl;
+  }
+
+  setSourceSwitching(switching: boolean) {
+    this.sourceSwitching = switching;
+    if (!switching) this.apply(true);
   }
 
   // ───────── Lifecycle ─────────
@@ -183,6 +189,7 @@ export class RoomSyncEngine {
       for (const [e, fn] of this.videoListeners) this.video.removeEventListener(e, fn);
     this.videoListeners.length = 0;
     this.video = video;
+    this.sourceSwitching = false;
     this.lastSeekAt = -Infinity;
     this.lastDriftMs = null;
     this.setBuffering(false);
@@ -226,7 +233,7 @@ export class RoomSyncEngine {
 
   /** A play/pause the engine did not cause (media keys, OS controls, PiP window). */
   private onExternalChange(kind: 'play' | 'pause') {
-    if (this.applying > 0 || !this.state || this.destroyed) return;
+    if (this.applying > 0 || this.sourceSwitching || !this.state || this.destroyed) return;
     const shouldPlay = this.state.status === 'playing';
     if ((kind === 'play') === shouldPlay) return;
     if (this.canControl) void this.intent({ type: kind });
@@ -308,6 +315,7 @@ export class RoomSyncEngine {
       !state ||
       !playbackAssetKey(state) ||
       video.readyState < 2 ||
+      this.sourceSwitching ||
       this.needsInteraction
     )
       return;

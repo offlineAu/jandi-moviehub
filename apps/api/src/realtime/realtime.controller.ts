@@ -50,6 +50,7 @@ export class RealtimeController {
           this.catalog.getSummary(media.movieId),
           this.kisskhStream.resolveMovie(media.tmdbId),
         ]);
+        const captions = await this.kisskhStream.captions('movie', `tmdb:${media.tmdbId}`);
         return {
           movieId: media.movieId,
           movie,
@@ -62,6 +63,8 @@ export class RealtimeController {
               mimeType: source.mimeType,
               durationSec: 0,
               url: source.url,
+              captions,
+              license: null,
             },
           ],
         };
@@ -113,6 +116,13 @@ export class RealtimeController {
         const title = `${source.series.title} · Episode ${episode.episode}`;
         const direct =
           episode.provider === 'kisskh-direct' ? await this.kisskhStream.resolve(episode) : null;
+        const captions =
+          direct && episode.provider === 'kisskh-direct'
+            ? await this.kisskhStream.captions(
+                'series',
+                `kisskh:${episode.seriesId}:1:${episode.episode}`,
+              )
+            : [];
         return {
           movieId: null,
           tvEpisode: episode,
@@ -139,7 +149,7 @@ export class RealtimeController {
                   mimeType: direct.mimeType,
                   durationSec: 0,
                   url: direct.url,
-                  captions: [],
+                  captions,
                   license: null,
                 },
               ]

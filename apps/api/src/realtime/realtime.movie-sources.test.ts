@@ -17,6 +17,7 @@ it('resolves a fresh direct movie stream only after checking room membership', a
       format: 'HLS',
       mimeType: 'application/vnd.apple.mpegurl',
     })),
+    captions: vi.fn(async () => []),
   };
   const controller = new RealtimeController(
     rooms as never,

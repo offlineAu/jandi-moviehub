@@ -269,6 +269,7 @@ export function WatchRoom({ room }: { room: Room }) {
         onIntent={onIntent}
         onEnded={onEnded}
         onPlaybackErrorChange={setPlayerFailed}
+        onSourceSwitch={(switching) => engine?.setSourceSwitching(switching)}
         onRetrySource={
           playback?.tvEpisode?.provider === 'kisskh-direct' ||
           playback?.externalMedia?.provider === 'kisskh-direct'

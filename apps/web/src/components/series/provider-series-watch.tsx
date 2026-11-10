@@ -12,6 +12,52 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { ErrorState } from '@/components/ui/error-state';
 import { cn } from '@/lib/utils';
 import { MovieboxPlayer } from './moviebox-player';
+import { VideoPlayer } from '@/components/player';
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '@/lib/api';
+import type { PlaybackSource } from '@/lib/types';
+import { useRoomSourceCapabilities } from '@/lib/queries/room-sources';
+
+function KisskhDirectSolo({
+  season,
+  episode,
+  seriesId,
+  episodeId,
+  title,
+}: {
+  season: number;
+  episode: number;
+  seriesId: number;
+  episodeId: number;
+  title: string;
+}) {
+  const playback = useQuery({
+    queryKey: ['kisskh-solo-episode', season, episode, seriesId, episodeId],
+    queryFn: () =>
+      apiFetch<{ sources: PlaybackSource[] }>('/room-sources/kisskh/episode', {
+        query: { season, episode, seriesId, episodeId },
+      }),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  if (playback.isPending)
+    return (
+      <div role="status" className="grid aspect-video place-items-center bg-black text-muted">
+        Loading KissKH…
+      </div>
+    );
+  if (playback.isError)
+    return <ErrorState error={playback.error} onRetry={() => void playback.refetch()} />;
+  return (
+    <VideoPlayer
+      sources={playback.data.sources}
+      title={title}
+      mode="solo"
+      autoPlay
+      onRetrySource={() => void playback.refetch()}
+    />
+  );
+}
 import { useTvSeason, useTvSeries } from './tv-episodes';
 import {
   providerWatchHref,
@@ -35,7 +81,11 @@ function ProviderSeriesWatchContent({ season, episode, browseOnly = false }: Pro
   const params = useSearchParams();
   const router = useRouter();
   const initialProvider: SeriesProvider =
-    params.get('provider') === 'moviebox' ? 'moviebox' : 'kisskh';
+    params.get('provider') === 'moviebox'
+      ? 'moviebox'
+      : params.get('provider') === 'kisskh-direct'
+        ? 'kisskh-direct'
+        : 'kisskh';
   const [provider, setProvider] = React.useState<SeriesProvider>(initialProvider);
   React.useEffect(() => setProvider(initialProvider), [initialProvider]);
   const nativeLink = params.get('numbering') === 'provider';
@@ -45,6 +95,7 @@ function ProviderSeriesWatchContent({ season, episode, browseOnly = false }: Pro
   const [browsePart, setBrowsePart] = React.useState<number | null>(selectedPart);
   React.useEffect(() => setBrowsePart(selectedPart), [selectedPart, provider]);
   const [attempt, setAttempt] = React.useState(0);
+  const capabilities = useRoomSourceCapabilities();
   const sources = useProviderSeries(provider, 'Money Heist');
   const series = useTvSeries('71446');
   // These optional queries enrich artwork; failure never replaces the provider's episode list.
@@ -92,6 +143,9 @@ function ProviderSeriesWatchContent({ season, episode, browseOnly = false }: Pro
           }}
         >
           <option value="kisskh">KissKH</option>
+          {capabilities.data?.kisskhDirectSync ? (
+            <option value="kisskh-direct">KissKH · Jandi player</option>
+          ) : null}
           <option value="moviebox">MovieBox · Original Spanish</option>
         </NativeSelect>
       </div>
@@ -120,6 +174,14 @@ function ProviderSeriesWatchContent({ season, episode, browseOnly = false }: Pro
                   season={String(selectedPart)}
                   episode={String(selectedEpisode)}
                   numbering="provider"
+                />
+              ) : provider === 'kisskh-direct' && currentPart?.id && current.id ? (
+                <KisskhDirectSolo
+                  season={selectedPart!}
+                  episode={selectedEpisode!}
+                  seriesId={currentPart.id}
+                  episodeId={current.id}
+                  title={selectedLabel}
                 />
               ) : (
                 <>
@@ -194,7 +256,7 @@ function ProviderSeriesWatchContent({ season, episode, browseOnly = false }: Pro
               {current && (provider === 'moviebox' || (currentPart?.id && current.id)) && (
                 <Button asChild variant="secondary" className="mt-3">
                   <Link
-                    href={`/rooms/new?movieId=${encodeURIComponent(roomTvTitle(provider === 'kisskh' ? { provider: 'kisskh', tvId: '71446', season: selectedPart!, episode: selectedEpisode!, numbering: 'provider', seriesId: currentPart!.id!, episodeId: current.id! } : { tvId: '71446', season: selectedPart!, episode: selectedEpisode!, numbering: 'provider' }))}`}
+                    href={`/rooms/new?movieId=${encodeURIComponent(roomTvTitle(provider !== 'moviebox' ? { provider, tvId: '71446', season: selectedPart!, episode: selectedEpisode!, numbering: 'provider', seriesId: currentPart!.id!, episodeId: current.id! } : { tvId: '71446', season: selectedPart!, episode: selectedEpisode!, numbering: 'provider' }))}`}
                   >
                     Watch together
                   </Link>

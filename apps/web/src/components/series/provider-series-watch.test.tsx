@@ -18,6 +18,7 @@ vi.mock('@/lib/api', async (original) => ({
   ...(await original<typeof ApiModule>()),
   apiFetch: vi.fn(),
 }));
+vi.mock('@/components/player', () => ({ VideoPlayer: () => <div data-testid="jandi-player" /> }));
 const counts = [13, 9, 8, 8, 10];
 const parts = counts.map((count, index) => ({
   number: index + 1,
@@ -96,6 +97,23 @@ beforeEach(() => {
     });
 });
 describe('provider episode navigation', () => {
+  it('opens the Jandi player for a direct KissKH episode with its source identifiers', async () => {
+    navigation.query = 'provider=kisskh-direct&numbering=provider';
+    const original = vi.mocked(apiFetch).getMockImplementation()!;
+    vi.mocked(apiFetch).mockImplementation(async (...args) => {
+      if (args[0] === '/room-sources/capabilities') return { kisskhDirectSync: true };
+      if (args[0] === '/room-sources/kisskh/episode') return { sources: [{ assetId: 'direct' }] };
+      return original(...args);
+    });
+    mount('1', '2');
+    expect(await screen.findByTestId('jandi-player')).toBeTruthy();
+    expect(apiFetch).toHaveBeenCalledWith('/room-sources/kisskh/episode', {
+      query: { season: 1, episode: 2, seriesId: 10, episodeId: 102 },
+    });
+    expect(screen.getByRole('link', { name: 'Watch together' }).getAttribute('href')).toContain(
+      'kisskh-direct%3A71446',
+    );
+  });
   it('plays provider Part 1 directly, uses its 13-episode count, and crosses to Part 2', async () => {
     mount('1', '13');
     expect(await screen.findByLabelText('Original Spanish audio')).toBeTruthy();

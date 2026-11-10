@@ -19,6 +19,23 @@ function mount() {
   );
 }
 describe('MovieBox native playback', () => {
+  it('allows each viewer to choose an available resolution', async () => {
+    vi.mocked(apiFetch).mockResolvedValue({
+      audioLanguage: 'es',
+      sources: [
+        { id: '480', resolution: 480, url: '/api/v1/moviebox/media/480' },
+        { id: '360', resolution: 360, url: '/api/v1/moviebox/media/360' },
+      ],
+      englishVtt: null,
+      subtitleStatus: 'UNAVAILABLE',
+    });
+    mount();
+    const quality = await screen.findByLabelText('Video quality');
+    fireEvent.change(quality, { target: { value: '360' } });
+    expect(
+      (screen.getByLabelText('Original Spanish audio') as HTMLVideoElement).getAttribute('src'),
+    ).toBe('/api/v1/moviebox/media/360');
+  });
   it('requires a source episode for Season 1 and never requests nonexistent episode 14', async () => {
     vi.mocked(apiFetch)
       .mockReset()

@@ -12,18 +12,63 @@ const episode = {
   episodeId: 57283,
 };
 const service = (enabled = true) =>
-  new KisskhStreamService({
-    env: {
-      ENABLE_KISSKH_DIRECT_SYNC: enabled,
-      KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
-    },
-  } as unknown as AppConfig);
+  new KisskhStreamService(
+    {
+      env: {
+        ENABLE_KISSKH_DIRECT_SYNC: enabled,
+        KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
+      },
+    } as unknown as AppConfig,
+    {} as never,
+  );
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
 describe('KissKH direct stream resolution', () => {
+  it('offers only approved KissKH subtitle tracks and converts them to WebVTT', async () => {
+    const cache = new Map<string, string>();
+    const redis = {
+      set: vi.fn(async (key: string, value: string) => {
+        cache.set(key, value);
+        return 'OK';
+      }),
+      get: vi.fn(async (key: string) => cache.get(key) ?? null),
+    };
+    const resolver = new KisskhStreamService(
+      {
+        env: {
+          ENABLE_KISSKH_DIRECT_SYNC: true,
+          KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
+        },
+      } as unknown as AppConfig,
+      redis as never,
+    );
+    const fetchMock = vi.fn(async (input: string | URL) =>
+      String(input).includes('/subtitles/')
+        ? Response.json({
+            subtitles: [
+              {
+                id: 'kisskh-0',
+                lang: 'eng',
+                url: 'https://sub.cdnvideo11.shop/english.srt?sig=secret',
+              },
+              { id: 'kisskh-1', lang: 'eng', url: 'https://evil.example/captions.srt' },
+              { id: 'other-0', lang: 'eng', url: 'https://sub.cdnvideo11.shop/other.srt' },
+            ],
+          })
+        : new Response('1\n00:00:01,000 --> 00:00:02,000\nHello\n'),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const tracks = await resolver.captions('movie', 'tmdb:672');
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0]).toMatchObject({ lang: 'eng', label: 'English' });
+    expect(tracks[0]!.url).not.toContain('secret');
+    const token = tracks[0]!.url.split('/').at(-1)!;
+    expect(await resolver.caption(token)).toContain('00:00:01.000 --> 00:00:02.000');
+    await expect(resolver.caption('invalid')).rejects.toMatchObject({ status: 404 });
+  });
   it('requests movies using their TMDB identity', async () => {
     const fetchMock = vi.fn(async (_url: string) =>
       Response.json({ streams: [{ name: 'kisskh', url: 'https://cdn.example/movie.m3u8' }] }),
