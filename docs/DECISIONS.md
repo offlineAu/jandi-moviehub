@@ -102,3 +102,14 @@ messages. All mail renders from `mail/templates.ts` (shared HTML layout + plain-
 escaped).
 _Consequence:_ No durable outbox yet: an email that fails all retries is not re-sent
 automatically; the user resends from the unverified-email banner.
+
+### ADR-14 — Layout safety nets for phones in global CSS
+
+_Context:_ Most stacked layouts are `grid gap-*` with an implicit `auto` column (168 uses). An
+`auto` track grows to its widest child's min-content, so a non-shrinking button row, long word or
+date input widened whole forms past the screen and phone browsers zoomed the page out. Separately,
+fields used 14px text, which makes iOS Safari zoom in on focus and stay zoomed.
+_Decision:_ Base-layer `:where(.grid) { grid-template-columns: minmax(0, 1fr) }` (zero
+specificity, so any `grid-cols-*` utility overrides it) and `min-width: 0` on date/time inputs.
+An unlayered `(hover: none) and (pointer: coarse)` rule sets text-entry controls to 16px so it
+also covers raw inputs that bypass `fieldBase`. Desktop rendering is unchanged.

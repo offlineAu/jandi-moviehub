@@ -38,8 +38,8 @@ export function SelectedRoomEpisode({
         ? result.data?.season.episodes.find((item) => item.number === coordinate.episode)?.title
         : `Episode ${episode.episode}`;
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border-strong bg-secondary p-3">
-      <div className="min-w-0 flex-1">
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border-strong bg-secondary p-3">
+      <div className="min-w-0 flex-1 basis-56">
         <p className="font-medium">
           Money Heist · {episode.numbering === 'provider' ? 'Part ' : 'S'}
           {episode.season} E{episode.episode}
@@ -54,12 +54,14 @@ export function SelectedRoomEpisode({
               : 'Original Spanish · Synced playback'}
         </p>
       </div>
-      <Button variant="ghost" size="sm" onClick={onChange}>
-        Change
-      </Button>
-      <Button variant="ghost" size="sm" onClick={onRemove}>
-        Remove
-      </Button>
+      <div className="ml-auto flex shrink-0 gap-1">
+        <Button variant="ghost" size="sm" onClick={onChange}>
+          Change
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onRemove}>
+          Remove
+        </Button>
+      </div>
     </div>
   );
 }

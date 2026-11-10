@@ -188,6 +188,47 @@
   textarea {
     color-scheme: dark;
   }
+
+  /*
+   * Single-column grids: an implicit `auto` column grows to its widest child's min-content
+   * (a button row, a long word, a date input), pushing the whole layout past a phone's width.
+   * `minmax(0, 1fr)` keeps the column at the container width instead. Zero specificity, so any
+   * `grid-cols-*` utility (including responsive ones) still wins.
+   */
+  :where(.grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Date/time inputs have a large intrinsic minimum width in Chromium and WebKit. */
+  input:is([type='date'], [type='datetime-local'], [type='time'], [type='month'], [type='week']) {
+    min-width: 0;
+  }
+  /* iOS centres the value of native date inputs; keep it aligned with the other fields. */
+  ::-webkit-date-and-time-value {
+    text-align: start;
+  }
+}
+
+/*
+ * Touch devices: iOS Safari zooms the page when a focused field's font is under 16px and never
+ * zooms back, which leaves the layout shifted and overlapping. Unlayered so it beats `text-sm`.
+ */
+@media (hover: none) and (pointer: coarse) {
+  input:not(
+    [type='checkbox'],
+    [type='radio'],
+    [type='range'],
+    [type='file'],
+    [type='color'],
+    [type='button'],
+    [type='submit'],
+    [type='reset'],
+    [type='image']
+  ),
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 /* ───────────────────────── Utilities ───────────────────────── */

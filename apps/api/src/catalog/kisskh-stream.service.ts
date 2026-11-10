@@ -10,6 +10,20 @@ import { srtToVtt } from './moviebox.controller';
 
 type KisskhEpisode = Extract<RoomTvEpisode, { provider: 'kisskh' | 'kisskh-direct' }>;
 class NoCompatibleStream extends Error {}
+function captionProvider(id: string, url: URL): 'kisskh' | 'alternative' | null {
+  if (url.protocol !== 'https:' || url.port || url.username || url.password) return null;
+  const path = url.pathname.toLowerCase();
+  if (/^kisskh[-:]/i.test(id) && url.hostname === 'sub.cdnvideo11.shop' && path.endsWith('.srt'))
+    return 'kisskh';
+  if (
+    /^onetouchtv-/i.test(id) &&
+    url.hostname === 'aapanel.devcorp.me' &&
+    path.startsWith('/assets/') &&
+    path.endsWith('.vtt')
+  )
+    return 'alternative';
+  return null;
+}
 const streamsSchema = z.object({
   streams: z
     .array(z.object({ name: z.string().max(300).optional(), url: z.string().max(8192).optional() }))
@@ -102,64 +116,67 @@ export class KisskhStreamService {
     this.assertEnabled();
     const primary = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
     const fallback = this.config.env.KISSKH_STREAM_RESOLVER_FALLBACK_URL?.replace(/\/$/, '');
-    for (const base of [...new Set([primary, fallback].filter((item): item is string => !!item))]) {
-      try {
-        const response = await fetch(`${base}/subtitles/${type}/${encodeURIComponent(id)}.json`, {
-          signal: AbortSignal.timeout(10000),
-          redirect: 'error',
-        });
-        if (!response.ok) continue;
-        const body = await readBounded(response, 256000);
-        const parsed = z
-          .object({
-            subtitles: z
-              .array(
-                z.object({
-                  id: z.string().max(200),
-                  lang: z.string().regex(/^[a-z]{2,3}$/i),
-                  url: z.string().max(8192),
-                }),
-              )
-              .max(100),
-          })
-          .parse(JSON.parse(body));
-        const captions: Array<{ lang: string; label: string; url: string }> = [];
-        for (const item of parsed.subtitles) {
-          if (!item.id.startsWith('kisskh-')) continue;
-          let url: URL;
-          try {
-            url = new URL(item.url);
-          } catch {
-            continue;
-          }
-          if (
-            url.protocol !== 'https:' ||
-            url.hostname !== 'sub.cdnvideo11.shop' ||
-            url.username ||
-            url.password ||
-            !url.pathname.toLowerCase().endsWith('.srt')
-          )
-            continue;
-          const token = randomBytes(24).toString('hex');
-          await this.redis.set(`kisskh:caption:${token}`, url.href, 'EX', 7200);
-          let label = item.lang.toUpperCase();
-          try {
-            label = new Intl.DisplayNames(['en'], { type: 'language' }).of(item.lang) ?? label;
-          } catch {
-            /* Use the language code. */
-          }
-          captions.push({
-            lang: item.lang,
-            label,
-            url: `/api/v1/room-sources/kisskh/captions/${token}`,
+    const bases = [...new Set([primary, fallback].filter((item): item is string => !!item))];
+    const listings = await Promise.all(
+      bases.map(async (base) => {
+        try {
+          const response = await fetch(`${base}/subtitles/${type}/${encodeURIComponent(id)}.json`, {
+            signal: AbortSignal.timeout(10000),
+            redirect: 'error',
           });
+          if (!response.ok) return [];
+          const body = await readBounded(response, 256000);
+          const parsed = z
+            .object({
+              subtitles: z
+                .array(
+                  z.object({
+                    id: z.string().max(200),
+                    lang: z.string().regex(/^[a-z]{2,3}$/i),
+                    url: z.string().max(8192),
+                  }),
+                )
+                .max(100),
+            })
+            .parse(JSON.parse(body));
+          return parsed.subtitles;
+        } catch {
+          this.logger.warn('A subtitle resolver could not be loaded');
+          return [];
         }
-        if (captions.length) return captions;
+      }),
+    );
+    const captions: Array<{ lang: string; label: string; url: string }> = [];
+    const seen = new Set<string>();
+    for (const item of listings.flat()) {
+      let url: URL;
+      try {
+        url = new URL(item.url);
       } catch {
-        this.logger.warn('A KissKH subtitle resolver could not be loaded');
+        continue;
       }
+      const provider = captionProvider(item.id, url);
+      if (!provider) continue;
+      const key = `${provider}:${item.lang.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const token = randomBytes(24).toString('hex');
+      await this.redis.set(`kisskh:caption:${token}`, url.href, 'EX', 7200);
+      let label = item.lang.toUpperCase();
+      try {
+        label = new Intl.DisplayNames(['en'], { type: 'language' }).of(item.lang) ?? label;
+      } catch {
+        /* Use the language code. */
+      }
+      captions.push({
+        lang: item.lang,
+        label: provider === 'alternative' ? `${label} (alternative · timing may differ)` : label,
+        url: `/api/v1/room-sources/kisskh/captions/${token}`,
+      });
     }
-    return [];
+    return captions.sort(
+      (a, b) => Number(a.label.includes('(alternative')) - Number(b.label.includes('(alternative')),
+    );
   }
 
   async caption(token: string) {
@@ -167,13 +184,8 @@ export class KisskhStreamService {
     const stored = await this.redis.get(`kisskh:caption:${token}`);
     if (!stored) throw Errors.notFound('Captions');
     const url = new URL(stored);
-    if (
-      url.protocol !== 'https:' ||
-      url.hostname !== 'sub.cdnvideo11.shop' ||
-      url.username ||
-      url.password
-    )
-      throw Errors.notFound('Captions');
+    const id = url.hostname === 'sub.cdnvideo11.shop' ? 'kisskh-' : 'onetouchtv-';
+    if (!captionProvider(id, url)) throw Errors.notFound('Captions');
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(10000), redirect: 'error' });
       if (!response.ok) throw new Error('Caption unavailable');
@@ -242,8 +254,7 @@ export class KisskhStreamService {
     id: string,
     cancel: AbortSignal,
   ) {
-    let response: Response;
-    response = await fetch(`${base}/stream/${type}/${encodeURIComponent(id)}.json`, {
+    const response = await fetch(`${base}/stream/${type}/${encodeURIComponent(id)}.json`, {
       headers: { Accept: 'application/json' },
       // The free resolver may need up to a minute to wake after being idle.
       signal: AbortSignal.any([AbortSignal.timeout(85000), cancel]),

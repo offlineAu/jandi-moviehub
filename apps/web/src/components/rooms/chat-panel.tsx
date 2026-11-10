@@ -219,6 +219,8 @@ export function ChatPanel({
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
+  // Unique: a second panel is mounted inside the player while it is full screen.
+  const inputId = `chat-input-${React.useId()}`;
   const [text, setText] = React.useState('');
   const [replyTo, setReplyTo] = React.useState<ChatItem | null>(null);
   const [atBottom, setAtBottom] = React.useState(true);
@@ -399,11 +401,11 @@ export function ChatPanel({
           </div>
         ) : null}
         <div className="flex items-end gap-2">
-          <label htmlFor="chat-input" className="sr-only">
+          <label htmlFor={inputId} className="sr-only">
             Message the room
           </label>
           <textarea
-            id="chat-input"
+            id={inputId}
             ref={inputRef}
             rows={1}
             value={text}

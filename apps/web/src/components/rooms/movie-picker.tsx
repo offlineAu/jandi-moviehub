@@ -145,17 +145,19 @@ export function MoviePicker({
         {external.type === 'tv' ? (
           <SelectedExternalEpisode media={{ ...external, tmdbId: external.tvId }} />
         ) : (
-          <span>
+          <span className="min-w-0 flex-1 basis-48 break-words">
             {selected.data?.title ?? 'Movie'} ·{' '}
             {external.provider === 'kisskh-direct' ? 'KissKH' : 'VidSrc'} synchronized playback
           </span>
         )}
-        <Button variant="ghost" size="sm" onClick={() => setBrowsing(true)}>
-          Change
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => onChange(undefined)}>
-          Remove
-        </Button>
+        <div className="ml-auto flex shrink-0 gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setBrowsing(true)}>
+            Change
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => onChange(undefined)}>
+            Remove
+          </Button>
+        </div>
       </div>
     );
   if (value && selectedTv && !browsing)
@@ -170,39 +172,43 @@ export function MoviePicker({
     const movie = selected.data;
     return (
       <div
-        className="flex items-center gap-3 rounded-xl border border-border-strong bg-secondary p-3"
+        className="flex flex-wrap items-center gap-3 rounded-xl border border-border-strong bg-secondary p-3"
         id={id}
       >
-        <div className="relative aspect-[2/3] w-12 shrink-0 overflow-hidden rounded-md bg-surface">
-          {movie ? (
-            <Artwork src={movie.posterUrl} alt="" sizes="48px" fallbackTitle={movie.title} />
-          ) : (
-            <Skeleton className="size-full" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{movie?.title ?? 'Loading…'}</p>
-          {movie ? (
-            movie.playable ? (
-              <p className="text-xs text-[#6ee7b7]">
-                Ready to stream{movie.runtimeMin ? `, ${formatRuntime(movie.runtimeMin)}` : ''}
-              </p>
+        <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
+          <div className="relative aspect-[2/3] w-12 shrink-0 overflow-hidden rounded-md bg-surface">
+            {movie ? (
+              <Artwork src={movie.posterUrl} alt="" sizes="48px" fallbackTitle={movie.title} />
             ) : (
-              <p className="text-xs text-danger">Not available to stream — pick another title</p>
-            )
-          ) : null}
+              <Skeleton className="size-full" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-medium">{movie?.title ?? 'Loading…'}</p>
+            {movie ? (
+              movie.playable ? (
+                <p className="text-xs text-[#6ee7b7]">
+                  Ready to stream{movie.runtimeMin ? `, ${formatRuntime(movie.runtimeMin)}` : ''}
+                </p>
+              ) : (
+                <p className="text-xs text-danger">Not available to stream — pick another title</p>
+              )
+            ) : null}
+          </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setBrowsing(true)}>
-          Change
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onChange(undefined)}
-          aria-label="Remove movie"
-        >
-          Remove
-        </Button>
+        <div className="ml-auto flex shrink-0 gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setBrowsing(true)}>
+            Change
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onChange(undefined)}
+            aria-label="Remove movie"
+          >
+            Remove
+          </Button>
+        </div>
       </div>
     );
   }

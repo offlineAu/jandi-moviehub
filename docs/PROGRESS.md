@@ -1,5 +1,34 @@
 # Progress Log
 
+## 2026-11-10 — Chat in the full-screen watch-party player
+
+- Full screen in a watch party keeps the chat: new messages float over the picture for 7 s and a
+  chat button shows the unread count. Opening it shows the full room chat (read, reply, react)
+  beside the picture: a right-hand column in landscape, the lower half in portrait. The picture and
+  controls shrink to make room, so nothing is covered.
+- `VideoPlayer` gained `fullscreenAside`, `onFullscreenChange` and `fullscreenFallback`. The room
+  uses `viewport`: where element full screen doesn't exist (iPhone Safari), the player fills the
+  window instead of handing the bare `<video>` to the system player, which can't show chat. That
+  mode locks page scroll, exits on Escape and follows `visualViewport` so the on-screen keyboard
+  doesn't cover the chat box. The solo watch page keeps the native behaviour.
+- The chat input id is now unique per `ChatPanel` (a second one mounts inside the player).
+
+## 2026-11-10 — Mobile layout pass
+
+- Swept every main route at 320, 375 and 390 px with scrolling viewport screenshots plus an
+  overflow/overlap probe, and drove the create-room → watch-party flow on phone widths.
+- Fixed: single-column grids growing past the screen (picking a movie on Start a watch party
+  made the page 419 px wide on a 375 px phone; the browser zoomed out). Global
+  `:where(.grid) { grid-template-columns: minmax(0, 1fr) }` plus wrapping selected-title rows
+  (movie, TV episode, external) in the room pickers. `datetime-local` inputs no longer force a
+  minimum width.
+- Fixed: fields under 16px on touch devices (iOS zooms in on focus and stays zoomed). All text
+  inputs, textareas and selects are 16px under `(hover: none) and (pointer: coarse)`.
+- Fixed: the mobile tab bar hides while the user is typing so it can't sit on the keyboard over
+  the field. Programmatic `autoFocus` doesn't hide it.
+- Fixed: watch-party reaction bar clipped its last emoji at 320 px.
+- Desktop (1280 px) screenshots before/after differ only in live content.
+
 ## 2026-11-04 — Free production deployment
 
 - Published https://jandi-moviehub.vercel.app in the selected Hobby workspace and deployed

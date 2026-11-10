@@ -1,5 +1,31 @@
 # Test Results
 
+## 2026-11-10 — Chat in the full-screen watch-party player
+
+- New Playwright `@mobile` tests "full-screen watch party: read and reply to chat" (portrait and
+  landscape) passed on the isolated stack. A desktop host sends a message; the phone viewer in full
+  screen sees it float and the unread badge, opens chat, replies, and the reply reaches the host.
+  The tests also check that the panel doesn't cover the exit-full-screen control.
+- A dev-server run additionally covered a simulated iPhone (no `Element.requestFullscreen`): the
+  window-filling fallback was used, chat worked the same, and page scroll was restored on exit.
+- Web typecheck, lint and unit tests passed (118/118, incl. new `fullscreen-chat.test.tsx`).
+- Not verified on physical devices: real iOS Safari keyboard behaviour in the fallback mode and
+  Android keyboard resizing in element full screen.
+
+## 2026-11-10 — Mobile layout pass
+
+- Web typecheck, lint and unit tests passed (114/114, incl. new `mobile-tab-bar.test.tsx`).
+- New Playwright `@mobile` test "create-room form stays within the screen after picking a movie"
+  passed on the isolated stack. Against the dev server without the fix the same checks fail at
+  360 px (page 377 px wide, "Open the room" right edge 377 px, field font 14 px).
+- Full `--project=mobile` run: 1 passed, 4 failed — all pre-existing and unrelated to layout:
+  three call `movieByTitle`, and `GET /movies?playable=true` no longer lists the seeded demo
+  films (Neon Drift etc. are playable per `playability.ts` but absent from the listing with TMDB
+  configured); `tv-discovery.spec.ts:123` expects copy ("Full-episode playback is not currently
+  available…") that no longer exists in the web app.
+- `pnpm lint` fails in `@jandi/api` (`kisskh-stream.service.ts:246` prefer-const) from commit
+  455d8c7, not this change.
+
 ## 2026-11-01 — Player buffering indicator
 
 - Web typecheck and lint passed. The targeted series browser test passed with real video playback

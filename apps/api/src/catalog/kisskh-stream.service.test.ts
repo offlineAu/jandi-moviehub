@@ -132,6 +132,66 @@ describe('KissKH direct stream resolution', () => {
     );
     expect(await resolver.captions('movie', 'tmdb:672')).toHaveLength(1);
   });
+  it('combines KissKH and labelled alternative tracks from both resolver instances', async () => {
+    const cache = new Map<string, string>();
+    const redis = {
+      set: vi.fn(async (key: string, value: string) => {
+        cache.set(key, value);
+        return 'OK';
+      }),
+      get: vi.fn(async (key: string) => cache.get(key) ?? null),
+    };
+    const resolver = new KisskhStreamService(
+      {
+        env: {
+          ENABLE_KISSKH_DIRECT_SYNC: true,
+          KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
+          KISSKH_STREAM_RESOLVER_FALLBACK_URL: 'https://backup.example',
+        },
+      } as unknown as AppConfig,
+      redis as never,
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) => {
+        const url = String(input);
+        if (url.startsWith('https://resolver.example/'))
+          return Response.json({
+            subtitles: [
+              { id: 'kisskh:2512', lang: 'khm', url: 'https://sub.cdnvideo11.shop/khmer.srt' },
+              {
+                id: 'onetouchtv-eng-0',
+                lang: 'eng',
+                url: 'https://aapanel.devcorp.me/assets/english.vtt',
+              },
+              { id: 'onetouchtv-eng-1', lang: 'eng', url: 'https://evil.example/english.vtt' },
+            ],
+          });
+        if (url.startsWith('https://backup.example/'))
+          return Response.json({
+            subtitles: [
+              { id: 'kisskh:2512', lang: 'eng', url: 'https://sub.cdnvideo11.shop/english.srt' },
+              {
+                id: 'onetouchtv-eng-2',
+                lang: 'eng',
+                url: 'https://aapanel.devcorp.me/assets/english.vtt',
+              },
+            ],
+          });
+        return new Response('WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello\n');
+      }),
+    );
+    const tracks = await resolver.captions('series', 'kisskh:2512:1:2');
+    expect(tracks.map((track) => track.label)).toEqual([
+      'Khmer',
+      'English',
+      'English (alternative · timing may differ)',
+    ]);
+    expect(await resolver.caption(tracks[2]!.url.split('/').at(-1)!)).toContain(
+      '00:00:01.000 --> 00:00:02.000',
+    );
+    expect(cache.size).toBe(3);
+  });
   it('requests movies using their TMDB identity', async () => {
     const fetchMock = vi.fn(async (_url: string) =>
       Response.json({ streams: [{ name: 'kisskh', url: 'https://cdn.example/movie.m3u8' }] }),

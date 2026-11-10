@@ -89,7 +89,7 @@ export function ReactionBar({
     <div
       role="group"
       aria-label="Send a reaction"
-      className={cn('flex items-center gap-1', className)}
+      className={cn('flex items-center justify-between sm:justify-start sm:gap-1', className)}
     >
       {REACTION_EMOJI.map((emoji) => (
         <Tooltip key={emoji} label={`React: ${EMOJI_NAMES[emoji]}`}>
@@ -98,7 +98,7 @@ export function ReactionBar({
             onClick={() => void send(emoji)}
             disabled={cooling}
             aria-label={`React with ${EMOJI_NAMES[emoji]}`}
-            className="grid size-10 shrink-0 place-items-center rounded-full text-xl transition-transform hover:scale-110 hover:bg-white/[0.06] focus-ring active:scale-95 disabled:opacity-40 sm:size-9"
+            className="grid size-9 shrink-0 place-items-center rounded-full text-xl transition-transform hover:scale-110 hover:bg-white/[0.06] focus-ring active:scale-95 disabled:opacity-40 min-[360px]:size-10 sm:size-9"
           >
             {emoji}
           </button>

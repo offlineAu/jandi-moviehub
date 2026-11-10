@@ -42,8 +42,10 @@ import { useMe } from '@/lib/queries/auth';
 import { useCloseRoom, useLeaveRoom, useRoomPlaybackSources, type Room } from '@/lib/queries/rooms';
 import { cn, formatRuntime } from '@/lib/utils';
 import { EpisodeBar } from './episode-bar';
+import { ProviderEpisodeBar, VidsrcEpisodeBar } from './provider-episode-bar';
 import { Artwork } from '@/components/movies/artwork';
 import { ChatPanel } from './chat-panel';
+import { FullscreenChatPanel, FullscreenChatTicker, FullscreenChatToggle } from './fullscreen-chat';
 import {
   ACTIVE_MARATHON_STATES,
   MARATHON_STATE_LABEL,
@@ -85,6 +87,8 @@ export function WatchRoom({ room }: { room: Room }) {
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [movieOpen, setMovieOpen] = React.useState(false);
   const [playerFailed, setPlayerFailed] = React.useState(false);
+  const [playerFullscreen, setPlayerFullscreen] = React.useState(false);
+  const [fullscreenChatOpen, setFullscreenChatOpen] = React.useState(false);
   const [confirm, setConfirm] = React.useState<'leave' | 'close' | null>(null);
   const leave = useLeaveRoom();
   const close = useCloseRoom();
@@ -99,8 +103,11 @@ export function WatchRoom({ room }: { room: Room }) {
   const [sourceAttempt, setSourceAttempt] = React.useState(0);
   React.useEffect(() => setPlayerFailed(false), [assetKey]);
 
-  // Chat unread badge: count arrivals while chat isn't visible.
-  const chatVisible = tab === 'chat' && (panelOpen || !desktop);
+  // Chat unread badge: count arrivals while chat isn't visible. In full screen only the
+  // player's own chat panel is on screen.
+  const chatVisible = playerFullscreen
+    ? fullscreenChatOpen
+    : tab === 'chat' && (panelOpen || !desktop);
   const [seen, setSeen] = React.useState(0);
   React.useEffect(() => {
     if (chatVisible) setSeen(chat.incoming);
@@ -149,6 +156,16 @@ export function WatchRoom({ room }: { room: Room }) {
     <>
       <ReactionOverlay bursts={session.bursts} />
       <MarathonOverlay marathon={marathon} serverNow={session.serverNow} />
+      {playerFullscreen && !fullscreenChatOpen ? (
+        <>
+          <FullscreenChatToggle unread={unread} onOpen={() => setFullscreenChatOpen(true)} />
+          <FullscreenChatTicker
+            messages={chat.messages}
+            myUserId={session.myUserId}
+            onOpen={() => setFullscreenChatOpen(true)}
+          />
+        </>
+      ) : null}
       {session.needsInteraction ? (
         <div className="absolute inset-0 z-10 grid place-items-center bg-black/60 backdrop-blur-sm">
           <button
@@ -286,6 +303,19 @@ export function WatchRoom({ room }: { room: Room }) {
         theater={theater}
         onTheaterChange={setTheater}
         overlay={overlay}
+        fullscreenFallback="viewport"
+        onFullscreenChange={setPlayerFullscreen}
+        fullscreenAside={
+          fullscreenChatOpen ? (
+            <FullscreenChatPanel
+              chat={chat}
+              myUserId={session.myUserId}
+              isModerator={isMod}
+              connected={session.connected}
+              onClose={() => setFullscreenChatOpen(false)}
+            />
+          ) : null
+        }
         className={cn(
           theater && desktop
             ? 'rounded-none sm:rounded-none lg:max-h-[calc(100dvh-8.5rem)]'
@@ -525,15 +555,35 @@ export function WatchRoom({ room }: { room: Room }) {
           </div>
           {assetKey ? (
             <div className={cn('px-3 pb-3 sm:px-6', !(theater && desktop) && 'mx-auto max-w-5xl')}>
-              <EpisodeBar
-                roomId={room.id}
-                movieId={playback?.externalMedia ? null : (playback?.movieId ?? null)}
-                status={playback?.status}
-                socket={session.socket}
-                engine={engine}
-                canControl={canControl}
-                marathonActive={marathonActive}
-              />
+              {playback?.tvEpisode?.numbering === 'provider' ? (
+                <ProviderEpisodeBar
+                  roomId={room.id}
+                  episode={playback.tvEpisode}
+                  socket={session.socket}
+                  engine={engine}
+                  canControl={canControl}
+                  marathonActive={marathonActive}
+                />
+              ) : playback?.externalMedia?.type === 'tv' ? (
+                <VidsrcEpisodeBar
+                  roomId={room.id}
+                  episode={playback.externalMedia}
+                  socket={session.socket}
+                  engine={engine}
+                  canControl={canControl}
+                  marathonActive={marathonActive}
+                />
+              ) : (
+                <EpisodeBar
+                  roomId={room.id}
+                  movieId={playback?.externalMedia ? null : (playback?.movieId ?? null)}
+                  status={playback?.status}
+                  socket={session.socket}
+                  engine={engine}
+                  canControl={canControl}
+                  marathonActive={marathonActive}
+                />
+              )}
             </div>
           ) : null}
           {sourcesMovie ? (

@@ -134,7 +134,7 @@ export function SelectedExternalEpisode({
 }) {
   const series = useTvSeries(String(media.tvId));
   return (
-    <span>
+    <span className="min-w-0 flex-1 basis-48 break-words">
       {series.data?.series.title ?? 'TV series'} · S{media.season} E{media.episode} · VidSrc
       synchronized playback
     </span>

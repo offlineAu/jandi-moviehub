@@ -78,6 +78,18 @@ export interface VideoPlayerProps {
   theater?: boolean;
   onTheaterChange?: (v: boolean) => void;
   overlay?: React.ReactNode;
+  /**
+   * Shown beside the picture while full screen (right in landscape, below in portrait); the
+   * picture and controls shrink to make room so nothing is covered.
+   */
+  fullscreenAside?: React.ReactNode;
+  onFullscreenChange?: (fullscreen: boolean) => void;
+  /**
+   * Where element full screen is unavailable (iPhone Safari): `native` hands the bare <video> to
+   * the system player (no overlay, no aside); `viewport` fills the browser window instead, keeping
+   * the overlay and aside.
+   */
+  fullscreenFallback?: 'native' | 'viewport';
   className?: string;
 }
 
@@ -137,6 +149,12 @@ function ControlButton({
   );
 }
 
+/** Size of the full-screen aside: a side column in landscape, a lower band in portrait. */
+const asideStyle = {
+  '--aside-w': 'min(22rem, 42%)',
+  '--aside-h': '50%',
+} as React.CSSProperties;
+
 export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   function VideoPlayer(
     {
@@ -159,6 +177,9 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       theater,
       onTheaterChange,
       overlay,
+      fullscreenAside,
+      onFullscreenChange,
+      fullscreenFallback = 'native',
       className,
     },
     ref,
@@ -219,7 +240,12 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     const [volume, setVolume] = React.useState(0.8);
     const [muted, setMuted] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
-    const [fullscreen, setFullscreen] = React.useState(false);
+    const [elementFullscreen, setFullscreen] = React.useState(false);
+    const [viewportFullscreen, setViewportFullscreen] = React.useState(false);
+    const fullscreen = elementFullscreen || viewportFullscreen;
+    const [visibleArea, setVisibleArea] = React.useState<{ top: number; height: number } | null>(
+      null,
+    );
     const [pip, setPip] = React.useState(false);
     const [pipSupported, setPipSupported] = React.useState(false);
     const [captionIndex, setCaptionIndex] = React.useState(-1);
@@ -502,6 +528,41 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       return () => document.removeEventListener('fullscreenchange', onChange);
     }, []);
 
+    // Window-filling fallback: lock page scroll and let Escape leave it, like real full screen.
+    React.useEffect(() => {
+      if (!viewportFullscreen) return;
+      const root = document.documentElement;
+      const previous = root.style.overflow;
+      root.style.overflow = 'hidden';
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setViewportFullscreen(false);
+      };
+      document.addEventListener('keydown', onKey);
+      // Follow the visible area: an on-screen keyboard (e.g. typing in chat) shrinks it, and a
+      // fixed, full-height box would leave the focused field underneath the keyboard.
+      const vv = window.visualViewport;
+      const fit = () => setVisibleArea(vv ? { top: vv.offsetTop, height: vv.height } : null);
+      fit();
+      vv?.addEventListener('resize', fit);
+      vv?.addEventListener('scroll', fit);
+      return () => {
+        root.style.overflow = previous;
+        document.removeEventListener('keydown', onKey);
+        vv?.removeEventListener('resize', fit);
+        vv?.removeEventListener('scroll', fit);
+        setVisibleArea(null);
+      };
+    }, [viewportFullscreen]);
+
+    const onFullscreenChangeRef = React.useRef(onFullscreenChange);
+    React.useEffect(() => {
+      onFullscreenChangeRef.current = onFullscreenChange;
+    });
+    React.useEffect(() => {
+      onFullscreenChangeRef.current?.(fullscreen);
+    }, [fullscreen]);
+    React.useEffect(() => () => onFullscreenChangeRef.current?.(false), []);
+
     // Captions: apply mode to text tracks.
     React.useEffect(() => {
       const video = videoRef.current;
@@ -633,14 +694,19 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     const doToggleFullscreen = React.useCallback(async () => {
       const el = containerRef.current;
       const video = videoRef.current as WebkitVideo | null;
+      if (viewportFullscreen) {
+        setViewportFullscreen(false);
+        return;
+      }
       try {
         if (document.fullscreenElement) await document.exitFullscreen();
         else if (el?.requestFullscreen) await el.requestFullscreen();
+        else if (fullscreenFallback === 'viewport') setViewportFullscreen(true);
         else video?.webkitEnterFullscreen?.();
       } catch {
         /* fullscreen rejected (e.g. not user-initiated) */
       }
-    }, []);
+    }, [viewportFullscreen, fullscreenFallback]);
 
     const doTogglePip = async () => {
       const video = videoRef.current;
@@ -800,6 +866,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
     const lockedReason = transportLocked ? HOST_ONLY : undefined;
     const noSource = selected === null;
+    const asideShown = fullscreen && !!fullscreenAside;
 
     return (
       <PortalContainerContext.Provider value={container}>
@@ -817,361 +884,397 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
             if (e.pointerType === 'mouse') pokeControls();
           }}
           onFocus={pokeControls}
+          data-fullscreen={fullscreen || undefined}
+          style={
+            viewportFullscreen && visibleArea
+              ? { top: visibleArea.top, height: visibleArea.height }
+              : undefined
+          }
           className={cn(
             'group/player relative isolate aspect-video w-full overflow-hidden bg-black text-white outline-none focus-visible:ring-2 focus-visible:ring-primary',
             fullscreen ? 'rounded-none' : 'rounded-xl sm:rounded-2xl',
-            !showControls && 'cursor-none',
+            !showControls && !asideShown && 'cursor-none',
             className,
+            viewportFullscreen &&
+              'fixed inset-0 z-[100] aspect-auto h-dvh max-h-none w-screen rounded-none sm:rounded-none',
           )}
         >
-          <video
-            ref={videoRef}
-            className="absolute inset-0 size-full bg-black object-contain"
-            playsInline
-            preload="metadata"
-            aria-label={title}
-          >
-            {captions.map((c) => (
-              <track key={c.url} kind="subtitles" src={c.url} srcLang={c.lang} label={c.label} />
-            ))}
-          </video>
-
-          {/* Click / tap surface */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 z-[1]"
-            onPointerUp={onSurfacePointerUp}
-            onDoubleClick={onDoubleClick}
-          />
-
-          {overlay ? (
-            <div className="pointer-events-none absolute inset-0 z-[2] [&>*]:pointer-events-auto">
-              {overlay}
-            </div>
-          ) : null}
-
-          {/* Buffering */}
-          {buffering && !error ? (
-            <div className="pointer-events-none absolute inset-0 z-[3] grid place-items-center">
-              <Spinner className="size-12 text-white drop-shadow-lg" label="Buffering" />
-            </div>
-          ) : null}
-
-          {/* Transient feedback (seek, volume, host-only) */}
-          {flash ? (
-            <div
-              key={flash.id}
-              aria-hidden="true"
-              className={cn(
-                'pointer-events-none absolute top-1/2 z-[4] -translate-y-1/2 animate-in fade-in-0 zoom-in-95 rounded-full bg-black/70 px-4 py-2 text-sm font-semibold backdrop-blur',
-                flash.side === 'left'
-                  ? 'left-[12%]'
-                  : flash.side === 'right'
-                    ? 'right-[12%]'
-                    : 'left-1/2 -translate-x-1/2',
-              )}
-            >
-              {flash.text}
-            </div>
-          ) : null}
-
-          {/* Big play button before start / when paused (solo, or synced with control) */}
-          {paused && !buffering && !error && !noSource && (!started || mode === 'solo') ? (
-            <div className="pointer-events-none absolute inset-0 z-[3] grid place-items-center">
-              <button
-                type="button"
-                onClick={doPlayPause}
-                aria-label={started ? 'Play' : `Play ${title}`}
-                aria-disabled={transportLocked || undefined}
-                className={cn(
-                  'pointer-events-auto grid size-16 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-6px_rgb(219_39_119/0.7)] transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:size-20',
-                  transportLocked && 'bg-white/20 shadow-none',
-                )}
-              >
-                <Play
-                  className="size-7 translate-x-0.5 fill-current sm:size-8"
-                  aria-hidden="true"
-                />
-              </button>
-            </div>
-          ) : null}
-
-          {/* Error overlay */}
-          {error || noSource ? (
-            <div
-              role="alert"
-              className="absolute inset-0 z-[5] grid place-items-center bg-black/80 p-6 text-center"
-            >
-              <div className="grid max-w-sm justify-items-center gap-3">
-                <TriangleAlert className="size-8 text-danger" aria-hidden="true" />
-                <p className="font-display text-lg font-semibold">
-                  {noSource ? 'This video format isn’t supported here' : 'Playback stopped'}
-                </p>
-                <p className="text-sm text-white/75">
-                  {noSource
-                    ? 'Your browser can’t play any of the available sources. Try a different browser.'
-                    : error}
-                </p>
-                {!noSource ? (
-                  <button
-                    type="button"
-                    onClick={retry}
-                    className="mt-1 inline-flex h-10 items-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  >
-                    <RotateCw className="size-4" aria-hidden="true" />
-                    Retry
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          {/* Controls */}
+          {/* Stage: the picture and its layers; shrinks when the full-screen aside is open. */}
           <div
             className={cn(
-              'absolute inset-x-0 bottom-0 z-[6] bg-gradient-to-t from-black/90 via-black/50 to-transparent px-2 pb-2 pt-16 transition-opacity duration-300 sm:px-4 sm:pb-3',
-              showControls ? 'opacity-100' : 'pointer-events-none opacity-0',
+              'absolute inset-0',
+              asideShown && 'landscape:right-[var(--aside-w)] portrait:bottom-[var(--aside-h)]',
             )}
-            onFocusCapture={pokeControls}
+            style={asideStyle}
           >
-            <div className="mb-1 flex items-center gap-3 px-1 sm:px-0">
-              <MediaSlider
-                label="Seek"
-                value={shownTime}
-                max={effectiveDuration}
-                step={5}
-                bigStep={Math.max(10, effectiveDuration / 10)}
-                valueText={`${formatTimeVerbose(shownTime)} of ${formatTimeVerbose(effectiveDuration)}`}
-                buffered={buffered}
-                disabled={transportLocked}
-                formatPreview={formatTime}
-                onScrub={(v) => setScrub(v)}
-                onCommit={(v) => {
-                  setScrub(null);
-                  doSeekTo(v);
-                }}
-                className="flex-1"
-              />
-            </div>
+            <video
+              ref={videoRef}
+              className="absolute inset-0 size-full bg-black object-contain"
+              playsInline
+              preload="metadata"
+              aria-label={title}
+            >
+              {captions.map((c) => (
+                <track key={c.url} kind="subtitles" src={c.url} srcLang={c.lang} label={c.label} />
+              ))}
+            </video>
 
-            <div className="flex items-center gap-0.5 sm:gap-1">
-              {onPrevious ? (
-                <ControlButton label="Previous" onClick={onPrevious} disabledReason={lockedReason}>
-                  <SkipBack className="fill-current" aria-hidden="true" />
-                </ControlButton>
-              ) : null}
-              <ControlButton
-                label={paused ? 'Play' : 'Pause'}
-                onClick={doPlayPause}
-                disabledReason={lockedReason}
-              >
-                {paused ? (
-                  <Play className="fill-current" aria-hidden="true" />
-                ) : (
-                  <Pause className="fill-current" aria-hidden="true" />
+            {/* Click / tap surface */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 z-[1]"
+              onPointerUp={onSurfacePointerUp}
+              onDoubleClick={onDoubleClick}
+            />
+
+            {overlay ? (
+              <div className="pointer-events-none absolute inset-0 z-[2] [&>*]:pointer-events-auto">
+                {overlay}
+              </div>
+            ) : null}
+
+            {/* Buffering */}
+            {buffering && !error ? (
+              <div className="pointer-events-none absolute inset-0 z-[3] grid place-items-center">
+                <Spinner className="size-12 text-white drop-shadow-lg" label="Buffering" />
+              </div>
+            ) : null}
+
+            {/* Transient feedback (seek, volume, host-only) */}
+            {flash ? (
+              <div
+                key={flash.id}
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute top-1/2 z-[4] -translate-y-1/2 animate-in fade-in-0 zoom-in-95 rounded-full bg-black/70 px-4 py-2 text-sm font-semibold backdrop-blur',
+                  flash.side === 'left'
+                    ? 'left-[12%]'
+                    : flash.side === 'right'
+                      ? 'right-[12%]'
+                      : 'left-1/2 -translate-x-1/2',
                 )}
-              </ControlButton>
-              {onNext ? (
-                <ControlButton
-                  label={nextLabel ? `Next: ${nextLabel}` : 'Next'}
-                  onClick={onNext}
-                  disabledReason={lockedReason}
-                >
-                  <SkipForward className="fill-current" aria-hidden="true" />
-                </ControlButton>
-              ) : null}
-              <ControlButton
-                label="Back 10 seconds"
-                onClick={() => doSeekBy(-10)}
-                disabledReason={lockedReason}
-                className="hidden min-[480px]:grid"
               >
-                <RotateCcw aria-hidden="true" />
-              </ControlButton>
-              <ControlButton
-                label="Forward 10 seconds"
-                onClick={() => doSeekBy(10)}
-                disabledReason={lockedReason}
-                className="hidden min-[480px]:grid"
-              >
-                <RotateCw aria-hidden="true" />
-              </ControlButton>
+                {flash.text}
+              </div>
+            ) : null}
 
-              <div className="group/volume flex items-center">
-                <ControlButton label={muted ? 'Unmute' : 'Mute'} onClick={doToggleMute}>
-                  <VolumeIcon aria-hidden="true" />
-                </ControlButton>
-                <div className="hidden w-0 overflow-hidden transition-[width] duration-200 group-hover/volume:w-24 group-focus-within/volume:w-24 sm:block">
-                  <MediaSlider
-                    label="Volume"
-                    size="volume"
-                    value={muted ? 0 : volume}
-                    max={1}
-                    step={0.05}
-                    bigStep={0.2}
-                    valueText={muted ? 'Muted' : `${Math.round(volume * 100)}%`}
-                    onScrub={(v) => doVolume(v)}
-                    onCommit={(v) => doVolume(v, { announce: true })}
-                    className="mx-2 w-20"
+            {/* Big play button before start / when paused (solo, or synced with control) */}
+            {paused && !buffering && !error && !noSource && (!started || mode === 'solo') ? (
+              <div className="pointer-events-none absolute inset-0 z-[3] grid place-items-center">
+                <button
+                  type="button"
+                  onClick={doPlayPause}
+                  aria-label={started ? 'Play' : `Play ${title}`}
+                  aria-disabled={transportLocked || undefined}
+                  className={cn(
+                    'pointer-events-auto grid size-16 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-6px_rgb(219_39_119/0.7)] transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:size-20',
+                    transportLocked && 'bg-white/20 shadow-none',
+                  )}
+                >
+                  <Play
+                    className="size-7 translate-x-0.5 fill-current sm:size-8"
+                    aria-hidden="true"
                   />
+                </button>
+              </div>
+            ) : null}
+
+            {/* Error overlay */}
+            {error || noSource ? (
+              <div
+                role="alert"
+                className="absolute inset-0 z-[5] grid place-items-center bg-black/80 p-6 text-center"
+              >
+                <div className="grid max-w-sm justify-items-center gap-3">
+                  <TriangleAlert className="size-8 text-danger" aria-hidden="true" />
+                  <p className="font-display text-lg font-semibold">
+                    {noSource ? 'This video format isn’t supported here' : 'Playback stopped'}
+                  </p>
+                  <p className="text-sm text-white/75">
+                    {noSource
+                      ? 'Your browser can’t play any of the available sources. Try a different browser.'
+                      : error}
+                  </p>
+                  {!noSource ? (
+                    <button
+                      type="button"
+                      onClick={retry}
+                      className="mt-1 inline-flex h-10 items-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    >
+                      <RotateCw className="size-4" aria-hidden="true" />
+                      Retry
+                    </button>
+                  ) : null}
                 </div>
               </div>
+            ) : null}
 
-              <p className="ml-1 whitespace-nowrap text-xs font-medium tabular-nums text-white/90 sm:ml-2 sm:text-sm">
-                <span className="sr-only">Elapsed </span>
-                {formatTime(shownTime)}
-                <span className="text-white/50"> / </span>
-                <span className="sr-only">Duration </span>
-                {formatTime(effectiveDuration)}
-              </p>
+            {/* Controls */}
+            <div
+              className={cn(
+                'absolute inset-x-0 bottom-0 z-[6] bg-gradient-to-t from-black/90 via-black/50 to-transparent px-2 pb-2 pt-16 transition-opacity duration-300 sm:px-4 sm:pb-3',
+                showControls ? 'opacity-100' : 'pointer-events-none opacity-0',
+              )}
+              onFocusCapture={pokeControls}
+            >
+              <div className="mb-1 flex items-center gap-3 px-1 sm:px-0">
+                <MediaSlider
+                  label="Seek"
+                  value={shownTime}
+                  max={effectiveDuration}
+                  step={5}
+                  bigStep={Math.max(10, effectiveDuration / 10)}
+                  valueText={`${formatTimeVerbose(shownTime)} of ${formatTimeVerbose(effectiveDuration)}`}
+                  buffered={buffered}
+                  disabled={transportLocked}
+                  formatPreview={formatTime}
+                  onScrub={(v) => setScrub(v)}
+                  onCommit={(v) => {
+                    setScrub(null);
+                    doSeekTo(v);
+                  }}
+                  className="flex-1"
+                />
+              </div>
 
-              <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
-                {captionChoices.length ? (
-                  <DropdownMenu modal={false} onOpenChange={onMenuOpenChange}>
-                    <Tooltip label="Captions">
-                      <DropdownMenuTrigger
-                        aria-label={captionIndex >= 0 ? 'Captions (on)' : 'Captions (off)'}
-                        className="grid size-10 place-items-center rounded-full hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-primary sm:size-9 [&_svg]:size-5"
-                      >
-                        {captionIndex >= 0 ? (
-                          <Captions aria-hidden="true" />
-                        ) : (
-                          <CaptionsOff aria-hidden="true" />
-                        )}
-                      </DropdownMenuTrigger>
-                    </Tooltip>
-                    <DropdownMenuContent align="end" side="top" className="w-48">
-                      <DropdownMenuLabel>Captions</DropdownMenuLabel>
-                      <DropdownMenuRadioGroup
-                        value={String(captionIndex)}
-                        onValueChange={(v) => setCaptionIndex(Number(v))}
-                      >
-                        <DropdownMenuRadioItem value="-1">Off</DropdownMenuRadioItem>
-                        {captionChoices.map((c) => (
-                          <DropdownMenuRadioItem key={c.index} value={String(c.index)}>
-                            {c.label}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : null}
-
-                <DropdownMenu modal={false} onOpenChange={onMenuOpenChange}>
-                  <Tooltip label="Playback settings">
-                    <DropdownMenuTrigger
-                      aria-label={`Playback settings (speed ${displayRate}×${levels.length ? `, quality ${level === -1 ? 'auto' : (levels.find((l) => l.index === level)?.label ?? '')}` : ''})`}
-                      className="grid size-10 place-items-center rounded-full hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-primary sm:size-9 [&_svg]:size-5"
-                    >
-                      {levels.length ? (
-                        <Settings2 aria-hidden="true" />
-                      ) : (
-                        <Gauge aria-hidden="true" />
-                      )}
-                    </DropdownMenuTrigger>
-                  </Tooltip>
-                  <DropdownMenuContent
-                    align="end"
-                    side="top"
-                    className="max-h-[min(70vh,24rem)] w-52 overflow-y-auto"
+              <div className="flex items-center gap-0.5 sm:gap-1">
+                {onPrevious ? (
+                  <ControlButton
+                    label="Previous"
+                    onClick={onPrevious}
+                    disabledReason={lockedReason}
                   >
-                    <DropdownMenuLabel>
-                      Speed
-                      {transportLocked ? (
-                        <span className="block text-[11px] font-normal">{HOST_ONLY}</span>
-                      ) : null}
-                    </DropdownMenuLabel>
-                    <DropdownMenuRadioGroup
-                      value={String(displayRate)}
-                      onValueChange={(v) => doRate(Number(v))}
-                    >
-                      {PLAYBACK_RATES.map((r) => (
-                        <DropdownMenuRadioItem key={r} value={String(r)} disabled={transportLocked}>
-                          {r === 1 ? 'Normal' : `${r}×`}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                    {levels.length ? (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Quality</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={String(level)}
-                          onValueChange={(v) => doQuality(Number(v))}
+                    <SkipBack className="fill-current" aria-hidden="true" />
+                  </ControlButton>
+                ) : null}
+                <ControlButton
+                  label={paused ? 'Play' : 'Pause'}
+                  onClick={doPlayPause}
+                  disabledReason={lockedReason}
+                >
+                  {paused ? (
+                    <Play className="fill-current" aria-hidden="true" />
+                  ) : (
+                    <Pause className="fill-current" aria-hidden="true" />
+                  )}
+                </ControlButton>
+                {onNext ? (
+                  <ControlButton
+                    label={nextLabel ? `Next: ${nextLabel}` : 'Next'}
+                    onClick={onNext}
+                    disabledReason={lockedReason}
+                  >
+                    <SkipForward className="fill-current" aria-hidden="true" />
+                  </ControlButton>
+                ) : null}
+                <ControlButton
+                  label="Back 10 seconds"
+                  onClick={() => doSeekBy(-10)}
+                  disabledReason={lockedReason}
+                  className="hidden min-[480px]:grid"
+                >
+                  <RotateCcw aria-hidden="true" />
+                </ControlButton>
+                <ControlButton
+                  label="Forward 10 seconds"
+                  onClick={() => doSeekBy(10)}
+                  disabledReason={lockedReason}
+                  className="hidden min-[480px]:grid"
+                >
+                  <RotateCw aria-hidden="true" />
+                </ControlButton>
+
+                <div className="group/volume flex items-center">
+                  <ControlButton label={muted ? 'Unmute' : 'Mute'} onClick={doToggleMute}>
+                    <VolumeIcon aria-hidden="true" />
+                  </ControlButton>
+                  <div className="hidden w-0 overflow-hidden transition-[width] duration-200 group-hover/volume:w-24 group-focus-within/volume:w-24 sm:block">
+                    <MediaSlider
+                      label="Volume"
+                      size="volume"
+                      value={muted ? 0 : volume}
+                      max={1}
+                      step={0.05}
+                      bigStep={0.2}
+                      valueText={muted ? 'Muted' : `${Math.round(volume * 100)}%`}
+                      onScrub={(v) => doVolume(v)}
+                      onCommit={(v) => doVolume(v, { announce: true })}
+                      className="mx-2 w-20"
+                    />
+                  </div>
+                </div>
+
+                <p className="ml-1 whitespace-nowrap text-xs font-medium tabular-nums text-white/90 sm:ml-2 sm:text-sm">
+                  <span className="sr-only">Elapsed </span>
+                  {formatTime(shownTime)}
+                  <span className="text-white/50"> / </span>
+                  <span className="sr-only">Duration </span>
+                  {formatTime(effectiveDuration)}
+                </p>
+
+                <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
+                  {captionChoices.length ? (
+                    <DropdownMenu modal={false} onOpenChange={onMenuOpenChange}>
+                      <Tooltip label="Captions">
+                        <DropdownMenuTrigger
+                          aria-label={captionIndex >= 0 ? 'Captions (on)' : 'Captions (off)'}
+                          className="grid size-10 place-items-center rounded-full hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-primary sm:size-9 [&_svg]:size-5"
                         >
-                          <DropdownMenuRadioItem value="-1">Auto</DropdownMenuRadioItem>
-                          {levels.map((l) => (
-                            <DropdownMenuRadioItem key={l.index} value={String(l.index)}>
-                              {l.label}
+                          {captionIndex >= 0 ? (
+                            <Captions aria-hidden="true" />
+                          ) : (
+                            <CaptionsOff aria-hidden="true" />
+                          )}
+                        </DropdownMenuTrigger>
+                      </Tooltip>
+                      <DropdownMenuContent align="end" side="top" className="w-48">
+                        <DropdownMenuLabel>Captions</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={String(captionIndex)}
+                          onValueChange={(v) => setCaptionIndex(Number(v))}
+                        >
+                          <DropdownMenuRadioItem value="-1">Off</DropdownMenuRadioItem>
+                          {captionChoices.map((c) => (
+                            <DropdownMenuRadioItem key={c.index} value={String(c.index)}>
+                              {c.label}
                             </DropdownMenuRadioItem>
                           ))}
                         </DropdownMenuRadioGroup>
-                      </>
-                    ) : sources.length > 1 && selectedSource?.format !== 'HLS' ? (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Quality</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={selectedSource?.assetId ?? ''}
-                          onValueChange={(v) => void doSourceQuality(v)}
-                        >
-                          {sources
-                            .filter((source) => source.format !== 'HLS')
-                            .map((source) => (
-                              <DropdownMenuRadioItem key={source.assetId} value={source.assetId}>
-                                {source.label}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
+
+                  <DropdownMenu modal={false} onOpenChange={onMenuOpenChange}>
+                    <Tooltip label="Playback settings">
+                      <DropdownMenuTrigger
+                        aria-label={`Playback settings (speed ${displayRate}×${levels.length ? `, quality ${level === -1 ? 'auto' : (levels.find((l) => l.index === level)?.label ?? '')}` : ''})`}
+                        className="grid size-10 place-items-center rounded-full hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-primary sm:size-9 [&_svg]:size-5"
+                      >
+                        {levels.length ? (
+                          <Settings2 aria-hidden="true" />
+                        ) : (
+                          <Gauge aria-hidden="true" />
+                        )}
+                      </DropdownMenuTrigger>
+                    </Tooltip>
+                    <DropdownMenuContent
+                      align="end"
+                      side="top"
+                      className="max-h-[min(70vh,24rem)] w-52 overflow-y-auto"
+                    >
+                      <DropdownMenuLabel>
+                        Speed
+                        {transportLocked ? (
+                          <span className="block text-[11px] font-normal">{HOST_ONLY}</span>
+                        ) : null}
+                      </DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={String(displayRate)}
+                        onValueChange={(v) => doRate(Number(v))}
+                      >
+                        {PLAYBACK_RATES.map((r) => (
+                          <DropdownMenuRadioItem
+                            key={r}
+                            value={String(r)}
+                            disabled={transportLocked}
+                          >
+                            {r === 1 ? 'Normal' : `${r}×`}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                      {levels.length ? (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>Quality</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(level)}
+                            onValueChange={(v) => doQuality(Number(v))}
+                          >
+                            <DropdownMenuRadioItem value="-1">Auto</DropdownMenuRadioItem>
+                            {levels.map((l) => (
+                              <DropdownMenuRadioItem key={l.index} value={String(l.index)}>
+                                {l.label}
                               </DropdownMenuRadioItem>
                             ))}
-                        </DropdownMenuRadioGroup>
-                      </>
-                    ) : (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Quality</DropdownMenuLabel>
-                        <p className="px-2 py-1 text-xs text-muted">
-                          {selectedSource?.format === 'HLS' && selected?.engine === 'native'
-                            ? `Automatic, managed by your device${videoHeight ? ` · ${videoHeight}p currently` : ''}`
-                            : selectedSource?.format === 'HLS' && !manifestParsed
-                              ? 'Checking available qualities…'
-                              : `One quality available${videoHeight ? ` · ${videoHeight}p` : ''}`}
-                        </p>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                          </DropdownMenuRadioGroup>
+                        </>
+                      ) : sources.length > 1 && selectedSource?.format !== 'HLS' ? (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>Quality</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={selectedSource?.assetId ?? ''}
+                            onValueChange={(v) => void doSourceQuality(v)}
+                          >
+                            {sources
+                              .filter((source) => source.format !== 'HLS')
+                              .map((source) => (
+                                <DropdownMenuRadioItem key={source.assetId} value={source.assetId}>
+                                  {source.label}
+                                </DropdownMenuRadioItem>
+                              ))}
+                          </DropdownMenuRadioGroup>
+                        </>
+                      ) : (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>Quality</DropdownMenuLabel>
+                          <p className="px-2 py-1 text-xs text-muted">
+                            {selectedSource?.format === 'HLS' && selected?.engine === 'native'
+                              ? `Automatic, managed by your device${videoHeight ? ` · ${videoHeight}p currently` : ''}`
+                              : selectedSource?.format === 'HLS' && !manifestParsed
+                                ? 'Checking available qualities…'
+                                : `One quality available${videoHeight ? ` · ${videoHeight}p` : ''}`}
+                          </p>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-                {pipSupported ? (
+                  {pipSupported ? (
+                    <ControlButton
+                      label={pip ? 'Exit picture-in-picture' : 'Picture-in-picture'}
+                      onClick={() => void doTogglePip()}
+                      className="hidden sm:grid"
+                    >
+                      <PictureInPicture2 aria-hidden="true" />
+                    </ControlButton>
+                  ) : null}
+                  {onTheaterChange ? (
+                    <ControlButton
+                      label={theater ? 'Exit theater mode' : 'Theater mode'}
+                      onClick={() => onTheaterChange(!theater)}
+                      pressed={!!theater}
+                      className="hidden lg:grid"
+                    >
+                      <RectangleHorizontal aria-hidden="true" />
+                    </ControlButton>
+                  ) : null}
                   <ControlButton
-                    label={pip ? 'Exit picture-in-picture' : 'Picture-in-picture'}
-                    onClick={() => void doTogglePip()}
-                    className="hidden sm:grid"
+                    label={fullscreen ? 'Exit full screen' : 'Full screen'}
+                    onClick={() => void doToggleFullscreen()}
                   >
-                    <PictureInPicture2 aria-hidden="true" />
+                    {fullscreen ? <Minimize aria-hidden="true" /> : <Maximize aria-hidden="true" />}
                   </ControlButton>
-                ) : null}
-                {onTheaterChange ? (
-                  <ControlButton
-                    label={theater ? 'Exit theater mode' : 'Theater mode'}
-                    onClick={() => onTheaterChange(!theater)}
-                    pressed={!!theater}
-                    className="hidden lg:grid"
-                  >
-                    <RectangleHorizontal aria-hidden="true" />
-                  </ControlButton>
-                ) : null}
-                <ControlButton
-                  label={fullscreen ? 'Exit full screen' : 'Full screen'}
-                  onClick={() => void doToggleFullscreen()}
-                >
-                  {fullscreen ? <Minimize aria-hidden="true" /> : <Maximize aria-hidden="true" />}
-                </ControlButton>
+                </div>
               </div>
             </div>
+
+            <p className="sr-only" aria-live="polite" aria-atomic="true">
+              {announcement}
+            </p>
           </div>
 
-          <p className="sr-only" aria-live="polite" aria-atomic="true">
-            {announcement}
-          </p>
+          {asideShown ? (
+            <div
+              className="absolute z-[7] border-white/10 bg-background/95 text-foreground backdrop-blur landscape:inset-y-0 landscape:right-0 landscape:w-[var(--aside-w)] landscape:border-l portrait:inset-x-0 portrait:bottom-0 portrait:h-[var(--aside-h)] portrait:border-t"
+              style={asideStyle}
+              // Taps and drags in the aside are not the player surface.
+              onPointerMove={(e) => e.stopPropagation()}
+            >
+              {fullscreenAside}
+            </div>
+          ) : null}
         </div>
       </PortalContainerContext.Provider>
     );
