@@ -11,12 +11,13 @@ const episode = {
   seriesId: 2510,
   episodeId: 57283,
 };
-const service = (enabled = true) =>
+const service = (enabled = true, fallback?: string) =>
   new KisskhStreamService(
     {
       env: {
         ENABLE_KISSKH_DIRECT_SYNC: enabled,
         KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
+        KISSKH_STREAM_RESOLVER_FALLBACK_URL: fallback,
       },
     } as unknown as AppConfig,
     {} as never,
@@ -27,6 +28,42 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('KissKH direct stream resolution', () => {
+  it('falls back to a second resolver when the primary is unavailable', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (url: string) =>
+      url.startsWith('https://backup.example/')
+        ? Response.json({ streams: [{ name: 'kisskh', url: 'https://cdn.example/right.m3u8' }] })
+        : new Response('', { status: 503 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const pending = service(true, 'https://backup.example').resolveMovie(672);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(await pending).toMatchObject({ format: 'HLS', url: 'https://cdn.example/right.m3u8' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it('avoids contacting the backup when the primary succeeds quickly', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () =>
+      Response.json({ streams: [{ name: 'kisskh', url: 'https://cdn.example/a.m3u8' }] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await service(true, 'https://backup.example').resolveMovie(672);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('distinguishes no matching source from an outage in one of the resolvers', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (url: string) =>
+      url.startsWith('https://backup.example/')
+        ? new Response('', { status: 503 })
+        : Response.json({ streams: [] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const pending = service(true, 'https://backup.example').resolveMovie(672);
+    const outcome = expect(pending).rejects.toMatchObject({ code: 'KISSKH_DIRECT_UNAVAILABLE' });
+    await vi.advanceTimersByTimeAsync(3000);
+    await outcome;
+  });
   it('offers only approved KissKH subtitle tracks and converts them to WebVTT', async () => {
     const cache = new Map<string, string>();
     const redis = {
@@ -68,6 +105,32 @@ describe('KissKH direct stream resolution', () => {
     const token = tracks[0]!.url.split('/').at(-1)!;
     expect(await resolver.caption(token)).toContain('00:00:01.000 --> 00:00:02.000');
     await expect(resolver.caption('invalid')).rejects.toMatchObject({ status: 404 });
+  });
+  it('uses backup subtitle listings when the primary is unavailable', async () => {
+    const redis = { set: vi.fn(async () => 'OK') };
+    const resolver = new KisskhStreamService(
+      {
+        env: {
+          ENABLE_KISSKH_DIRECT_SYNC: true,
+          KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
+          KISSKH_STREAM_RESOLVER_FALLBACK_URL: 'https://backup.example',
+        },
+      } as unknown as AppConfig,
+      redis as never,
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.startsWith('https://backup.example/')
+          ? Response.json({
+              subtitles: [
+                { id: 'kisskh-0', lang: 'eng', url: 'https://sub.cdnvideo11.shop/english.srt' },
+              ],
+            })
+          : new Response('', { status: 503 }),
+      ),
+    );
+    expect(await resolver.captions('movie', 'tmdb:672')).toHaveLength(1);
   });
   it('requests movies using their TMDB identity', async () => {
     const fetchMock = vi.fn(async (_url: string) =>

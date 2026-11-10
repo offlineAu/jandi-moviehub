@@ -9,6 +9,7 @@ import { randomBytes } from 'node:crypto';
 import { srtToVtt } from './moviebox.controller';
 
 type KisskhEpisode = Extract<RoomTvEpisode, { provider: 'kisskh' | 'kisskh-direct' }>;
+class NoCompatibleStream extends Error {}
 const streamsSchema = z.object({
   streams: z
     .array(z.object({ name: z.string().max(300).optional(), url: z.string().max(8192).optional() }))
@@ -99,63 +100,66 @@ export class KisskhStreamService {
 
   async captions(type: 'movie' | 'series', id: string) {
     this.assertEnabled();
-    try {
-      const base = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
-      const response = await fetch(`${base}/subtitles/${type}/${encodeURIComponent(id)}.json`, {
-        signal: AbortSignal.timeout(10000),
-        redirect: 'error',
-      });
-      if (!response.ok) return [];
-      const body = await readBounded(response, 256000);
-      const parsed = z
-        .object({
-          subtitles: z
-            .array(
-              z.object({
-                id: z.string().max(200),
-                lang: z.string().regex(/^[a-z]{2,3}$/i),
-                url: z.string().max(8192),
-              }),
-            )
-            .max(100),
-        })
-        .parse(JSON.parse(body));
-      const captions: Array<{ lang: string; label: string; url: string }> = [];
-      for (const item of parsed.subtitles) {
-        if (!item.id.startsWith('kisskh-')) continue;
-        let url: URL;
-        try {
-          url = new URL(item.url);
-        } catch {
-          continue;
-        }
-        if (
-          url.protocol !== 'https:' ||
-          url.hostname !== 'sub.cdnvideo11.shop' ||
-          url.username ||
-          url.password ||
-          !url.pathname.toLowerCase().endsWith('.srt')
-        )
-          continue;
-        const token = randomBytes(24).toString('hex');
-        await this.redis.set(`kisskh:caption:${token}`, url.href, 'EX', 7200);
-        let label = item.lang.toUpperCase();
-        try {
-          label = new Intl.DisplayNames(['en'], { type: 'language' }).of(item.lang) ?? label;
-        } catch {
-          /* Use the language code. */
-        }
-        captions.push({
-          lang: item.lang,
-          label,
-          url: `/api/v1/room-sources/kisskh/captions/${token}`,
+    const primary = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
+    const fallback = this.config.env.KISSKH_STREAM_RESOLVER_FALLBACK_URL?.replace(/\/$/, '');
+    for (const base of [...new Set([primary, fallback].filter((item): item is string => !!item))]) {
+      try {
+        const response = await fetch(`${base}/subtitles/${type}/${encodeURIComponent(id)}.json`, {
+          signal: AbortSignal.timeout(10000),
+          redirect: 'error',
         });
+        if (!response.ok) continue;
+        const body = await readBounded(response, 256000);
+        const parsed = z
+          .object({
+            subtitles: z
+              .array(
+                z.object({
+                  id: z.string().max(200),
+                  lang: z.string().regex(/^[a-z]{2,3}$/i),
+                  url: z.string().max(8192),
+                }),
+              )
+              .max(100),
+          })
+          .parse(JSON.parse(body));
+        const captions: Array<{ lang: string; label: string; url: string }> = [];
+        for (const item of parsed.subtitles) {
+          if (!item.id.startsWith('kisskh-')) continue;
+          let url: URL;
+          try {
+            url = new URL(item.url);
+          } catch {
+            continue;
+          }
+          if (
+            url.protocol !== 'https:' ||
+            url.hostname !== 'sub.cdnvideo11.shop' ||
+            url.username ||
+            url.password ||
+            !url.pathname.toLowerCase().endsWith('.srt')
+          )
+            continue;
+          const token = randomBytes(24).toString('hex');
+          await this.redis.set(`kisskh:caption:${token}`, url.href, 'EX', 7200);
+          let label = item.lang.toUpperCase();
+          try {
+            label = new Intl.DisplayNames(['en'], { type: 'language' }).of(item.lang) ?? label;
+          } catch {
+            /* Use the language code. */
+          }
+          captions.push({
+            lang: item.lang,
+            label,
+            url: `/api/v1/room-sources/kisskh/captions/${token}`,
+          });
+        }
+        if (captions.length) return captions;
+      } catch {
+        this.logger.warn('A KissKH subtitle resolver could not be loaded');
       }
-      return captions;
-    } catch {
-      this.logger.warn('KissKH subtitles could not be loaded');
-      return [];
     }
+    return [];
   }
 
   async caption(token: string) {
@@ -195,57 +199,76 @@ export class KisskhStreamService {
   private async fetchStream(type: 'series' | 'movie', id: string) {
     const started = Date.now();
     const base = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
-    let response: Response;
+    const fallback = this.config.env.KISSKH_STREAM_RESOLVER_FALLBACK_URL?.replace(/\/$/, '');
+    const abort = new AbortController();
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
     try {
-      response = await fetch(`${base}/stream/${type}/${encodeURIComponent(id)}.json`, {
-        headers: { Accept: 'application/json' },
-        // The free resolver may need up to a minute to wake after being idle.
-        signal: AbortSignal.timeout(85000),
-        redirect: 'error',
-      });
-      if (!response.ok) throw new Error('resolver unavailable');
-      const length = Number(response.headers.get('content-length') || 0);
-      if (length > 256_000) throw new Error('oversized resolver response');
-      const body = await response.text();
-      if (body.length > 256_000) throw new Error('oversized resolver response');
-      const parsed = streamsSchema.parse(JSON.parse(body));
-      for (const stream of parsed.streams) {
-        if (!stream.url || !/kisskh/i.test(stream.name ?? '')) continue;
-        try {
-          const url = new URL(stream.url);
-          if (url.protocol !== 'https:' || url.username || url.password) continue;
-          const path = url.pathname.toLowerCase();
-          const format = path.endsWith('.m3u8') ? 'HLS' : path.endsWith('.mp4') ? 'MP4' : null;
-          if (!format) continue;
-          this.logger.log(`Resolver returned a compatible stream in ${Date.now() - started}ms`);
-          return {
-            url: url.href,
-            format,
-            mimeType: format === 'HLS' ? 'application/vnd.apple.mpegurl' : 'video/mp4',
-          } as const;
-        } catch {
-          /* Ignore malformed provider URLs. */
-        }
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Resolver ${error instanceof Error && error.name === 'TimeoutError' ? 'timed out' : 'failed'} after ${Date.now() - started}ms`,
-      );
-      if (error instanceof Error && error.name === 'TimeoutError') {
-        throw Errors.unavailable(
-          'KISSKH_DIRECT_UNAVAILABLE',
-          'KissKH is taking too long to start. Please try again.',
+      const attempts = [this.fetchStreamFrom(base, type, id, abort.signal)];
+      if (fallback && fallback !== base) {
+        attempts.push(
+          new Promise((resolve, reject) => {
+            fallbackTimer = setTimeout(() => {
+              void this.fetchStreamFrom(fallback, type, id, abort.signal).then(resolve, reject);
+            }, 3000);
+          }),
         );
       }
+      const source = await Promise.any(attempts);
+      this.logger.log(`Resolver returned a compatible stream in ${Date.now() - started}ms`);
+      return source;
+    } catch (error) {
+      const failures = error instanceof AggregateError ? error.errors : [error];
+      if (failures.every((failure) => failure instanceof NoCompatibleStream)) {
+        this.logger.warn(`Resolvers returned no compatible stream after ${Date.now() - started}ms`);
+        throw Errors.unavailable(
+          'KISSKH_DIRECT_NO_STREAM',
+          'No compatible direct KissKH stream was found for this title.',
+        );
+      }
+      this.logger.warn(`Resolvers could not provide a stream after ${Date.now() - started}ms`);
       throw Errors.unavailable(
         'KISSKH_DIRECT_UNAVAILABLE',
         'The KissKH stream resolver is unavailable. Try again later.',
       );
+    } finally {
+      clearTimeout(fallbackTimer);
+      abort.abort();
     }
-    this.logger.warn(`Resolver returned no compatible stream after ${Date.now() - started}ms`);
-    throw Errors.unavailable(
-      'KISSKH_DIRECT_NO_STREAM',
-      'No compatible direct KissKH stream was found for this title.',
-    );
+  }
+
+  private async fetchStreamFrom(
+    base: string,
+    type: 'series' | 'movie',
+    id: string,
+    cancel: AbortSignal,
+  ) {
+    let response: Response;
+    response = await fetch(`${base}/stream/${type}/${encodeURIComponent(id)}.json`, {
+      headers: { Accept: 'application/json' },
+      // The free resolver may need up to a minute to wake after being idle.
+      signal: AbortSignal.any([AbortSignal.timeout(85000), cancel]),
+      redirect: 'error',
+    });
+    if (!response.ok) throw new Error('resolver unavailable');
+    const body = await readBounded(response, 256_000);
+    const parsed = streamsSchema.parse(JSON.parse(body));
+    for (const stream of parsed.streams) {
+      if (!stream.url || !/kisskh/i.test(stream.name ?? '')) continue;
+      try {
+        const url = new URL(stream.url);
+        if (url.protocol !== 'https:' || url.username || url.password) continue;
+        const path = url.pathname.toLowerCase();
+        const format = path.endsWith('.m3u8') ? 'HLS' : path.endsWith('.mp4') ? 'MP4' : null;
+        if (!format) continue;
+        return {
+          url: url.href,
+          format,
+          mimeType: format === 'HLS' ? 'application/vnd.apple.mpegurl' : 'video/mp4',
+        } as const;
+      } catch {
+        /* Ignore malformed provider URLs. */
+      }
+    }
+    throw new NoCompatibleStream();
   }
 }
