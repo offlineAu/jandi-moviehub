@@ -191,6 +191,35 @@ describe('RoomSyncEngine', () => {
     expect(video.currentTime).toBeCloseTo(15.05, 1);
   });
 
+  it('does not repeatedly seek a buffering player, then catches up when it resumes', async () => {
+    const { video, engine, socket } = await setup(state({ status: 'playing' }));
+    video.fire('waiting');
+    now += 5000;
+    video.currentTime = 8;
+    engine.tick();
+    expect(video.currentTime).toBe(8);
+    now += 5000;
+    engine.tick();
+    expect(video.currentTime).toBe(8);
+    expect(socket.emitted.some((event) => event.event === SocketEvents.PLAYBACK_BUFFERING)).toBe(
+      true,
+    );
+    video.fire('playing');
+    engine.tick();
+    expect(video.currentTime).toBeCloseTo(20.05, 1);
+    expect(socket.emitted.some((event) => event.event === SocketEvents.PLAYBACK_RECOVERED)).toBe(
+      true,
+    );
+  });
+
+  it('does not mark a playing video as buffering for a stalled download alone', async () => {
+    const { video, socket } = await setup(state({ status: 'playing' }));
+    video.fire('stalled');
+    expect(socket.emitted.some((event) => event.event === SocketEvents.PLAYBACK_BUFFERING)).toBe(
+      false,
+    );
+  });
+
   it('ignores out-of-order broadcasts', async () => {
     const { socket, engine } = await setup(state({ version: 5 }));
     socket.push(SocketEvents.PLAYBACK_SYNC, { state: state({ version: 4, positionSec: 99 }) });

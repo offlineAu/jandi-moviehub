@@ -30,13 +30,16 @@ export function SyncStatus({
   } else if (playerFailed) {
     tone = 'bad';
     label = 'Playback unavailable';
+  } else if (stats?.buffering) {
+    tone = 'warn';
+    label = 'Buffering';
   } else if (hasMedia && drift === null) {
     tone = 'warn';
     label = 'Waiting for player';
-  } else if (drift !== null && Math.abs(drift) >= 1000) {
+  } else if (drift !== null && Math.abs(drift) >= 2000) {
     tone = 'warn';
     label = 'Catching up';
-  } else if (drift !== null && Math.abs(drift) >= 150) {
+  } else if (drift !== null && Math.abs(drift) >= 500) {
     label = 'Adjusting';
   }
   const details = [

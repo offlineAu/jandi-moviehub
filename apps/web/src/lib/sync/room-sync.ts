@@ -27,6 +27,7 @@ export type PlayerIntent =
 
 export interface SyncStats {
   driftMs: number | null;
+  buffering: boolean;
   offsetMs: number;
   rttMs: number;
   corrections: { seeks: number; rateNudges: number };
@@ -184,6 +185,8 @@ export class RoomSyncEngine {
     this.video = video;
     this.lastSeekAt = -Infinity;
     this.lastDriftMs = null;
+    this.setBuffering(false);
+    this.emitStats();
     if (!video) return;
     const on = (event: string, fn: () => void) => {
       video.addEventListener(event, fn);
@@ -199,9 +202,7 @@ export class RoomSyncEngine {
         else this.apply(true);
       });
     on('waiting', () => this.setBuffering(true));
-    on('stalled', () => this.setBuffering(true));
     on('playing', () => this.setBuffering(false));
-    on('canplay', () => this.setBuffering(false));
     on('loadedmetadata', () => this.apply(true));
     if (this.state) this.apply(true);
   }
@@ -235,6 +236,7 @@ export class RoomSyncEngine {
   private setBuffering(buffering: boolean) {
     if (this.buffering === buffering) return;
     this.buffering = buffering;
+    this.emitStats();
     void this.socket
       .timeout(3000)
       .emitWithAck(buffering ? SocketEvents.PLAYBACK_BUFFERING : SocketEvents.PLAYBACK_RECOVERED, {
@@ -268,6 +270,7 @@ export class RoomSyncEngine {
     const expected = expectedPosition(state, this.serverNow);
     const playing = state.status === 'playing';
     const drift = video.currentTime - expected;
+    if (!playing && this.buffering) this.setBuffering(false);
 
     if (
       hard &&
@@ -328,9 +331,18 @@ export class RoomSyncEngine {
       this.emitStats();
       return;
     }
-    const correction = decideCorrection(driftSec, expected, state.rate, playing && !this.buffering);
+    // A stalled player cannot catch up. Seeking repeatedly while it buffers can restart
+    // network loading, so wait for playback to recover before correcting its position.
+    if (this.buffering && playing) {
+      this.emitStats();
+      return;
+    }
+    const correction = decideCorrection(driftSec, expected, state.rate, playing);
     if (correction.kind === 'seek') {
-      if (this.now() - this.lastSeekAt < this.opts.seekCooldownMs) return; // avoid seek loops
+      if (this.now() - this.lastSeekAt < this.opts.seekCooldownMs) {
+        this.emitStats();
+        return;
+      }
       this.lastSeekAt = this.now();
       this.corrections.seeks += 1;
       this.guard(() => {
@@ -365,6 +377,7 @@ export class RoomSyncEngine {
   private emitStats() {
     this.options.onStats?.({
       driftMs: this.lastDriftMs,
+      buffering: this.buffering,
       offsetMs: Math.round(this.clock.offsetMs),
       rttMs: Math.round(this.clock.rttMs),
       corrections: { ...this.corrections },
