@@ -43,6 +43,7 @@ import {
   formatTime,
   formatTimeVerbose,
   nominalRate,
+  orderCaptionChoices,
   readStoredVolume,
   selectSource,
   shortcutFor,
@@ -1127,16 +1128,30 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
                           )}
                         </DropdownMenuTrigger>
                       </Tooltip>
-                      <DropdownMenuContent align="end" side="top" className="w-48">
+                      <DropdownMenuContent
+                        align="end"
+                        side="top"
+                        collisionBoundary={container ?? undefined}
+                        collisionPadding={8}
+                        className="w-56 max-h-[min(50vh,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto overscroll-contain"
+                      >
                         <DropdownMenuLabel>Captions</DropdownMenuLabel>
+                        {captionChoices.some((choice) => /\(alternative\b/i.test(choice.label)) && (
+                          <p className="px-2.5 pb-1 text-xs text-muted">
+                            Alternative tracks may be out of sync.
+                          </p>
+                        )}
                         <DropdownMenuRadioGroup
                           value={String(captionIndex)}
                           onValueChange={(v) => setCaptionIndex(Number(v))}
                         >
                           <DropdownMenuRadioItem value="-1">Off</DropdownMenuRadioItem>
-                          {captionChoices.map((c) => (
+                          {orderCaptionChoices(captionChoices).map((c) => (
                             <DropdownMenuRadioItem key={c.index} value={String(c.index)}>
-                              {c.label}
+                              {c.label.replace(
+                                /\s*\(alternative\s*·\s*timing may differ\)/i,
+                                ' (alternative)',
+                              )}
                             </DropdownMenuRadioItem>
                           ))}
                         </DropdownMenuRadioGroup>

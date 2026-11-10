@@ -1,6 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import type { PlaybackSource } from '@/lib/types';
-import { formatTime, formatTimeVerbose, nominalRate, selectSource, shortcutFor } from './utils';
+import {
+  formatTime,
+  formatTimeVerbose,
+  nominalRate,
+  orderCaptionChoices,
+  selectSource,
+  shortcutFor,
+} from './utils';
+
+describe('caption ordering', () => {
+  it('puts English tracks first while preserving each track index and preferring the original', () => {
+    const tracks = [
+      { index: 0, lang: 'fil', label: 'Filipino (alternative · timing may differ)' },
+      { index: 1, lang: 'eng', label: 'English (alternative · timing may differ)' },
+      { index: 2, lang: 'en-US', label: 'English' },
+      { index: 3, lang: 'deu', label: 'German' },
+    ];
+    expect(orderCaptionChoices(tracks).map((track) => track.index)).toEqual([2, 1, 3, 0]);
+    expect(tracks.map((track) => track.index)).toEqual([0, 1, 2, 3]);
+  });
+});
 
 const source = (
   format: PlaybackSource['format'],

@@ -168,3 +168,13 @@ export function storeVolume(volume: number, muted: boolean) {
     /* storage unavailable */
   }
 }
+
+/** Keep original text-track indexes while making English easy to find. */
+export function orderCaptionChoices<T extends { lang: string; label: string }>(choices: T[]): T[] {
+  const english = (choice: T) => /^(en|eng)(?:-|$)/i.test(choice.lang);
+  const alternative = (choice: T) => /\(alternative\b/i.test(choice.label);
+  return [...choices].sort(
+    (a, b) =>
+      Number(english(b)) - Number(english(a)) || Number(alternative(a)) - Number(alternative(b)),
+  );
+}
