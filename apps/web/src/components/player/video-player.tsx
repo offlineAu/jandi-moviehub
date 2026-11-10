@@ -228,6 +228,8 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     >([]);
     const [levels, setLevels] = React.useState<QualityLevel[]>([]);
     const [level, setLevel] = React.useState(-1);
+    const [manifestParsed, setManifestParsed] = React.useState(false);
+    const [videoHeight, setVideoHeight] = React.useState(0);
     const [scrub, setScrub] = React.useState<number | null>(null);
     const [flash, setFlash] = React.useState<{
       id: number;
@@ -318,11 +320,14 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       hlsRef.current = null;
       setLevels([]);
       setLevel(-1);
+      setManifestParsed(false);
+      setVideoHeight(0);
       if (selected.engine === 'hls.js') {
         const { default: HlsCtor } = await import('hls.js');
         const hls = new HlsCtor({ enableWorker: true, capLevelToPlayerSize: true });
         hlsRef.current = hls;
         hls.on(HlsCtor.Events.MANIFEST_PARSED, (_e, data) => {
+          setManifestParsed(true);
           const list = data.levels
             .map((l, index) => ({
               index,
@@ -437,6 +442,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
         },
         durationchange: () => setDuration(Number.isFinite(video.duration) ? video.duration : 0),
         loadedmetadata: () => {
+          setVideoHeight(video.videoHeight);
           onSourceSwitchRef.current?.(false);
           setDuration(Number.isFinite(video.duration) ? video.duration : 0);
           if (!startApplied.current) {
@@ -462,6 +468,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
             }
           }
         },
+        resize: () => setVideoHeight(video.videoHeight),
         progress: () => setBuffered(timeRangesToArray(video.buffered)),
         ratechange: () => setRate(video.playbackRate),
         volumechange: () => {
@@ -1121,7 +1128,13 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuLabel>Quality</DropdownMenuLabel>
-                        <p className="px-2 py-1 text-xs text-muted">Automatic / source quality</p>
+                        <p className="px-2 py-1 text-xs text-muted">
+                          {selectedSource?.format === 'HLS' && selected?.engine === 'native'
+                            ? `Automatic, managed by your device${videoHeight ? ` · ${videoHeight}p currently` : ''}`
+                            : selectedSource?.format === 'HLS' && !manifestParsed
+                              ? 'Checking available qualities…'
+                              : `One quality available${videoHeight ? ` · ${videoHeight}p` : ''}`}
+                        </p>
                       </>
                     )}
                   </DropdownMenuContent>
