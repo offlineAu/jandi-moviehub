@@ -61,11 +61,17 @@ function MovieRow({
         {disabled ? (
           <span className="flex shrink-0 items-center gap-1 text-xs text-muted">
             <Ban className="size-3.5" aria-hidden="true" />
-            {check.isFetching
-              ? 'Checking source…'
-              : check.isError
-                ? 'Source check failed'
-                : 'No source listed'}
+            {capabilities.isLoading
+              ? 'Checking providers…'
+              : capabilities.isError
+                ? 'Provider status unavailable'
+                : !capabilities.data?.vidsrcSync
+                  ? 'Movie provider unavailable'
+                  : check.isFetching
+                    ? 'Checking source…'
+                    : check.isError
+                      ? 'Source check failed'
+                      : 'No source listed'}
           </span>
         ) : selected ? (
           <Check className="size-4 shrink-0 text-primary" aria-label="Selected" />
