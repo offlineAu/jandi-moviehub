@@ -92,6 +92,10 @@ function Watch({ id }: { id: string }) {
   const movie = useMovie(id);
   const playback = usePlayback(id);
   const capabilities = useRoomSourceCapabilities();
+  const [directFailed, setDirectFailed] = React.useState(false);
+  React.useEffect(() => {
+    setDirectFailed(false);
+  }, [id]);
   const direct = useQuery({
     queryKey: ['kisskh-solo-movie', id],
     queryFn: () =>
@@ -117,7 +121,7 @@ function Watch({ id }: { id: string }) {
       playback.isError &&
       isApiError(playback.error) &&
       playback.error.code === 'NOT_PLAYABLE' &&
-      (!capabilities.data?.kisskhDirectSync || direct.isError),
+      (!capabilities.data?.kisskhDirectSync || direct.isError || directFailed),
     staleTime: 300000,
     retry: false,
   });
@@ -157,7 +161,7 @@ function Watch({ id }: { id: string }) {
     stage = <Skeleton className="aspect-video w-full rounded-2xl" />;
   } else if (playback.isError && direct.isFetching) {
     stage = <Skeleton className="aspect-video w-full rounded-2xl" />;
-  } else if (playback.isError && direct.data?.sources.length) {
+  } else if (playback.isError && direct.data?.sources.length && !directFailed) {
     stage = (
       <VideoPlayer
         ref={playerRef}
@@ -167,6 +171,7 @@ function Watch({ id }: { id: string }) {
         startAtSec={startAt}
         autoPlay
         onTimeUpdate={onTimeUpdate}
+        onPlaybackErrorChange={setDirectFailed}
         onRetrySource={() => void direct.refetch()}
       />
     );
@@ -177,6 +182,14 @@ function Watch({ id }: { id: string }) {
     stage =
       notPlayable && external.isLoading ? (
         <Skeleton className="aspect-video w-full rounded-2xl" />
+      ) : notPlayable && external.isError ? (
+        <ErrorState
+          className="aspect-video"
+          title="Couldn’t check another player"
+          error={external.error}
+          onRetry={() => void external.refetch()}
+          retrying={external.isFetching}
+        />
       ) : notPlayable && external.data?.available && external.data.embedUrl ? (
         <div>
           <div className="aspect-video overflow-hidden rounded-2xl bg-black">
