@@ -25,6 +25,7 @@ import * as React from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -275,11 +276,16 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     React.useEffect(() => {
       onPlaybackErrorChange?.(!!error || selected === null);
     }, [error, selected, onPlaybackErrorChange]);
-    const selectedSource = selected?.source ?? null;
+    const selectedSource = selected
+      ? (sources.find(
+          (source) =>
+            source.assetId === selected.source.assetId && source.url === selected.source.url,
+        ) ?? selected.source)
+      : null;
     const captions = React.useMemo(() => selectedSource?.captions ?? [], [selectedSource]);
     React.useEffect(() => {
       captionChosen.current = false;
-    }, [selectedSource]);
+    }, [selectedSource?.assetId, selectedSource?.url]);
     React.useEffect(() => {
       const video = videoRef.current;
       if (!video) return;
@@ -1120,45 +1126,53 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
                 </p>
 
                 <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
-                  {captionChoices.length ? (
-                    <DropdownMenu modal={false} onOpenChange={onMenuOpenChange}>
-                      <Tooltip label="Captions">
-                        <DropdownMenuTrigger
-                          aria-label={captionIndex >= 0 ? 'Captions (on)' : 'Captions (off)'}
-                          className="grid size-10 place-items-center rounded-full hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-primary sm:size-9 [&_svg]:size-5"
-                        >
-                          {captionIndex >= 0 ? (
-                            <Captions aria-hidden="true" />
-                          ) : (
-                            <CaptionsOff aria-hidden="true" />
-                          )}
-                        </DropdownMenuTrigger>
-                      </Tooltip>
-                      <DropdownMenuContent
-                        align="end"
-                        side="top"
-                        collisionBoundary={container ?? undefined}
-                        collisionPadding={8}
-                        className="w-56 max-h-[min(50vh,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto overscroll-contain"
+                  <DropdownMenu modal={false} onOpenChange={onMenuOpenChange}>
+                    <Tooltip label="Captions">
+                      <DropdownMenuTrigger
+                        aria-label={captionIndex >= 0 ? 'Captions (on)' : 'Captions (off)'}
+                        className="grid size-10 place-items-center rounded-full hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-primary sm:size-9 [&_svg]:size-5"
                       >
-                        <DropdownMenuLabel>Captions</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={String(captionIndex)}
-                          onValueChange={(v) => {
-                            captionChosen.current = true;
-                            setCaptionIndex(Number(v));
-                          }}
-                        >
-                          <DropdownMenuRadioItem value="-1">Off</DropdownMenuRadioItem>
-                          {orderCaptionChoices(captionChoices).map((c) => (
-                            <DropdownMenuRadioItem key={c.index} value={String(c.index)}>
-                              {c.label}
-                            </DropdownMenuRadioItem>
-                          ))}
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : null}
+                        {captionIndex >= 0 ? (
+                          <Captions aria-hidden="true" />
+                        ) : (
+                          <CaptionsOff aria-hidden="true" />
+                        )}
+                      </DropdownMenuTrigger>
+                    </Tooltip>
+                    <DropdownMenuContent
+                      align="end"
+                      side="top"
+                      collisionBoundary={container ?? undefined}
+                      collisionPadding={8}
+                      className="w-56 max-h-[min(50vh,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto overscroll-contain"
+                    >
+                      <DropdownMenuLabel>Captions</DropdownMenuLabel>
+                      {captionChoices.length === 0 && (
+                        <p className="px-2.5 py-2 text-sm text-muted">
+                          No captions available for this stream.
+                        </p>
+                      )}
+                      <DropdownMenuRadioGroup
+                        value={String(captionIndex)}
+                        onValueChange={(v) => {
+                          captionChosen.current = true;
+                          setCaptionIndex(Number(v));
+                        }}
+                      >
+                        <DropdownMenuRadioItem value="-1">Off</DropdownMenuRadioItem>
+                        {orderCaptionChoices(captionChoices).map((c) => (
+                          <DropdownMenuRadioItem key={c.index} value={String(c.index)}>
+                            {c.label}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                      {captionChoices.length === 0 && onRetrySource && (
+                        <DropdownMenuItem onSelect={onRetrySource}>
+                          Retry stream and captions
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
                   <DropdownMenu modal={false} onOpenChange={onMenuOpenChange}>
                     <Tooltip label="Playback settings">

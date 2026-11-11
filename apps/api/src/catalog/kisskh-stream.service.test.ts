@@ -107,7 +107,7 @@ describe('KissKH direct stream resolution', () => {
     await expect(resolver.caption('invalid')).rejects.toMatchObject({ status: 404 });
   });
   it('uses backup subtitle listings when the primary is unavailable', async () => {
-    const redis = { set: vi.fn(async () => 'OK') };
+    const redis = { set: vi.fn(async () => 'OK'), get: vi.fn(async () => null) };
     const resolver = new KisskhStreamService(
       {
         env: {
@@ -131,6 +131,41 @@ describe('KissKH direct stream resolution', () => {
       ),
     );
     expect(await resolver.captions('movie', 'tmdb:672')).toHaveLength(1);
+  });
+  it('shares a successful caption listing across viewers and does not cache an empty result', async () => {
+    const cache = new Map<string, string>();
+    const redis = {
+      set: vi.fn(async (key: string, value: string) => {
+        cache.set(key, value);
+        return 'OK';
+      }),
+      get: vi.fn(async (key: string) => cache.get(key) ?? null),
+    };
+    const resolver = new KisskhStreamService(
+      {
+        env: {
+          ENABLE_KISSKH_DIRECT_SYNC: true,
+          KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
+        },
+      } as unknown as AppConfig,
+      redis as never,
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ subtitles: [] }))
+      .mockResolvedValueOnce(
+        Response.json({
+          subtitles: [
+            { id: 'kisskh-0', lang: 'eng', url: 'https://sub.cdnvideo11.shop/english.srt' },
+          ],
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await resolver.captions('series', 'kisskh:2512:1:8')).toEqual([]);
+    const tracks = await resolver.captions('series', 'kisskh:2512:1:8');
+    expect(tracks).toHaveLength(1);
+    expect(await resolver.captions('series', 'kisskh:2512:1:8')).toEqual(tracks);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
   it('combines KissKH tracks from both resolvers and excludes alternate providers', async () => {
     const cache = new Map<string, string>();
@@ -186,11 +221,11 @@ describe('KissKH direct stream resolution', () => {
     expect(await resolver.caption(tracks[1]!.url.split('/').at(-1)!)).toContain(
       '00:00:01.000 --> 00:00:02.000',
     );
-    expect(cache.size).toBe(2);
+    expect(cache.size).toBe(3);
   });
   it('allows a cold subtitle resolver enough time to return tracks', async () => {
     vi.useFakeTimers();
-    const redis = { set: vi.fn(async () => 'OK') };
+    const redis = { set: vi.fn(async () => 'OK'), get: vi.fn(async () => null) };
     const resolver = new KisskhStreamService(
       {
         env: {

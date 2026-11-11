@@ -48,6 +48,10 @@ async function readBounded(response: Response, limit: number) {
 export class KisskhStreamService {
   private readonly logger = new Logger(KisskhStreamService.name);
   private warming: Promise<void> | null = null;
+  private readonly pendingCaptions = new Map<
+    string,
+    Promise<Array<{ lang: string; label: string; url: string }>>
+  >();
   private readonly pending = new Map<
     string,
     Promise<{ url: string; format: 'HLS' | 'MP4'; mimeType: string }>
@@ -107,6 +111,33 @@ export class KisskhStreamService {
 
   async captions(type: 'movie' | 'series', id: string) {
     this.assertEnabled();
+    const key = `kisskh:caption-list:${type}:${id}`;
+    const cached = await this.redis.get(key);
+    if (cached) {
+      try {
+        const parsed = z
+          .array(z.object({ lang: z.string(), label: z.string(), url: z.string() }))
+          .safeParse(JSON.parse(cached));
+        if (parsed.success) return parsed.data;
+      } catch {
+        /* Ignore invalid cached data and look up fresh tracks. */
+      }
+    }
+    const pending = this.pendingCaptions.get(key);
+    if (pending) return pending;
+    const request = this.loadCaptions(type, id).then(async (captions) => {
+      if (captions.length) await this.redis.set(key, JSON.stringify(captions), 'EX', 300);
+      return captions;
+    });
+    this.pendingCaptions.set(key, request);
+    try {
+      return await request;
+    } finally {
+      this.pendingCaptions.delete(key);
+    }
+  }
+
+  private async loadCaptions(type: 'movie' | 'series', id: string) {
     const primary = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
     const fallback = this.config.env.KISSKH_STREAM_RESOLVER_FALLBACK_URL?.replace(/\/$/, '');
     const bases = [...new Set([primary, fallback].filter((item): item is string => !!item))];
