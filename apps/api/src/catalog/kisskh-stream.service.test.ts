@@ -132,7 +132,7 @@ describe('KissKH direct stream resolution', () => {
     );
     expect(await resolver.captions('movie', 'tmdb:672')).toHaveLength(1);
   });
-  it('combines KissKH and labelled alternative tracks from both resolver instances', async () => {
+  it('combines KissKH tracks from both resolvers and excludes alternate providers', async () => {
     const cache = new Map<string, string>();
     const redis = {
       set: vi.fn(async (key: string, value: string) => {
@@ -182,15 +182,51 @@ describe('KissKH direct stream resolution', () => {
       }),
     );
     const tracks = await resolver.captions('series', 'kisskh:2512:1:2');
-    expect(tracks.map((track) => track.label)).toEqual([
-      'Khmer',
-      'English',
-      'English (alternative · timing may differ)',
-    ]);
-    expect(await resolver.caption(tracks[2]!.url.split('/').at(-1)!)).toContain(
+    expect(tracks.map((track) => track.label)).toEqual(['Khmer', 'English']);
+    expect(await resolver.caption(tracks[1]!.url.split('/').at(-1)!)).toContain(
       '00:00:01.000 --> 00:00:02.000',
     );
-    expect(cache.size).toBe(3);
+    expect(cache.size).toBe(2);
+  });
+  it('allows a cold subtitle resolver enough time to return tracks', async () => {
+    vi.useFakeTimers();
+    const redis = { set: vi.fn(async () => 'OK') };
+    const resolver = new KisskhStreamService(
+      {
+        env: {
+          ENABLE_KISSKH_DIRECT_SYNC: true,
+          KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
+        },
+      } as unknown as AppConfig,
+      redis as never,
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, options: RequestInit) =>
+          new Promise<Response>((resolve, reject) => {
+            options.signal?.addEventListener('abort', () => reject(options.signal?.reason));
+            setTimeout(
+              () =>
+                resolve(
+                  Response.json({
+                    subtitles: [
+                      {
+                        id: 'kisskh-0',
+                        lang: 'eng',
+                        url: 'https://sub.cdnvideo11.shop/english.srt',
+                      },
+                    ],
+                  }),
+                ),
+              30000,
+            );
+          }),
+      ),
+    );
+    const pending = resolver.captions('movie', 'tmdb:672');
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(await pending).toHaveLength(1);
   });
   it('requests movies using their TMDB identity', async () => {
     const fetchMock = vi.fn(async (_url: string) =>

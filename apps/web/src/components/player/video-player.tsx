@@ -267,6 +267,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     const startApplied = React.useRef(false);
     const resumeAfterSource = React.useRef<{ time: number; playing: boolean } | null>(null);
     const lastCaption = React.useRef(0);
+    const captionChosen = React.useRef(false);
     const mediaRecoveries = React.useRef(0);
     const onSourceSwitchRef = React.useRef(onSourceSwitch);
     onSourceSwitchRef.current = onSourceSwitch;
@@ -276,6 +277,9 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     }, [error, selected, onPlaybackErrorChange]);
     const selectedSource = selected?.source ?? null;
     const captions = React.useMemo(() => selectedSource?.captions ?? [], [selectedSource]);
+    React.useEffect(() => {
+      captionChosen.current = false;
+    }, [selectedSource]);
     React.useEffect(() => {
       const video = videoRef.current;
       if (!video) return;
@@ -582,6 +586,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
         setCaptionIndex(-1);
         return;
       }
+      if (captionChosen.current) return;
       const lang = typeof navigator !== 'undefined' ? navigator.language.slice(0, 2) : 'en';
       const preferred = (captionChoices.find((c) => c.lang.slice(0, 2) === lang) ??
         captionChoices[0])!.index;
@@ -722,6 +727,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
 
     const doToggleCaptions = React.useCallback(() => {
       if (!captionChoices.length) return;
+      captionChosen.current = true;
       setCaptionIndex((index) => {
         if (index >= 0) {
           lastCaption.current = index;
@@ -1136,22 +1142,17 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
                         className="w-56 max-h-[min(50vh,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto overscroll-contain"
                       >
                         <DropdownMenuLabel>Captions</DropdownMenuLabel>
-                        {captionChoices.some((choice) => /\(alternative\b/i.test(choice.label)) && (
-                          <p className="px-2.5 pb-1 text-xs text-muted">
-                            Alternative tracks may be out of sync.
-                          </p>
-                        )}
                         <DropdownMenuRadioGroup
                           value={String(captionIndex)}
-                          onValueChange={(v) => setCaptionIndex(Number(v))}
+                          onValueChange={(v) => {
+                            captionChosen.current = true;
+                            setCaptionIndex(Number(v));
+                          }}
                         >
                           <DropdownMenuRadioItem value="-1">Off</DropdownMenuRadioItem>
                           {orderCaptionChoices(captionChoices).map((c) => (
                             <DropdownMenuRadioItem key={c.index} value={String(c.index)}>
-                              {c.label.replace(
-                                /\s*\(alternative\s*·\s*timing may differ\)/i,
-                                ' (alternative)',
-                              )}
+                              {c.label}
                             </DropdownMenuRadioItem>
                           ))}
                         </DropdownMenuRadioGroup>

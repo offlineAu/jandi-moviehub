@@ -10,18 +10,11 @@ import { srtToVtt } from './moviebox.controller';
 
 type KisskhEpisode = Extract<RoomTvEpisode, { provider: 'kisskh' | 'kisskh-direct' }>;
 class NoCompatibleStream extends Error {}
-function captionProvider(id: string, url: URL): 'kisskh' | 'alternative' | null {
+function captionProvider(id: string, url: URL): 'kisskh' | null {
   if (url.protocol !== 'https:' || url.port || url.username || url.password) return null;
   const path = url.pathname.toLowerCase();
   if (/^kisskh[-:]/i.test(id) && url.hostname === 'sub.cdnvideo11.shop' && path.endsWith('.srt'))
     return 'kisskh';
-  if (
-    /^onetouchtv-/i.test(id) &&
-    url.hostname === 'aapanel.devcorp.me' &&
-    path.startsWith('/assets/') &&
-    path.endsWith('.vtt')
-  )
-    return 'alternative';
   return null;
 }
 const streamsSchema = z.object({
@@ -121,7 +114,8 @@ export class KisskhStreamService {
       bases.map(async (base) => {
         try {
           const response = await fetch(`${base}/subtitles/${type}/${encodeURIComponent(id)}.json`, {
-            signal: AbortSignal.timeout(10000),
+            // The resolver may be waking from idle, just like the stream endpoint.
+            signal: AbortSignal.timeout(85000),
             redirect: 'error',
           });
           if (!response.ok) return [];
@@ -170,13 +164,11 @@ export class KisskhStreamService {
       }
       captions.push({
         lang: item.lang,
-        label: provider === 'alternative' ? `${label} (alternative · timing may differ)` : label,
+        label,
         url: `/api/v1/room-sources/kisskh/captions/${token}`,
       });
     }
-    return captions.sort(
-      (a, b) => Number(a.label.includes('(alternative')) - Number(b.label.includes('(alternative')),
-    );
+    return captions;
   }
 
   async caption(token: string) {
@@ -184,8 +176,7 @@ export class KisskhStreamService {
     const stored = await this.redis.get(`kisskh:caption:${token}`);
     if (!stored) throw Errors.notFound('Captions');
     const url = new URL(stored);
-    const id = url.hostname === 'sub.cdnvideo11.shop' ? 'kisskh-' : 'onetouchtv-';
-    if (!captionProvider(id, url)) throw Errors.notFound('Captions');
+    if (!captionProvider('kisskh-', url)) throw Errors.notFound('Captions');
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(10000), redirect: 'error' });
       if (!response.ok) throw new Error('Caption unavailable');
