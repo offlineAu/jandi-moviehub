@@ -50,6 +50,14 @@ if (mode === 'api') {
     LOG_LEVEL: 'warn',
     MEDIA_SIGNING_SECRET:
       process.env.MEDIA_SIGNING_SECRET ?? 'e2e-only-media-signing-secret-0123456789abcdef',
+    // The e2e suite runs against the seeded local catalog. A developer's .env may hold a real
+    // TMDB credential, which would switch the movie catalog to TMDB metadata that has no playable
+    // assets and make the suite depend on network access. Pin the movie catalog provider so the
+    // run is the same on every machine. The TV provider is separate and stays enabled when
+    // credentials are present, because the TV journeys are written against live TMDB metadata.
+    CATALOG_PROVIDER: 'local',
+    TMDB_API_KEY: process.env.TMDB_API_KEY ?? '',
+    TMDB_READ_TOKEN: process.env.TMDB_READ_TOKEN ?? '',
   };
   const prisma = resolve(api, 'node_modules/.bin/prisma');
   // Non-destructive: apply migrations and the idempotent seed. Tests create uniquely named data.

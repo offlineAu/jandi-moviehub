@@ -184,9 +184,10 @@ export function MovieDetailView({ id }: { id: string }) {
       >
         <ParallaxBackdrop strength={0.22}>
           <motion.div
-            className="absolute inset-0"
-            initial={{ opacity: 0, scale: 1.08, filter: 'blur(10px)' }}
-            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            className="absolute inset-0 blur-in"
+            style={{ '--blur-in-radius': '10px', '--blur-in-duration': '1400ms' } as React.CSSProperties}
+            initial={{ opacity: 0, scale: 1.08 }}
+            animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1.4, ease: EASE_EXPO }}
           >
             <Artwork

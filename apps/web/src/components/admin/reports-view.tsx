@@ -319,7 +319,7 @@ function ReportCard({
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white/[0.05] text-muted ring-1 ring-white/10">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-glass-2 text-muted ring-1 ring-white/10">
             <meta.icon className="size-4" aria-hidden="true" />
           </span>
           <div className="min-w-0">

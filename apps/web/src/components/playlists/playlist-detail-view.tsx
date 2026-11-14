@@ -235,7 +235,7 @@ function Header({
               </Button>
             ) : (
               <Tooltip label="Add a movie that’s available to stream first">
-                <span tabIndex={0} className="w-full rounded-xl focus-ring sm:w-auto">
+                <span role="group" tabIndex={0} className="w-full rounded-xl focus-ring sm:w-auto">
                   <Button
                     size="lg"
                     disabled

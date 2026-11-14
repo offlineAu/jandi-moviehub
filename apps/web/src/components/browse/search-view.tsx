@@ -12,9 +12,11 @@ import { Pagination } from '@/components/ui/pagination';
 import { TvSearch } from '@/components/series/tv-metadata';
 import { SearchCombobox } from './search-combobox';
 import { useMovies } from '@/lib/queries/catalog';
+import { useRoomSourceCapabilities } from '@/lib/queries/room-sources';
 import { useUrlState } from './use-url-state';
 
 export function SearchView() {
+  const capabilities = useRoomSourceCapabilities();
   const { params, set } = useUrlState();
   const urlQuery = (params.get('q') ?? '').slice(0, 100);
   const page = Math.max(1, Number(params.get('page')) || 1);
@@ -43,6 +45,11 @@ export function SearchView() {
   return (
     <div className="px-4 pb-8 pt-6 sm:px-6 lg:px-10 lg:pt-10">
       <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Search</h1>
+      {capabilities.data?.anime && (
+        <Button asChild variant="secondary" className="mt-4">
+          <Link href="/anime">Browse anime</Link>
+        </Button>
+      )}
       <SearchCombobox
         inputRef={inputRef}
         value={text}

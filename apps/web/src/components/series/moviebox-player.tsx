@@ -28,7 +28,7 @@ export function MovieboxPlayer({
   const [part, setPart] = React.useState(1);
   const [sourceEpisode, setSourceEpisode] = React.useState('');
   const selection = needsSource ? (
-    <div className="mb-4 grid gap-3 rounded-2xl bg-white/[0.03] p-4">
+    <div className="mb-4 grid gap-3 rounded-2xl bg-glass-1 p-4">
       <p className="text-sm text-muted">
         Season 1 has different cuts: this catalog has 15 episodes, while MovieBox splits them into
         Parts 1 and 2. Choose the source episode you want to watch.

@@ -79,7 +79,7 @@ export function VisibilityRadio({
           <span
             className={cn(
               'mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg',
-              value === opt.value ? 'bg-primary/20 text-primary' : 'bg-white/[0.05] text-muted',
+              value === opt.value ? 'bg-primary/20 text-primary' : 'bg-glass-2 text-muted',
             )}
           >
             <opt.icon className="size-4" aria-hidden="true" />

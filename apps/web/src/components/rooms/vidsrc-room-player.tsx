@@ -19,7 +19,7 @@ export function VidsrcRoomPlayer({
 }: {
   src: string;
   title: string;
-  media: ExternalMedia;
+  media: Exclude<ExternalMedia, { provider: 'anime' }>;
   engine?: RoomSyncEngine | null;
   canControl?: boolean;
   connected?: boolean;
@@ -39,7 +39,7 @@ export function VidsrcRoomPlayer({
   React.useEffect(() => {
     const iframe = frame.current;
     if (!iframe) return;
-    const adapter = new VidsrcAdapter(iframe, JSON.parse(identity) as ExternalMedia);
+    const adapter = new VidsrcAdapter(iframe, JSON.parse(identity) as Exclude<ExternalMedia, { provider: 'anime' }>);
     adapterRef.current = adapter;
     engine?.attachPlayer(adapter);
     const update = () => {

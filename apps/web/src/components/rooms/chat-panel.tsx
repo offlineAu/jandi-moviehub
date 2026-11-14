@@ -41,7 +41,7 @@ function ReactionPicker({ onPick, label }: { onPick: (e: ReactionEmoji) => void;
       <Tooltip label="React">
         <DropdownMenuTrigger
           aria-label={label}
-          className="grid size-7 place-items-center rounded-md text-muted hover:bg-white/[0.08] hover:text-foreground focus-ring"
+          className="grid size-7 place-items-center rounded-md text-muted hover:bg-glass-3 hover:text-foreground focus-ring"
         >
           <SmilePlus className="size-4" aria-hidden="true" />
         </DropdownMenuTrigger>
@@ -53,7 +53,7 @@ function ReactionPicker({ onPick, label }: { onPick: (e: ReactionEmoji) => void;
               key={emoji}
               type="button"
               onClick={() => onPick(emoji)}
-              className="grid size-9 place-items-center rounded-lg text-lg hover:bg-white/[0.08] focus-ring"
+              className="grid size-9 place-items-center rounded-lg text-lg hover:bg-glass-3 focus-ring"
               aria-label={`React with ${emoji}`}
             >
               {emoji}
@@ -98,7 +98,7 @@ function Message({
     <li
       tabIndex={-1}
       className={cn(
-        'group relative flex animate-float-up gap-3 px-4 py-1.5 outline-none transition-colors duration-200 hover:bg-white/[0.035] focus-within:bg-white/[0.035]',
+        'group relative flex animate-float-up gap-3 px-4 py-1.5 outline-none transition-colors duration-200 hover:bg-glass-1 focus-within:bg-glass-1',
         m.pending && 'opacity-60',
       )}
     >
@@ -178,7 +178,7 @@ function Message({
               type="button"
               onClick={onReply}
               aria-label={`Reply to ${name}`}
-              className="grid size-7 place-items-center rounded-md text-muted hover:bg-white/[0.08] hover:text-foreground focus-ring"
+              className="grid size-7 place-items-center rounded-md text-muted hover:bg-glass-3 hover:text-foreground focus-ring"
             >
               <CornerUpLeft className="size-4" aria-hidden="true" />
             </button>
@@ -190,7 +190,7 @@ function Message({
                 type="button"
                 onClick={onDelete}
                 aria-label="Delete message"
-                className="grid size-7 place-items-center rounded-md text-muted hover:bg-white/[0.08] hover:text-danger focus-ring"
+                className="grid size-7 place-items-center rounded-md text-muted hover:bg-glass-3 hover:text-danger focus-ring"
               >
                 <Trash2 className="size-4" aria-hidden="true" />
               </button>
@@ -381,7 +381,7 @@ export function ChatPanel({
         }}
       >
         {replyTo ? (
-          <div className="mb-2 flex items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-1.5 text-xs">
+          <div className="mb-2 flex items-center gap-2 rounded-lg bg-glass-2 px-3 py-1.5 text-xs">
             <CornerUpLeft className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
             <p className="min-w-0 flex-1 truncate text-muted">
               Replying to{' '}

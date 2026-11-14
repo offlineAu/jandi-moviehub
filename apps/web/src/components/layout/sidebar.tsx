@@ -48,8 +48,8 @@ export function Sidebar() {
         className={cn(
           'group relative flex h-10 items-center gap-3 rounded-[10px] px-3 text-sm font-medium transition-colors focus-ring',
           active
-            ? 'bg-white/[0.07] text-foreground'
-            : 'text-muted hover:bg-white/[0.04] hover:text-foreground',
+            ? 'bg-glass-3 text-foreground'
+            : 'text-muted hover:bg-glass-2 hover:text-foreground',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -109,7 +109,7 @@ export function Sidebar() {
           aria-expanded={!collapsed}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className={cn(
-            'flex h-10 items-center gap-3 rounded-[10px] px-3 text-sm text-muted transition-colors hover:bg-white/[0.04] hover:text-foreground focus-ring',
+            'flex h-10 items-center gap-3 rounded-[10px] px-3 text-sm text-muted transition-colors hover:bg-glass-2 hover:text-foreground focus-ring',
             collapsed && 'justify-center px-0',
           )}
         >

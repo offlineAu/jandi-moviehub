@@ -50,7 +50,7 @@ function NotificationRow({ notification }: { notification: NotificationDto }) {
           'mt-0.5 grid size-10 shrink-0 place-items-center rounded-full ring-1',
           unread
             ? 'bg-primary/15 text-primary ring-primary/30'
-            : 'bg-white/[0.04] text-muted ring-white/10',
+            : 'bg-glass-2 text-muted ring-white/10',
         )}
         aria-hidden="true"
       >

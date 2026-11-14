@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { BackLink } from '@/components/ui/back-link';
 import { ErrorState } from '@/components/ui/error-state';
 import { Input } from '@/components/ui/input';
+import { LoadingBlock, LoadingCards } from '@/components/ui/loading';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { useMe } from '@/lib/queries/auth';
 import { useGenres } from '@/lib/queries/catalog';
@@ -127,7 +128,7 @@ export function SeriesBrowse() {
       </p>
       <div className="mt-8" aria-live="polite">
         {result.isLoading ? (
-          <p className="text-muted">Loading series…</p>
+          <LoadingCards label="Loading series" count={6} itemClassName="h-40" />
         ) : result.isError ? (
           <ErrorState error={result.error} onRetry={() => void result.refetch()} />
         ) : !result.data?.items.length ? (
@@ -227,7 +228,12 @@ export function SeriesDetail({ id }: { id: string }) {
     queryFn: () =>
       apiFetch<{ series: Series & { episodes: Episode[] } }>(`/series/${encodeURIComponent(id)}`),
   });
-  if (result.isLoading) return <div className="p-8 text-muted">Loading series…</div>;
+  if (result.isLoading)
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-10">
+        <LoadingBlock label="Loading series" rows={4} />
+      </div>
+    );
   if (result.isError || !result.data)
     return (
       <div className="p-8">
@@ -277,7 +283,7 @@ export function SeriesDetail({ id }: { id: string }) {
           {s.episodes.map((e) => (
             <li
               key={e.id}
-              className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white/[0.03] p-4 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] transition-colors hover:bg-white/[0.05]"
+              className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-glass-1 p-4 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] transition-colors hover:bg-glass-2"
             >
               <div>
                 <p className="text-xs font-medium text-[#f0abfc]">

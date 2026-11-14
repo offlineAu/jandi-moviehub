@@ -79,7 +79,7 @@ function Detail({ id, me }: { id: string; me: Me }) {
                 <span className="flex -space-x-2">
                   {people.slice(0, 5).map((p) => (
                     <Tooltip key={p.id} label={p.displayName}>
-                      <span tabIndex={0} className="rounded-full focus-ring">
+                      <span role="img" tabIndex={0} aria-label={p.displayName} className="rounded-full focus-ring">
                         <Avatar
                           src={p.avatarUrl}
                           name={p.displayName}

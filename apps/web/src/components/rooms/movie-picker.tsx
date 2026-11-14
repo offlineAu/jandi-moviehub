@@ -1,4 +1,5 @@
 'use client';
+import { AnimePicker } from '@/components/anime/anime-browser';
 
 import { parseRoomTvTitle, parseExternalTitle, selectionTitle } from '@jandi/shared';
 import { SelectedRoomEpisode, TvRoomPicker } from './tv-room-picker';
@@ -52,7 +53,7 @@ function MovieRow({
         aria-pressed={selected}
         className={cn(
           'flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors focus-ring',
-          selected ? 'border-primary/60 bg-primary/10' : 'border-transparent hover:bg-white/[0.04]',
+          selected ? 'border-primary/60 bg-primary/10' : 'border-transparent hover:bg-glass-2',
           disabled && 'cursor-not-allowed opacity-60 hover:bg-transparent',
         )}
       >
@@ -128,7 +129,7 @@ export function MoviePicker({
   const selectedTv = value ? parseRoomTvTitle(value) : null;
   const external = value ? parseExternalTitle(value) : null;
   const selected = useMovie(
-    selectedTv || external?.type === 'tv'
+    selectedTv || external?.type === 'tv' || external?.type === 'anime'
       ? ''
       : external?.type === 'movie'
         ? external.movieId
@@ -142,7 +143,7 @@ export function MoviePicker({
   if (external && !browsing)
     return (
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border-strong p-3">
-        {external.type === 'tv' ? (
+        {external.type === 'anime' ? <span>Anime episode · synchronized playback</span> : external.type === 'tv' ? (
           <SelectedExternalEpisode media={{ ...external, tmdbId: external.tvId }} />
         ) : (
           <span className="min-w-0 flex-1 basis-48 break-words">
@@ -221,6 +222,7 @@ export function MoviePicker({
       )}
       id={id}
     >
+      {capabilities.data?.anime && <AnimePicker q={q} onSelect={value => { onChange(value); setBrowsing(false); }} />}
       <SearchInput
         value={text}
         onValueChange={setText}

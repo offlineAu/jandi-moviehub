@@ -18,7 +18,7 @@ export function YourRoomsRail() {
       action={
         <Link
           href="/rooms?tab=mine"
-          className="mr-1 rounded-full px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground focus-ring"
+          className="mr-1 rounded-full px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground focus-ring tap-row"
         >
           See all
         </Link>

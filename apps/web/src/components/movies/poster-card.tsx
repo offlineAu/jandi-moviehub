@@ -36,7 +36,7 @@ export function PosterCard({
         aria-label={`${label}${rating ? `, rated ${rating} out of 10` : ''}${movie.playable ? ', available to stream' : ''}${movie.isDemo ? ', demo title' : ''}`}
       >
         <Tilt className="rounded-xl" max={7}>
-          <div className="sheen relative aspect-[2/3] overflow-hidden rounded-xl bg-surface shadow-[var(--shadow-card)] ring-1 ring-white/[0.06] transition-[transform,box-shadow] duration-500 ease-[var(--ease-expo)] group-hover/poster:-translate-y-1.5 group-hover/poster:shadow-[var(--shadow-lift)] group-focus-within/poster:-translate-y-1.5">
+          <div className="sheen relative aspect-[2/3] overflow-hidden rounded-xl bg-surface shadow-[var(--shadow-card)] ring-1 ring-glass-3 transition-[transform,box-shadow] duration-500 ease-[var(--ease-expo)] group-hover/poster:-translate-y-1.5 group-hover/poster:shadow-[var(--shadow-lift)] group-focus-within/poster:-translate-y-1.5">
             {morph ? (
               <PosterMorph id={movie.id}>
                 <div className="absolute inset-0">
@@ -66,9 +66,9 @@ export function PosterCard({
               </Badge>
             ) : null}
             <div className="absolute inset-0 flex translate-y-2 flex-col justify-end bg-gradient-to-t from-black/95 via-black/55 to-transparent p-3 opacity-0 transition-[opacity,transform] duration-500 ease-[var(--ease-expo)] group-hover/poster:translate-y-0 group-hover/poster:opacity-100 group-focus-within/poster:translate-y-0 group-focus-within/poster:opacity-100">
-              <h3 className="line-clamp-2 font-display text-sm font-semibold leading-snug text-white">
+              <h2 className="line-clamp-2 font-display text-sm font-semibold leading-snug text-white">
                 {movie.title}
-              </h3>
+              </h2>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/80">
                 {movie.year ? <span>{movie.year}</span> : null}
                 {rating ? (
@@ -111,7 +111,7 @@ export function PosterCard({
 export function PosterCardSkeleton({ className }: { className?: string }) {
   return (
     <div
-      className={cn('shimmer aspect-[2/3] rounded-xl ring-1 ring-white/[0.04]', className)}
+      className={cn('shimmer aspect-[2/3] rounded-xl ring-1 ring-glass-2', className)}
       aria-hidden="true"
     />
   );

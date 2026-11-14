@@ -418,14 +418,14 @@ export function MarathonPanel({
               aria-current={current ? 'true' : undefined}
               className={cn(
                 'flex items-center gap-3 rounded-xl px-2 py-2',
-                current && 'bg-white/[0.06] ring-1 ring-primary/40',
+                current && 'bg-glass-2 ring-1 ring-primary/40',
                 done && 'opacity-50',
               )}
             >
               <span
                 className={cn(
                   'grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold tabular-nums',
-                  current ? 'bg-brand text-white' : 'bg-white/[0.06] text-muted',
+                  current ? 'bg-brand text-white' : 'bg-glass-2 text-muted',
                 )}
               >
                 {done && !current ? <Check className="size-3.5" aria-label="Played" /> : i + 1}

@@ -152,7 +152,7 @@ function CatalogEpisodeWatch({
           aria-labelledby="season-list-title"
           className="min-w-0 xl:sticky xl:top-20 xl:self-start"
         >
-          <div className="rounded-3xl bg-white/[0.025] p-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] sm:p-4">
+          <div className="rounded-3xl bg-glass-1 p-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] sm:p-4">
             <div className="flex items-baseline justify-between gap-3 px-1">
               <h2 id="season-list-title" className="font-display text-lg font-semibold">
                 Episodes

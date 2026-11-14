@@ -45,7 +45,7 @@ export const SheetContent = React.forwardRef<
       ) : null}
       {children}
       <SheetPrimitive.Close
-        className="absolute right-3 top-3 grid size-9 place-items-center rounded-full text-muted hover:bg-white/[0.06] hover:text-foreground focus-ring"
+        className="absolute right-3 top-3 grid size-9 place-items-center rounded-full text-muted hover:bg-glass-2 hover:text-foreground focus-ring"
         aria-label="Close"
       >
         <X className="size-4" aria-hidden="true" />

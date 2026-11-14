@@ -32,7 +32,7 @@ export function CatalogAttribution() {
 }
 
 const linkClass =
-  'group/fl inline-flex w-fit items-center gap-1 rounded text-[15px] text-foreground/70 transition-colors duration-300 hover:text-foreground focus-ring';
+  'group/fl tap-row inline-flex w-fit items-center gap-1 rounded text-[15px] text-foreground/70 transition-colors duration-300 hover:text-foreground focus-ring';
 
 const columns = [
   {
@@ -66,7 +66,7 @@ export function Footer() {
       {/* Top edge: a hairline with light running along it, and a soft glow spilling down. */}
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-px overflow-hidden bg-white/[0.07]"
+        className="absolute inset-x-0 top-0 h-px overflow-hidden bg-glass-3"
       >
         <div className="h-full w-1/2 animate-[line-sweep_6s_var(--ease-in-out-cinema)_infinite] bg-gradient-to-r from-transparent via-accent to-transparent" />
       </div>

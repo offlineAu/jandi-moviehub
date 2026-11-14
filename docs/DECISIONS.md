@@ -113,3 +113,75 @@ _Decision:_ Base-layer `:where(.grid) { grid-template-columns: minmax(0, 1fr) }`
 specificity, so any `grid-cols-*` utility overrides it) and `min-width: 0` on date/time inputs.
 An unlayered `(hover: none) and (pointer: coarse)` rule sets text-entry controls to 16px so it
 also covers raw inputs that bypass `fieldBase`. Desktop rendering is unchanged.
+
+### ADR-15 — Accessibility is enforced by lint, not only by axe
+
+_Context:_ The browser suite ran axe over 11 pages, which catches violations that survive to
+render. It cannot catch a mouse-only list row, a missing role on a focusable element, or a
+`<label>` wrapped around a control the label cannot associate with. The shared ESLint config had
+no JSX accessibility plugin, so 31 such defects sat in the tree with nothing to catch them.
+_Decision:_ `eslint-plugin-jsx-a11y` is a dependency of `@jandi/eslint-config` and its
+recommended rules run with `pnpm lint`. Every finding was fixed at the source rather than
+suppressed, with three documented exceptions where the rule conflicts with an established
+pattern: `no-autofocus` (page-level forms and Radix dialogs move focus on purpose),
+`media-has-caption` (captions come from the provider's subtitle track, not sibling `<track>`
+files), and the roles allowed for focusable non-interactive elements (`img`, `region`, `status`,
+`group` — tooltip triggers, scrollable rails, live readouts).
+_Consequence:_ Accessibility regressions are caught at lint time rather than after they ship.
+The rules are opinionated, so a deliberate pattern needs an explicit exception in the shared
+config rather than a scattered inline disable.
+
+### ADR-16 — Design tokens are declared in full, not partially overridden
+
+_Context:_ `globals.css` overrode `--radius-sm` through `--radius-xl` but left `2xl` and `3xl` at
+Tailwind's defaults. The result was an inverted scale: `rounded-xl` rendered at 20 px while
+`rounded-2xl` rendered at 16 px, and those are the two most used radii in the app (84 and 77
+uses). The same partial-override pattern left surfaces painted with fifteen distinct
+`bg-white/[0.0X]` values across 47 files, with no shared meaning and no single place to tune
+the app's surface hierarchy.
+_Decision:_ A token that the app customises is declared end to end. The radius scale is now
+6/10/14/20/24/32 px, monotonic from `sm` to `3xl`. Surface translucency is five glass steps
+(`--glass-1` … `--glass-5`) exposed as `bg-glass-*` utilities; all 91 call sites were migrated
+and each was checked against the original alpha (largest drift 0.021, 89 of 91 within 0.01).
+_Consequence:_ The surface hierarchy is tunable from one place, and a radius can no longer be
+larger than the radius above it.
+
+### ADR-17 — Touch targets grow on coarse pointers only
+
+_Context:_ A Chromium pass at 390×844 found 39 tap targets under 44 px on the home page and 19 on
+`/browse`: pagination buttons at 40×40, rail arrows and the password reveal at 36×36, icon
+buttons at 32×32. The app also set no `touch-action` anywhere, so every tap waited out the 300 ms
+double-tap-to-zoom delay on mobile.
+_Decision:_ Under `@media (hover: none) and (pointer: coarse)` the app sets
+`touch-action: manipulation` on buttons, links and list options, and grows icon-only controls
+(`.tap-target`) and text links in a vertical list (`.tap-row`) to the 44 px platform minimum.
+The element itself grows rather than a pseudo-element, so neighbouring targets cannot overlap
+and steal each other's taps. The growth is pointer-conditional, so desktop density is unchanged.
+_Consequence:_ Phones get platform-sized targets; desktop keeps its compact layout.
+
+### ADR-18 — Motion entrances use CSS animations, not animated filter properties
+
+_Context:_ Motion keeps the final value of an animated `filter` on the element's inline style, so
+an entrance that animates `blur(12px) → blur(0px)` ends with `style="filter: blur(0px)"` forever.
+A non-`none` filter keeps the element off the browser's fast compositing path and costs a
+repaint whenever an ancestor invalidates.
+_Decision:_ The blur-in entrances (`Reveal`, the hero backdrop, the movie and series detail
+backdrops) are CSS animations in `globals.css` that are removed when they end. Measured: the
+filter reads `blur(2.5px)` during the animation and `none` afterwards.
+_Consequence:_ The entrances keep their visual behaviour and leave no residue. The trade-off is
+that the blur cannot be interpolated by Motion's spring system, so it uses the shared
+`--ease-expo` curve.
+
+### ADR-19 — The browser suite pins the movie catalog provider
+
+_Context:_ `scripts/e2e-stack.mjs` inherited the developer's `.env`, so the browser suite ran
+against whatever catalog provider that machine had configured — TMDB when a key was present, the
+local seeded catalog otherwise. The suite passed on one machine and failed on another for reasons
+unrelated to the code, and the TMDB path lists no playable titles, so the browse and pick-a-movie
+journeys could not run at all.
+_Decision:_ The e2e stack pins `CATALOG_PROVIDER=local` for the movie catalog and keeps the TMDB
+credentials, because the TV journeys are written against live TMDB metadata. The API gained
+`tmdbConfigured` so the TV provider no longer depends on the movie catalog provider, and the
+e2e stack can serve both.
+_Consequence:_ The suite is reproducible on any machine. It still needs TMDB credentials for the
+TV journeys; without them those tests are skipped rather than silently passing.

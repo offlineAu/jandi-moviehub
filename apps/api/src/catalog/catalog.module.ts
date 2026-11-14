@@ -1,5 +1,8 @@
+import { AnimeService } from '../anime/anime.service';
+import { AnimeController } from '../anime/anime.controller';
 import { KisskhStreamService } from './kisskh-stream.service';
 import { VidsrcService } from './vidsrc.service';
+import { PlaybackPipelineService } from './playback-pipeline.service';
 import { ExternalMediaResolver, RoomSourcesController } from './room-sources.controller';
 import { MovieboxController, MovieboxService } from './moviebox.controller';
 import { Module } from '@nestjs/common';
@@ -28,6 +31,7 @@ import { ExternalSeriesController, ExternalSeriesService } from './external-seri
 
 @Module({
   controllers: [
+    AnimeController,
     RoomSourcesController,
     CatalogController,
     SeriesController,
@@ -42,7 +46,9 @@ import { ExternalSeriesController, ExternalSeriesService } from './external-seri
     MovieboxController,
   ],
   providers: [
+    AnimeService,
     VidsrcService,
+    PlaybackPipelineService,
     KisskhStreamService,
     ExternalMediaResolver,
     ExternalSeriesService,
@@ -65,7 +71,8 @@ import { ExternalSeriesController, ExternalSeriesService } from './external-seri
       provide: TV_PROVIDER,
       inject: [AppConfig, REDIS],
       useFactory: (config: AppConfig, redis: Redis) => {
-        if (!config.tmdbEnabled) return null;
+        // TV metadata comes from TMDB regardless of which provider serves the movie catalog.
+        if (!config.tmdbConfigured) return null;
         return new TmdbTvProvider(
           new TmdbClient({
             readToken: config.env.TMDB_READ_TOKEN,
@@ -117,6 +124,7 @@ import { ExternalSeriesController, ExternalSeriesService } from './external-seri
     CatalogService,
   ],
   exports: [
+    AnimeService,
     VidsrcService,
     KisskhStreamService,
     ExternalMediaResolver,

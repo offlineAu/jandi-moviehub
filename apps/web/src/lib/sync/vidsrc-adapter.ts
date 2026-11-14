@@ -13,7 +13,7 @@ export type VidsrcSample = {
 export function parseVidsrcEvent(
   event: Pick<MessageEvent, 'origin' | 'source' | 'data'>,
   frame: Window | null,
-  media: ExternalMedia,
+  media: Exclude<ExternalMedia, { provider: 'anime' }>,
 ): VidsrcSample | null {
   if (!frame || event.origin !== VIDSRC_ORIGIN || event.source !== frame) return null;
   let payload: unknown = event.data;
@@ -82,7 +82,7 @@ export class VidsrcAdapter extends EventTarget implements PlaybackAdapter {
   playbackRate = 1;
   constructor(
     private readonly frame: HTMLIFrameElement,
-    private readonly media: ExternalMedia,
+    private readonly media: Exclude<ExternalMedia, { provider: 'anime' }>,
     private readonly now: () => number = Date.now,
   ) {
     super();

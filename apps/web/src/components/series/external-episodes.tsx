@@ -99,7 +99,7 @@ export function ExternalEpisodes({
             : 'Loading the episode player…';
   React.useEffect(() => onStatusChange(status), [status, onStatusChange]);
   const note = (text: string) => (
-    <p className="mt-6 flex items-center gap-2 rounded-2xl bg-white/[0.03] px-4 py-3 text-sm text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
+    <p className="mt-6 flex items-center gap-2 rounded-2xl bg-glass-1 px-4 py-3 text-sm text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
       <Info className="size-4 shrink-0" aria-hidden="true" />
       {text}
     </p>
@@ -118,7 +118,7 @@ export function ExternalEpisodes({
   if (!current) return note('No matching external series found.');
   return (
     <section
-      className="mt-8 rounded-3xl bg-white/[0.025] p-4 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] sm:p-6"
+      className="mt-8 rounded-3xl bg-glass-1 p-4 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] sm:p-6"
       aria-labelledby="source-title"
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -193,7 +193,7 @@ export function ExternalEpisodes({
                   'relative isolate grid h-12 place-items-center overflow-hidden rounded-xl text-sm font-semibold tabular-nums transition-[background,color,box-shadow,transform] duration-300 ease-[var(--ease-expo)] active:scale-95 focus-ring',
                   on
                     ? 'bg-[linear-gradient(135deg,#7c3aed,#c026d3_55%,#db2777)] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.28),0_10px_24px_-10px_rgb(219_39_119/0.75)]'
-                    : 'bg-white/[0.04] text-foreground/80 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)] hover:-translate-y-0.5 hover:bg-white/[0.08] hover:text-white hover:shadow-[inset_0_0_0_1px_rgb(168_85_247/0.45)]',
+                    : 'bg-glass-2 text-foreground/80 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)] hover:-translate-y-0.5 hover:bg-glass-3 hover:text-white hover:shadow-[inset_0_0_0_1px_rgb(168_85_247/0.45)]',
                 )}
               >
                 {item.number}

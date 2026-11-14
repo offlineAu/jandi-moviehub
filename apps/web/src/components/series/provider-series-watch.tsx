@@ -273,7 +273,7 @@ function ProviderSeriesWatchContent({ season, episode, browseOnly = false }: Pro
           aria-label={`${providerName} episodes`}
           className="min-w-0 xl:sticky xl:top-20 xl:self-start"
         >
-          <div className="rounded-3xl bg-white/[0.025] p-4 ring-1 ring-white/10">
+          <div className="rounded-3xl bg-glass-1 p-4 ring-1 ring-white/10">
             <h2 className="font-display text-lg font-semibold">{providerName} episodes</h2>
             {sources.error ? (
               <p className="mt-3 text-sm text-muted">

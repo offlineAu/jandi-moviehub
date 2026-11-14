@@ -1,3 +1,4 @@
+import { AnimeService } from '../anime/anime.service';
 import {
   Controller,
   Get,
@@ -11,13 +12,14 @@ import {
 import { z } from 'zod';
 import { externalSelectionSchema, type ExternalMedia } from '@jandi/shared';
 import { AllowGuest, Public, RateLimit } from '../common/auth-context';
-import { ValidQuery } from '../common/zod';
+import { ValidBody, ValidQuery } from '../common/zod';
 import { AppError, Errors } from '../common/errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { TvMetadataService } from './tv.service';
 import { KisskhStreamService } from './kisskh-stream.service';
 import { ExternalSeriesService } from './external-series.controller';
 import { VidsrcService } from './vidsrc.service';
+import { PlaybackPipelineService } from './playback-pipeline.service';
 
 @Injectable()
 export class ExternalMediaResolver {
@@ -26,8 +28,10 @@ export class ExternalMediaResolver {
     private readonly tv: TvMetadataService,
     private readonly vidsrc: VidsrcService,
     private readonly kisskhStream: KisskhStreamService,
+    private readonly anime: AnimeService,
   ) {}
   async resolve(input: z.infer<typeof externalSelectionSchema>): Promise<ExternalMedia> {
+    if (input.provider === 'anime') return this.anime.selection(input.sourceId);
     if (input.provider === 'vidsrc') this.vidsrc.assertEnabled();
     else this.kisskhStream.assertEnabled();
     let media: ExternalMedia;
@@ -56,11 +60,65 @@ export class RoomSourcesController {
     private readonly resolver: ExternalMediaResolver,
     private readonly kisskhStream: KisskhStreamService,
     private readonly series: ExternalSeriesService,
+    private readonly pipeline: PlaybackPipelineService,
   ) {}
+  @RateLimit({ name: 'room-sources:candidates', limit: 60, windowSec: 60, by: 'user' })
+  @Header('Cache-Control', 'private, no-store')
+  @Get('candidates/movie/:id')
+  candidates(@Param('id', ParseUUIDPipe) id: string) {
+    return this.pipeline.movie(id);
+  }
+  @RateLimit({ name: 'room-sources:episode-candidates', limit: 60, windowSec: 60, by: 'user' })
+  @Header('Cache-Control', 'private, no-store')
+  @Get('candidates/episode')
+  episodeCandidates(
+    @ValidQuery(
+      z.object({
+        tvId: z.coerce.number().int().min(1).max(2147483647),
+        season: z.coerce.number().int().min(0).max(1000),
+        episode: z.coerce.number().int().min(1).max(10000),
+      }),
+    )
+    query: {
+      tvId: number;
+      season: number;
+      episode: number;
+    },
+  ) {
+    return this.pipeline.episode(query.tvId, query.season, query.episode);
+  }
+  @RateLimit({ name: 'room-sources:playback-event', limit: 30, windowSec: 60, by: 'user' })
+  @Post('playback-event')
+  @HttpCode(204)
+  playbackEvent(
+    @ValidBody(
+      z
+        .object({
+          provider: z.enum(['local', 'kisskh-direct', 'vidsrc']),
+          event: z.enum(['started', 'failed', 'buffering']),
+          device: z.enum(['ios', 'android', 'desktop', 'other']),
+          durationMs: z.number().int().min(0).max(600000).optional(),
+        })
+        .strict(),
+    )
+    body: {
+      provider: 'local' | 'kisskh-direct' | 'vidsrc';
+      event: 'started' | 'failed' | 'buffering';
+      device: 'ios' | 'android' | 'desktop' | 'other';
+      durationMs?: number;
+    },
+  ) {
+    this.pipeline.record(body.provider, body.event, body.device, body.durationMs);
+  }
   @Public()
   @Get('capabilities')
   capabilities() {
-    return { vidsrcSync: this.vidsrc.enabled, kisskhDirectSync: this.kisskhStream.enabled };
+    return {
+      vidsrcSync: this.vidsrc.enabled,
+      kisskhDirectSync: this.kisskhStream.enabled,
+      playbackPipeline: this.pipeline.enabled,
+      anime: this.pipeline.animeEnabled,
+    };
   }
   @AllowGuest()
   @RateLimit({ name: 'room-sources:warm', limit: 10, windowSec: 60, by: 'user' })
@@ -88,6 +146,7 @@ export class RoomSourcesController {
       type: 'movie',
       movieId,
     });
+    if (media.type !== 'movie') throw Errors.notFound('Movie');
     const [source, captions] = await Promise.all([
       this.kisskhStream.resolveMovie(media.tmdbId),
       this.kisskhStream.captions('movie', `tmdb:${media.tmdbId}`),

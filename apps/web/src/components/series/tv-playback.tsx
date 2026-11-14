@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
 import { apiFetch } from '@/lib/api';
 import { useMe } from '@/lib/queries/auth';
+import { useRoomSourceCapabilities } from '@/lib/queries/room-sources';
 import type { PlaybackSource } from '@/lib/types';
 import { ExternalEpisodes } from './external-episodes';
 import { MovieboxPlayer } from './moviebox-player';
@@ -35,6 +36,19 @@ export function TvPlayback({
   belowPlayer?: React.ReactNode;
 }) {
   const [provider, setProvider] = React.useState<'moviebox' | 'kisskh'>('kisskh');
+  const [nativeFailed, setNativeFailed] = React.useState(false);
+  const capabilities = useRoomSourceCapabilities();
+  React.useEffect(() => setNativeFailed(false), [id, season, episode]);
+  const candidates = useQuery({
+    queryKey: ['episode-playback-candidates', id, season, episode],
+    queryFn: () =>
+      apiFetch<{ candidates: Array<{ provider: string; state: string }> }>(
+        '/room-sources/candidates/episode',
+        { query: { tvId: id, season, episode } },
+      ),
+    enabled: !!capabilities.data?.playbackPipeline && nativeFailed,
+    retry: false,
+  });
   const sourceEpisode = providerEpisode(id, Number(season), Number(episode));
   const [externalPlayer, setExternalPlayer] = React.useState<{ id: number; title: string } | null>(
     null,
@@ -66,14 +80,20 @@ export function TvPlayback({
     retry: false,
     staleTime: 0,
   });
-  if (availability.data?.playable && playback.data?.sources.length)
+  if (availability.data?.playable && playback.data?.sources.length && !nativeFailed)
     return (
       <>
         <div className="overflow-hidden rounded-2xl shadow-[0_40px_120px_-40px_rgb(168_85_247/0.35)] ring-1 ring-white/10">
-          <VideoPlayer sources={playback.data.sources} title={title} mode="solo" autoPlay />
+          <VideoPlayer
+            sources={playback.data.sources}
+            title={title}
+            mode="solo"
+            autoPlay
+            onPlaybackErrorChange={setNativeFailed}
+          />
         </div>
         {availability.data.movieId ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-4 py-2.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-glass-1 px-4 py-2.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
             <p className="text-sm text-muted">
               Watch this episode in sync with friends — the host can move the room to the next
               episode.
@@ -86,6 +106,33 @@ export function TvPlayback({
             </Button>
           </div>
         ) : null}
+        {belowPlayer}
+      </>
+    );
+  if (nativeFailed && candidates.isLoading)
+    return (
+      <div className="grid aspect-video place-items-center bg-black text-sm text-muted">
+        Finding another player…
+      </div>
+    );
+  if (
+    nativeFailed &&
+    candidates.data?.candidates.some(
+      (candidate) => candidate.provider === 'vidsrc' && candidate.state === 'listed',
+    )
+  )
+    return (
+      <>
+        <div className="aspect-video overflow-hidden rounded-2xl bg-black">
+          <iframe
+            className="size-full"
+            src={`https://vidsrc.sh/embed/tv/${encodeURIComponent(id)}/${encodeURIComponent(season)}/${encodeURIComponent(episode)}`}
+            title={`Third-party player: ${title}`}
+            allow="fullscreen; picture-in-picture"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
         {belowPlayer}
       </>
     );
@@ -139,7 +186,7 @@ export function TvPlayback({
                   referrerPolicy="strict-origin-when-cross-origin"
                 />
               </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-4 py-2.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-glass-1 px-4 py-2.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
                 <p className="flex items-center gap-2 text-xs text-muted">
                   <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
                   Third-party player. If it shows an error, the source may be down — reload or try
@@ -219,7 +266,13 @@ export function TvPlayback({
                 ) : (
                   <>
                     <p>Playback could not be started. The source may no longer be available.</p>
-                    <Button variant="secondary" onClick={() => void playback.refetch()}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setNativeFailed(false);
+                        void playback.refetch();
+                      }}
+                    >
                       <RotateCw aria-hidden="true" />
                       Try again
                     </Button>

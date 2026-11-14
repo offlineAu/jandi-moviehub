@@ -2,6 +2,7 @@
 
 import { motion, type HTMLMotionProps, type Variants } from 'motion/react';
 import * as React from 'react';
+import { cn } from '@/lib/utils';
 
 /** Expo-out: the curve for reveals of 600ms+ (see globals.css `--ease-expo`). */
 export const EASE_EXPO = [0.16, 1, 0.3, 1] as const;
@@ -27,15 +28,20 @@ export function Reveal({
   blur = false,
   immediate = false,
   children,
+  className,
   ...props
 }: RevealProps) {
-  const hidden = { opacity: 0, y, ...(blur ? { filter: 'blur(8px)' } : {}) };
-  const shown = { opacity: 1, y: 0, ...(blur ? { filter: 'blur(0px)' } : {}) };
+  const hidden = { opacity: 0, y };
+  const shown = { opacity: 1, y: 0 };
   return (
     <motion.div
       initial={hidden}
       {...(immediate ? { animate: shown } : { whileInView: shown, viewport: VIEWPORT })}
       transition={{ duration: 0.8, ease: EASE_EXPO, delay }}
+      // The blur is a CSS animation so the filter is dropped once it finishes; an animated
+      // `filter` property would stay on the element and keep it off the fast compositing path.
+      className={cn(blur && 'blur-in', className)}
+      style={blur ? ({ '--blur-in-delay': `${delay * 1000}ms` } as React.CSSProperties) : undefined}
       {...props}
     >
       {children}

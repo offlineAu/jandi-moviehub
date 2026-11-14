@@ -148,7 +148,7 @@ export function PeoplePanel({
                 <DropdownMenu modal={false}>
                   <DropdownMenuTrigger
                     aria-label={`Actions for ${m.displayName}`}
-                    className="grid size-8 place-items-center rounded-full text-muted hover:bg-white/[0.08] hover:text-foreground focus-ring"
+                    className="grid size-8 place-items-center rounded-full text-muted hover:bg-glass-3 hover:text-foreground focus-ring"
                   >
                     <MoreHorizontal className="size-4" aria-hidden="true" />
                   </DropdownMenuTrigger>

@@ -66,6 +66,7 @@ test.describe.serial('account journey', () => {
     await page.goto('/search');
     const box = page
       .getByRole('searchbox', { name: 'Search movies and TV by title' })
+      .or(page.getByRole('combobox', { name: 'Search movies and TV by title' }))
       .or(page.getByRole('textbox', { name: 'Search movies and TV by title' }));
     await box.fill('paper moon');
     await expect(page).toHaveURL(/[?&]q=paper(\+|%20)moon/);

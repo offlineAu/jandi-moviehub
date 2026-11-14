@@ -133,7 +133,7 @@ export function FullscreenChatPanel({
           type="button"
           onClick={onClose}
           aria-label="Hide chat"
-          className="grid size-9 place-items-center rounded-full text-muted hover:bg-white/[0.08] hover:text-foreground focus-ring"
+          className="grid size-9 place-items-center rounded-full text-muted hover:bg-glass-3 hover:text-foreground focus-ring"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

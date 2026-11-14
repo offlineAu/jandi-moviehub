@@ -102,7 +102,7 @@ function ItemRow({
             onPointerDown={onHandlePointerDown}
             onKeyDown={onHandleKeyDown}
             className={cn(
-              'grid h-11 w-7 shrink-0 touch-none place-items-center rounded-md text-subtle hover:bg-white/[0.06] hover:text-foreground focus-ring',
+              'grid h-11 w-7 shrink-0 touch-none place-items-center rounded-md text-subtle hover:bg-glass-2 hover:text-foreground focus-ring',
               dragging ? 'cursor-grabbing text-foreground' : 'cursor-grab',
             )}
           >
@@ -171,7 +171,7 @@ function ItemRow({
                 aria-label={`Move ${movie.title} up`}
                 disabled={index === 0}
                 onClick={() => onMove(index - 1, 'up')}
-                className="grid h-7 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground focus-ring disabled:opacity-30 sm:size-8 sm:rounded-full"
+                className="grid h-7 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-glass-2 hover:text-foreground focus-ring disabled:opacity-30 sm:size-8 sm:rounded-full"
               >
                 <ChevronUp className="size-4" aria-hidden="true" />
               </button>
@@ -183,7 +183,7 @@ function ItemRow({
                 aria-label={`Move ${movie.title} down`}
                 disabled={index === count - 1}
                 onClick={() => onMove(index + 1, 'down')}
-                className="grid h-7 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground focus-ring disabled:opacity-30 sm:size-8 sm:rounded-full"
+                className="grid h-7 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-glass-2 hover:text-foreground focus-ring disabled:opacity-30 sm:size-8 sm:rounded-full"
               >
                 <ChevronDown className="size-4" aria-hidden="true" />
               </button>

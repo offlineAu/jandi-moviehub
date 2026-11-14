@@ -27,8 +27,14 @@ export class AppConfig {
     return resolve(process.cwd(), this.env.DEV_MAIL_DIR);
   }
 
+  /** Whether TMDB credentials are present. The TV and availability providers need them. */
+  get tmdbConfigured() {
+    return !!(this.env.TMDB_API_KEY || this.env.TMDB_READ_TOKEN);
+  }
+
+  /** Whether the *movie* catalog is served from TMDB rather than the local catalog. */
   get tmdbEnabled() {
     if (this.env.CATALOG_PROVIDER === 'local') return false;
-    return !!(this.env.TMDB_API_KEY || this.env.TMDB_READ_TOKEN);
+    return this.tmdbConfigured;
   }
 }

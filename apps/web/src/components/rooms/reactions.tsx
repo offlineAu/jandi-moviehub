@@ -98,7 +98,7 @@ export function ReactionBar({
             onClick={() => void send(emoji)}
             disabled={cooling}
             aria-label={`React with ${EMOJI_NAMES[emoji]}`}
-            className="grid size-9 shrink-0 place-items-center rounded-full text-xl transition-transform hover:scale-110 hover:bg-white/[0.06] focus-ring active:scale-95 disabled:opacity-40 min-[360px]:size-10 sm:size-9"
+            className="grid size-9 shrink-0 place-items-center rounded-full text-xl transition-transform hover:scale-110 hover:bg-glass-2 focus-ring active:scale-95 disabled:opacity-40 min-[360px]:size-10 sm:size-9"
           >
             {emoji}
           </button>

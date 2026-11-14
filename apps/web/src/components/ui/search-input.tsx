@@ -71,7 +71,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
         className={cn(
-          'w-full rounded-full border border-white/[0.09] bg-[#0f0f1a]/90 text-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_30px_-18px_rgb(0_0_0/0.9)] outline-none backdrop-blur-xl transition-[border-color,background-color] duration-300 placeholder:text-subtle hover:border-white/[0.16] hover:bg-[#13131f] focus:border-transparent focus:bg-[#11111d] [&::-webkit-search-cancel-button]:hidden',
+          'w-full rounded-full border border-border-strong bg-[#0f0f1a]/90 text-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_30px_-18px_rgb(0_0_0/0.9)] outline-none backdrop-blur-xl transition-[border-color,background-color] duration-300 placeholder:text-subtle hover:border-border-strong hover:bg-[#13131f] focus:border-transparent focus:bg-[#11111d] [&::-webkit-search-cancel-button]:hidden',
           size === 'lg' ? 'h-14 pl-13 pr-14 text-base' : 'h-10 pl-10 pr-12 text-sm',
         )}
         autoComplete="off"
@@ -83,7 +83,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
           type="button"
           onClick={() => onValueChange('')}
           className={cn(
-            'absolute top-1/2 z-10 grid -translate-y-1/2 place-items-center rounded-full bg-white/[0.06] text-muted transition-[background-color,color,transform] duration-200 hover:rotate-90 hover:bg-white/[0.12] hover:text-foreground active:scale-90 focus-ring',
+            'absolute top-1/2 z-10 grid -translate-y-1/2 place-items-center rounded-full bg-glass-2 text-muted transition-[background-color,color,transform] duration-200 hover:rotate-90 hover:bg-glass-4 hover:text-foreground active:scale-90 focus-ring',
             size === 'lg' ? 'right-3 size-8' : 'right-2 size-6',
           )}
           aria-label="Clear search"
@@ -105,7 +105,7 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
   return (
     <kbd
       className={cn(
-        'inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-white/10 bg-white/[0.06] px-1.5 font-sans text-[11px] font-medium text-muted shadow-[inset_0_-1px_0_rgb(255_255_255/0.06)]',
+        'inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-white/10 bg-glass-2 px-1.5 font-sans text-[11px] font-medium text-muted shadow-[inset_0_-1px_0_rgb(255_255_255/0.06)]',
         className,
       )}
     >

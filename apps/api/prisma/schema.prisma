@@ -888,3 +888,54 @@ model AppSetting {
 
   @@map("app_settings")
 }
+
+/// Anime identity is independent of a provider's season/episode numbering.
+model AnimeTitle {
+  id String @id @default(uuid()) @db.Uuid
+  catalogKey String @unique @map("catalog_key")
+  title String
+  aliases String[]
+  format String
+  posterUrl String? @map("poster_url")
+  externalIds Json @map("external_ids")
+  provenance String
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  episodes AnimeEpisode[]
+  @@index([title])
+  @@map("anime_titles")
+}
+
+model AnimeEpisode {
+  id String @id @default(uuid()) @db.Uuid
+  animeId String @map("anime_id") @db.Uuid
+  key String
+  label String
+  ordinal Int
+  kind String @default("episode")
+  stillUrl String? @map("still_url")
+  title AnimeTitle @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  sources AnimeSource[]
+  @@unique([animeId, key])
+  @@index([animeId, ordinal])
+  @@map("anime_episodes")
+}
+
+/// Reviewed episode + edition binding. Never stores an expiring media URL.
+model AnimeSource {
+  id String @id @default(uuid()) @db.Uuid
+  episodeId String @map("episode_id") @db.Uuid
+  adapterId String @map("adapter_id")
+  providerType String @default("series") @map("provider_type")
+  providerId String @map("provider_id")
+  streamName String @map("stream_name")
+  edition String
+  audioLanguage String @default("ja") @map("audio_language")
+  subtitleLanguage String? @map("subtitle_language")
+  verified Boolean @default(false)
+  enabled Boolean @default(false)
+  evidence String
+  episode AnimeEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  @@unique([episodeId, adapterId, providerId])
+  @@index([episodeId, enabled, verified])
+  @@map("anime_sources")
+}

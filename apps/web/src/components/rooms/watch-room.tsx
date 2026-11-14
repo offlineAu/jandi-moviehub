@@ -1,4 +1,5 @@
 'use client';
+import { AnimeRoomNavigation } from '@/components/anime/anime-room-navigation';
 
 import { VidsrcRoomPlayer } from './vidsrc-room-player';
 import { playbackAssetKey, roomTvTitle, selectionTitle } from '@jandi/shared';
@@ -43,6 +44,7 @@ import { useCloseRoom, useLeaveRoom, useRoomPlaybackSources, type Room } from '@
 import { cn, formatRuntime } from '@/lib/utils';
 import { EpisodeBar } from './episode-bar';
 import { ProviderEpisodeBar, VidsrcEpisodeBar } from './provider-episode-bar';
+import { RoomSourceRecovery } from './room-source-recovery';
 import { Artwork } from '@/components/movies/artwork';
 import { ChatPanel } from './chat-panel';
 import { FullscreenChatPanel, FullscreenChatTicker, FullscreenChatToggle } from './fullscreen-chat';
@@ -229,11 +231,12 @@ export function WatchRoom({ room }: { room: Room }) {
         {overlay}
       </div>
     );
-  } else if (sources.isLoading || (sources.isFetching && playerFailed)) {
+  } else if ((sources.isLoading || sources.data?.status === 'pending') || (sources.isFetching && playerFailed)) {
     stage = (
       <div className="grid aspect-video place-items-center bg-black text-muted">
         <div className="grid justify-items-center gap-3 px-6 text-center">
           <Spinner className="size-8" label="Loading the stream" />
+          {sources.data?.status === 'pending' && <p className="text-sm">Preparing the stream. A sleeping service may take up to 90 seconds.</p>}
           {playback?.tvEpisode?.provider === 'kisskh-direct' ||
           playback?.externalMedia?.provider === 'kisskh-direct' ? (
             <p className="text-sm">Starting KissKH. This can take about a minute.</p>
@@ -533,6 +536,28 @@ export function WatchRoom({ room }: { room: Room }) {
         <section aria-label="Player" className="min-w-0 flex-1 lg:overflow-y-auto">
           <div className={cn(theater && desktop ? 'bg-black' : 'sm:px-6 sm:pt-5')}>
             <div className={cn(theater && desktop ? '' : 'mx-auto max-w-5xl')}>{stage}</div>
+            {(sources.isError || playerFailed) && !marathonActive && (
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm text-muted">
+                {isMod && canControl ? (
+                  <>
+                    <span>Choose another source for everyone if retrying doesn’t work.</span>
+                    {playback?.externalMedia?.type === 'movie' && (
+                      <RoomSourceRecovery
+                        media={playback.externalMedia}
+                        roomId={room.id}
+                        socket={session.socket}
+                        engine={engine}
+                      />
+                    )}
+                    <Button size="sm" variant="secondary" onClick={() => setMovieOpen(true)}>
+                      Choose another source
+                    </Button>
+                  </>
+                ) : (
+                  <span>Ask the host to choose another source for the room.</span>
+                )}
+              </div>
+            )}
           </div>
           <div
             className={cn(
@@ -555,7 +580,9 @@ export function WatchRoom({ room }: { room: Room }) {
           </div>
           {assetKey ? (
             <div className={cn('px-3 pb-3 sm:px-6', !(theater && desktop) && 'mx-auto max-w-5xl')}>
-              {playback?.tvEpisode?.numbering === 'provider' ? (
+              {playback?.externalMedia?.provider === 'anime' ? (
+                <AnimeRoomNavigation roomId={room.id} sourceId={playback.externalMedia.sourceId} socket={session.socket} engine={engine} canControl={canControl} isHost={isHost} ended={playback.status === 'ended'} marathonActive={marathonActive} />
+              ) : playback?.tvEpisode?.numbering === 'provider' ? (
                 <ProviderEpisodeBar
                   roomId={room.id}
                   episode={playback.tvEpisode}

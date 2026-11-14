@@ -1,0 +1,21 @@
+[
+  {
+    "catalogKey": "myanimelist.net:20",
+    "key": "1",
+    "label": "Episode 1",
+    "ordinal": 1,
+    "sources": [
+      {
+        "adapterId": "yastream-kisskh",
+        "providerType": "series",
+        "providerId": "kisskh:1263:1:1",
+        "streamName": "yastream\nkisskh",
+        "edition": "naruto-original",
+        "audioLanguage": "ja",
+        "evidence": "KissKH series 1263 episode 1; desktop Chromium start, pause, seek and resume tested on 2026-11-12. Mobile and subtitles unverified.",
+        "verified": true,
+        "enabled": true
+      }
+    ]
+  }
+]

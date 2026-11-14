@@ -45,7 +45,7 @@ function ResultRow({
 }) {
   const runtime = formatRuntime(movie.runtimeMin);
   return (
-    <li className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-white/[0.03]">
+    <li className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-glass-1">
       <div className="relative aspect-[2/3] w-10 shrink-0 overflow-hidden rounded-md bg-surface-raised ring-1 ring-white/10">
         <Artwork src={movie.posterUrl} alt="" sizes="40px" />
       </div>
@@ -213,14 +213,14 @@ export function AddMovieDialog({
             are skipped in a marathon.
           </DialogDescription>
         </DialogHeader>
-        <label className="flex items-center gap-2.5 text-sm">
+        <div className="flex items-center gap-2.5 text-sm">
           <Checkbox
             checked={onlyPlayable}
             onCheckedChange={(v) => setOnlyPlayable(v === true)}
             aria-label="Only show titles available to stream"
           />
-          Only titles available to stream
-        </label>
+          <span>Only titles available to stream</span>
+        </div>
         {open ? <SearchResults playlist={playlist} onlyPlayable={onlyPlayable} /> : null}
       </DialogContent>
     </Dialog>

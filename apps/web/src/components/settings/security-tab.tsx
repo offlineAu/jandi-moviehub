@@ -135,7 +135,7 @@ function SessionRow({ session }: { session: SessionInfo }) {
   const Icon = agent.mobile ? Smartphone : Laptop;
   return (
     <li className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.05] text-muted ring-1 ring-white/10">
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-glass-2 text-muted ring-1 ring-white/10">
         <Icon className="size-5" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">

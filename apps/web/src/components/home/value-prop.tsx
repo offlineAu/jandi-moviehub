@@ -56,7 +56,7 @@ export function ValueProp({ posters }: { posters?: MovieSummary[] }) {
             <Stagger as="ul" className="mt-8 grid gap-5" stagger={0.09} delay={0.25}>
               {features.map((f) => (
                 <StaggerItem as="li" key={f.title} className="group/feat flex gap-4">
-                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-primary ring-1 ring-white/10 transition-[transform,background-color] duration-300 ease-[var(--ease-expo)] group-hover/feat:-rotate-6 group-hover/feat:scale-110 group-hover/feat:bg-primary/20">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-glass-2 text-primary ring-1 ring-white/10 transition-[transform,background-color] duration-300 ease-[var(--ease-expo)] group-hover/feat:-rotate-6 group-hover/feat:scale-110 group-hover/feat:bg-primary/20">
                     <f.icon className="size-5" aria-hidden="true" />
                   </span>
                   <div>

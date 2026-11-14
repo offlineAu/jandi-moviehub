@@ -37,7 +37,7 @@ export const DropdownMenuContent = React.forwardRef<
 DropdownMenuContent.displayName = 'DropdownMenuContent';
 
 const itemClass =
-  'relative flex cursor-default select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors data-[highlighted]:bg-white/[0.08] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted';
+  'relative flex cursor-default select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors data-[highlighted]:bg-glass-3 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted';
 
 export const DropdownMenuItem = React.forwardRef<
   React.ComponentRef<typeof MenuPrimitive.Item>,

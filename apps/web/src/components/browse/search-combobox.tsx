@@ -132,7 +132,7 @@ function KindTag({ kind }: { kind: Result['kind'] }) {
       Series
     </span>
   ) : (
-    <span className="rounded-full bg-white/[0.07] px-2 py-0.5 text-[11px] font-medium text-foreground/70">
+    <span className="rounded-full bg-glass-3 px-2 py-0.5 text-[11px] font-medium text-foreground/70">
       Movie
     </span>
   );
@@ -264,7 +264,13 @@ export function SearchCombobox({
       onPointerMove={() => setActive(i)}
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => go(i)}
-      className="group/opt relative flex cursor-pointer items-center gap-3 rounded-xl p-2 pr-3 transition-colors duration-150 aria-selected:bg-white/[0.07]"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          go(i);
+        }
+      }}
+      className="group/opt relative flex cursor-pointer items-center gap-3 rounded-xl p-2 pr-3 transition-colors duration-150 aria-selected:bg-glass-3"
     >
       <motion.span
         initial={{ opacity: 0, x: -8 }}
@@ -298,6 +304,10 @@ export function SearchCombobox({
   return (
     <form
       role="search"
+      // Several search landmarks can be on one page (top nav and the search page), so each one
+      // needs its own name to be distinguishable. The name says where the field is, not what it
+      // searches for, so it does not collide with the input's own label.
+      aria-label={`${label} field`}
       className={cn('relative', className)}
       onSubmit={(e) => {
         e.preventDefault();
@@ -477,11 +487,18 @@ export function SearchCombobox({
                   <div
                     id={optId(options.length)}
                     role="option"
+                    tabIndex={-1}
                     aria-selected={active === options.length}
                     onPointerMove={() => setActive(options.length)}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => go(options.length)}
-                    className="group/opt mt-1 flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/85 transition-colors aria-selected:bg-white/[0.07] aria-selected:text-foreground"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        go(options.length);
+                      }
+                    }}
+                    className="group/opt mt-1 flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/85 transition-colors aria-selected:bg-glass-3 aria-selected:text-foreground"
                   >
                     <span className="grid size-7 place-items-center rounded-full bg-[linear-gradient(135deg,var(--primary),var(--accent))] text-white transition-transform duration-300 group-aria-selected/opt:scale-110">
                       <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -491,7 +508,7 @@ export function SearchCombobox({
                 ) : null}
               </div>
             </div>
-            <div className="hidden items-center justify-between gap-4 border-t border-white/[0.06] bg-white/[0.02] px-4 py-2 text-[11px] text-muted md:flex">
+            <div className="hidden items-center justify-between gap-4 border-t border-glass-3 bg-glass-1 px-4 py-2 text-[11px] text-muted md:flex">
               <span className="flex items-center gap-3">
                 <span className="flex items-center gap-1">
                   <Kbd>↑</Kbd>

@@ -20,6 +20,7 @@ import { qk } from '@/lib/queries/keys';
 import { cn, formatRuntime } from '@/lib/utils';
 import { isExternalPlaybackEvent } from './external-player-events';
 import { useRoomSourceCapabilities } from '@/lib/queries/room-sources';
+import { recentlyFailedPlayback, rememberPlaybackOutcome } from '@/lib/playback-evidence';
 import type { PlaybackSource } from '@/lib/types';
 
 const SAVE_INTERVAL_MS = 10_000;
@@ -93,9 +94,40 @@ function Watch({ id }: { id: string }) {
   const playback = usePlayback(id);
   const capabilities = useRoomSourceCapabilities();
   const [directFailed, setDirectFailed] = React.useState(false);
+  const [directRecentlyFailed, setDirectRecentlyFailed] = React.useState(false);
   React.useEffect(() => {
     setDirectFailed(false);
+    setDirectRecentlyFailed(recentlyFailedPlayback(id, 'kisskh-direct'));
   }, [id]);
+  const pipeline = useQuery({
+    queryKey: ['playback-candidates', id],
+    queryFn: () =>
+      apiFetch<{
+        candidates: Array<{
+          provider: string;
+          state: 'listed' | 'missing' | 'unavailable' | 'disabled';
+        }>;
+      }>(`/room-sources/candidates/movie/${encodeURIComponent(id)}`),
+    enabled:
+      !!capabilities.data?.playbackPipeline &&
+      playback.isError &&
+      isApiError(playback.error) &&
+      playback.error.code === 'NOT_PLAYABLE',
+    retry: false,
+    staleTime: 0,
+  });
+  const pipelineWaiting = !!capabilities.data?.playbackPipeline && pipeline.isLoading;
+  const directState = pipeline.data?.candidates.find(
+    (candidate) => candidate.provider === 'kisskh-direct',
+  )?.state;
+  const alternateListed = pipeline.data?.candidates.some(
+    (candidate) => candidate.provider === 'vidsrc' && candidate.state === 'listed',
+  );
+  const directSkipped =
+    !capabilities.data?.kisskhDirectSync ||
+    directState === 'missing' ||
+    directState === 'disabled' ||
+    ((directState === 'unavailable' || directRecentlyFailed) && alternateListed);
   const direct = useQuery({
     queryKey: ['kisskh-solo-movie', id],
     queryFn: () =>
@@ -103,7 +135,9 @@ function Watch({ id }: { id: string }) {
         `/room-sources/kisskh/movie/${encodeURIComponent(id)}`,
       ),
     enabled:
-      !!capabilities.data?.kisskhDirectSync &&
+      !directSkipped &&
+      !capabilities.isLoading &&
+      !pipelineWaiting &&
       playback.isError &&
       isApiError(playback.error) &&
       playback.error.code === 'NOT_PLAYABLE',
@@ -121,7 +155,9 @@ function Watch({ id }: { id: string }) {
       playback.isError &&
       isApiError(playback.error) &&
       playback.error.code === 'NOT_PLAYABLE' &&
-      (!capabilities.data?.kisskhDirectSync || direct.isError || directFailed),
+      !capabilities.isLoading &&
+      !pipelineWaiting &&
+      (directSkipped || direct.isError || directFailed),
     staleTime: 300000,
     retry: false,
   });
@@ -137,6 +173,83 @@ function Watch({ id }: { id: string }) {
   const nextEpisode = navigation.data?.navigation?.next;
   const ready = !!sources?.length && !status.isLoading;
   const onTimeUpdate = useProgressSaver(id, playerRef, ready);
+  const reported = React.useRef(new Set<string>());
+  const startupAt = React.useRef(0);
+  const bufferingAt = React.useRef(0);
+  React.useEffect(() => {
+    reported.current.clear();
+  }, [id]);
+  const reportPlayback = React.useCallback(
+    (
+      provider: 'kisskh-direct' | 'vidsrc',
+      event: 'started' | 'failed' | 'buffering',
+      durationMs?: number,
+    ) => {
+      if (!capabilities.data?.playbackPipeline) return;
+      const key = `${provider}:${event}`;
+      if (reported.current.has(key)) return;
+      reported.current.add(key);
+      const ua = navigator.userAgent;
+      const device =
+        /iPhone|iPad|iPod/i.test(ua) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+          ? 'ios'
+          : /Android/i.test(ua)
+            ? 'android'
+            : /Windows|Macintosh|Linux/i.test(ua)
+              ? 'desktop'
+              : 'other';
+      void apiFetch('/room-sources/playback-event', {
+        method: 'POST',
+        body: {
+          provider,
+          event,
+          device,
+          ...(durationMs === undefined
+            ? {}
+            : { durationMs: Math.min(600000, Math.max(0, Math.round(durationMs))) }),
+        },
+      }).catch(() => {});
+    },
+    [capabilities.data?.playbackPipeline],
+  );
+  const onDirectError = React.useCallback(
+    (failed: boolean) => {
+      if (failed) {
+        if (capabilities.data?.playbackPipeline)
+          rememberPlaybackOutcome(id, 'kisskh-direct', 'failed');
+        reportPlayback('kisskh-direct', 'failed');
+      }
+      setDirectFailed(failed);
+    },
+    [reportPlayback, capabilities.data?.playbackPipeline, id],
+  );
+  const onDirectTimeUpdate = React.useCallback(
+    (position: number, duration: number) => {
+      onTimeUpdate(position, duration);
+      if (position > 0 && playerRef.current?.video && !playerRef.current.video.paused) {
+        if (capabilities.data?.playbackPipeline && !reported.current.has('kisskh-direct:started'))
+          rememberPlaybackOutcome(id, 'kisskh-direct', 'started');
+        reportPlayback(
+          'kisskh-direct',
+          'started',
+          startupAt.current ? Date.now() - startupAt.current : undefined,
+        );
+      }
+    },
+    [onTimeUpdate, reportPlayback, capabilities.data?.playbackPipeline, id],
+  );
+
+  const onDirectBuffering = React.useCallback(
+    (buffering: boolean) => {
+      if (buffering) bufferingAt.current = Date.now();
+      else if (bufferingAt.current) {
+        reportPlayback('kisskh-direct', 'buffering', Date.now() - bufferingAt.current);
+        bufferingAt.current = 0;
+      }
+    },
+    [reportPlayback],
+  );
 
   const progress = status.data?.progress;
   const startAt =
@@ -144,22 +257,45 @@ function Watch({ id }: { id: string }) {
   const title = movie.data?.title ?? 'Movie';
 
   React.useEffect(() => {
+    if (!direct.data?.sources.length || directFailed || !capabilities.data?.playbackPipeline)
+      return;
+    startupAt.current = Date.now();
+    const timer = window.setTimeout(() => {
+      const video = playerRef.current?.video;
+      // A paused player may be waiting for the viewer's autoplay gesture.
+      if (
+        video &&
+        !video.paused &&
+        !reported.current.has('kisskh-direct:started') &&
+        video.readyState < 2
+      ) {
+        rememberPlaybackOutcome(id, 'kisskh-direct', 'failed');
+        reportPlayback('kisskh-direct', 'failed');
+        setDirectFailed(true);
+      }
+    }, 25000);
+    return () => window.clearTimeout(timer);
+  }, [direct.data, directFailed, capabilities.data?.playbackPipeline, reportPlayback, id]);
+
+  React.useEffect(() => {
     if (movie.data) document.title = `Watching ${movie.data.title} · Jandi MovieHub`;
   }, [movie.data]);
 
   React.useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      if (isExternalPlaybackEvent(event, externalFrame.current?.contentWindow ?? null))
+      if (isExternalPlaybackEvent(event, externalFrame.current?.contentWindow ?? null)) {
         setExternalStarted(true);
+        reportPlayback('vidsrc', 'started');
+      }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, []);
+  }, [reportPlayback]);
 
   let stage: React.ReactNode;
   if (playback.isLoading || status.isLoading) {
     stage = <Skeleton className="aspect-video w-full rounded-2xl" />;
-  } else if (playback.isError && direct.isFetching) {
+  } else if (playback.isError && (capabilities.isLoading || pipelineWaiting || direct.isFetching)) {
     stage = <Skeleton className="aspect-video w-full rounded-2xl" />;
   } else if (playback.isError && direct.data?.sources.length && !directFailed) {
     stage = (
@@ -170,8 +306,9 @@ function Watch({ id }: { id: string }) {
         mode="solo"
         startAtSec={startAt}
         autoPlay
-        onTimeUpdate={onTimeUpdate}
-        onPlaybackErrorChange={setDirectFailed}
+        onTimeUpdate={onDirectTimeUpdate}
+        onBufferingChange={onDirectBuffering}
+        onPlaybackErrorChange={onDirectError}
         onRetrySource={() => void direct.refetch()}
       />
     );

@@ -71,7 +71,7 @@ function NextButton({
   const { change, busy } = useChangeRoomMovie(props.roomId, props.socket, props.engine);
   if (props.marathonActive) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-4 py-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-glass-1 px-4 py-3 text-sm">
       <span className="text-muted">{title}</span>
       {loading ? (
         <span className="text-muted">Loading next episode…</span>

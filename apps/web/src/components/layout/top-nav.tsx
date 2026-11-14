@@ -73,7 +73,7 @@ export function TopNav() {
                       <motion.span
                         layoutId="top-nav-pill"
                         aria-hidden="true"
-                        className="absolute inset-0 -z-10 rounded-full bg-white/[0.09] ring-1 ring-white/10"
+                        className="absolute inset-0 -z-10 rounded-full bg-glass-4 ring-1 ring-white/10"
                         transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                       />
                     ) : null}
@@ -105,10 +105,10 @@ export function TopNav() {
             </>
           ) : (
             <>
-              <Button asChild variant="ghost" size="sm" className="h-9">
+              <Button asChild variant="ghost" size="sm" className="h-9 tap-row">
                 <Link href={`/login?next=${next}`}>Log in</Link>
               </Button>
-              <Button asChild size="sm" className="hidden h-9 min-[400px]:inline-flex">
+              <Button asChild size="sm" className="hidden h-9 tap-row min-[400px]:inline-flex">
                 <Link href="/register">Sign up</Link>
               </Button>
             </>

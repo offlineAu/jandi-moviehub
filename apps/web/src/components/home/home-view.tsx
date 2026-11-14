@@ -19,7 +19,7 @@ function SeeAll({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="group/see mr-1 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground focus-ring"
+      className="group/see mr-1 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground focus-ring tap-row"
     >
       See all
       <ArrowRight

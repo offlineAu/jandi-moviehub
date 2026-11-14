@@ -19,7 +19,7 @@ export function pageWindow(page: number, totalPages: number): Array<number | 'ga
 }
 
 const itemClass =
-  'inline-flex h-10 min-w-10 items-center justify-center rounded-[10px] px-3 text-sm font-medium transition-colors focus-ring disabled:pointer-events-none disabled:opacity-40';
+  'inline-flex h-10 min-w-10 tap-target items-center justify-center rounded-[10px] px-3 text-sm font-medium transition-colors focus-ring disabled:pointer-events-none disabled:opacity-40';
 
 export function Pagination({
   page,
@@ -40,7 +40,7 @@ export function Pagination({
     >
       <button
         type="button"
-        className={cn(itemClass, 'text-muted hover:bg-white/[0.06] hover:text-foreground')}
+        className={cn(itemClass, 'text-muted hover:bg-glass-2 hover:text-foreground')}
         onClick={() => onPageChange(page - 1)}
         disabled={page <= 1}
         aria-label="Previous page"
@@ -65,8 +65,8 @@ export function Pagination({
                 className={cn(
                   itemClass,
                   p === page
-                    ? 'bg-white/[0.1] text-foreground ring-1 ring-primary/50'
-                    : 'text-muted hover:bg-white/[0.06] hover:text-foreground',
+                    ? 'bg-glass-4 text-foreground ring-1 ring-primary/50'
+                    : 'text-muted hover:bg-glass-2 hover:text-foreground',
                 )}
                 aria-current={p === page ? 'page' : undefined}
                 aria-label={`Page ${p}`}
@@ -80,7 +80,7 @@ export function Pagination({
       </ul>
       <button
         type="button"
-        className={cn(itemClass, 'text-muted hover:bg-white/[0.06] hover:text-foreground')}
+        className={cn(itemClass, 'text-muted hover:bg-glass-2 hover:text-foreground')}
         onClick={() => onPageChange(page + 1)}
         disabled={page >= totalPages}
         aria-label="Next page"

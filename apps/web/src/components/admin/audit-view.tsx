@@ -41,7 +41,7 @@ function AuditRow({
   const hasMetadata = entry.metadata != null && JSON.stringify(entry.metadata) !== '{}';
   return (
     <>
-      <tr className={cn('transition-colors hover:bg-white/[0.02]', expanded && 'bg-white/[0.02]')}>
+      <tr className={cn('transition-colors hover:bg-glass-1', expanded && 'bg-glass-1')}>
         <td className={`${tdClass} whitespace-nowrap text-muted`}>
           <time dateTime={entry.createdAt} title={formatDateTime(entry.createdAt)}>
             {formatRelative(entry.createdAt)}

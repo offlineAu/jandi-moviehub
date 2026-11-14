@@ -15,6 +15,7 @@ function setup() {
     tv as unknown as TvMetadataService,
     vidsrc as unknown as VidsrcService,
     kisskh as never,
+    {} as never,
   );
   return {
     prisma,
@@ -28,6 +29,7 @@ function setup() {
       {
         enabled: false,
       } as never,
+      {} as never,
       {} as never,
     ),
   };

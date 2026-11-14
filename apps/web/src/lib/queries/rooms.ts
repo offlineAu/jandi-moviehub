@@ -98,13 +98,14 @@ export interface FriendEntry {
 }
 
 export interface RoomPlaybackSources {
+  status?: 'pending' | 'ready' | 'missing' | 'unavailable';
   embed?:
     | { provider: 'kisskh'; url: string; playbackMode: 'individual' }
     | {
         provider: 'vidsrc';
         url: string;
         playbackMode: 'synced';
-        media: ExternalMedia;
+        media: Exclude<ExternalMedia, { provider: 'anime' }>;
         capabilities: { play: true; pause: true; seek: true; rate: false };
       };
   detailHref?: string;
@@ -295,6 +296,7 @@ export function useInvitePreview(token: string) {
 export function useRoomPlaybackSources(roomId: string, assetKey: string | null, enabled = true) {
   return useQuery({
     queryKey: roomKeys.sources(roomId, assetKey),
+    refetchInterval: query => query.state.data?.status === 'pending' ? 3000 : false,
     queryFn: () => apiFetch<RoomPlaybackSources>(`/rooms/${enc(roomId)}/playback-sources`),
     enabled: enabled && !!assetKey,
     staleTime: assetKey?.startsWith('kisskh-direct:') ? 60_000 : 30 * 60_000,

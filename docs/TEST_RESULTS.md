@@ -1,5 +1,38 @@
 # Test Results
 
+## 2026-11-12 — UI/UX audit and hardening
+
+See [UI_UX_AUDIT.md](UI_UX_AUDIT.md) for the full investigation.
+
+- `corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm test` and `corepack pnpm build`
+  passed. The lint run now includes `eslint-plugin-jsx-a11y`'s recommended rules, which found 31
+  violations; all 31 were fixed at the source and none suppressed. Unit tests: shared 25, API 190,
+  web 131.
+- `corepack pnpm test:e2e` on the isolated stack: **48 passed, 3 failed** (plus `series-live`, which
+  was excluded because it hangs on the concurrently-rewritten series playback). All three failures
+  are in the TV/series area, which was being rewritten concurrently — `tv-discovery.spec.ts:4` and
+  `tv-discovery.spec.ts:123` expect a season picker and link-based episode navigation that the
+  current pages no longer have, and `tv-playback.spec.ts:9` fails on an unguarded
+  `series.episodes.filter(...)` in `apps/web/src/components/series/provider-series.ts:66`, which
+  is unmodified code. Video-timing tests that failed under load pass in isolation:
+  `keyboard-solo` 3/3 and `watch-party` 11/11.
+- Two pre-existing bugs were fixed while verifying. The local catalog filtered out demo titles,
+  which hid the only playable films and blocked ten browser tests; and the e2e stack inherited the
+  developer's `.env`, so the suite ran against a different catalog provider on each machine. The
+  stack now pins the movie catalog provider and keeps the TMDB credentials the TV journeys need.
+- Axe on `/search` (not covered by the a11y suite) reported three violations before the change —
+  heading order on poster cards, a wordmark whose visible text did not match its accessible name,
+  and two unlabelled search landmarks — and **zero** after it. The a11y suite itself passes with
+  0 serious/critical and 0 moderate/minor on all 12 pages it scans.
+- Tap-target counts, Chromium at 390×844: home 39 undersized targets before and 22 after;
+  `/browse` 19 → 1 (the off-screen skip link); `/notifications` 5 → 2.
+- Frame timing on the home page over 180 frames: 16.67 ms average at a 390×844 viewport, and
+  16.67 ms average at 1440×900 with a GPU enabled. Headless Chromium has no GPU, and the same page
+  measured 36.4 ms average under SwiftShader software rendering; that figure is a rasteriser
+  artefact, not a regression, and no change was made on the basis of it.
+- The animated blur-in entrances were measured leaving `filter: blur(0px)` on the element
+  permanently. After the change they read `blur(2.5px)` during the animation and `none` after.
+
 ## 2026-11-10 — Chat in the full-screen watch-party player
 
 - New Playwright `@mobile` tests "full-screen watch party: read and reply to chat" (portrait and

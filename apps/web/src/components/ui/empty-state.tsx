@@ -23,7 +23,7 @@ export function EmptyState({
       )}
     >
       {Icon ? (
-        <span className="grid size-12 place-items-center rounded-full bg-white/[0.05] text-muted ring-1 ring-white/10">
+        <span className="grid size-12 place-items-center rounded-full bg-glass-2 text-muted ring-1 ring-white/10">
           <Icon className="size-5" aria-hidden="true" />
         </span>
       ) : null}

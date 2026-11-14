@@ -1,5 +1,46 @@
 # Progress Log
 
+## 2026-11-12 — UI/UX audit and hardening
+
+Full investigation and remediation of the web interface; see [UI_UX_AUDIT.md](UI_UX_AUDIT.md).
+
+- **Accessibility is now gated at lint time.** `eslint-plugin-jsx-a11y` joined the shared ESLint
+  config and its recommended rules run with `pnpm lint`. All 31 violations it found were fixed at
+  the source — none suppressed — including a combobox whose options were mouse-only, a set of
+  focusable tooltip triggers with no role, and a `<label>` wrapped around a Radix checkbox (a
+  `<button>`, which a label cannot associate with).
+- **The radius scale was inverted.** `globals.css` set `--radius-xl: 20px` but left `2xl` and `3xl`
+  at Tailwind's defaults, so `rounded-xl` rendered rounder than `rounded-2xl` — the two most used
+  radii in the app. Compiling the stylesheet proved it. The scale is now declared end to end
+  (6/10/14/20/24/32) and is monotonic.
+- **Surfaces have a shared scale.** Fifteen distinct `bg-white/[0.0X]` values across 47 files became
+  five glass tokens (`--glass-1`…`--glass-5`) and matching `bg-glass-*` utilities. All 91 call
+  sites were migrated and each replacement was checked against the original alpha; the largest
+  drift is 0.021 and 89 of 91 are within 0.01.
+- **One loading vocabulary.** `ui/loading.tsx` adds `LoadingBlock`, `LoadingCards` and
+  `LoadingLines`, which reserve the space their content will occupy and announce themselves as
+  busy. The series, TV-genre, saved-TV and embed views no longer print raw "Loading …" text.
+- **Touch targets measured, then fixed.** A Chromium pass at 390×844 found 39 undersized targets
+  on the home page and 19 on `/browse`. `touch-action: manipulation` removes the 300 ms tap delay
+  (the app had no `touch-action` rule at all) and `.tap-target` / `.tap-row` grow icon controls
+  and list links to 44 px on coarse pointers without overlapping neighbours. `/browse` now has one
+  undersized target — the off-screen skip link.
+- **Motion no longer leaves a filter behind.** An animated `filter` stays on the element once it
+  finishes, keeping it off the browser's fast compositing path. The blur-in entrances are now CSS
+  animations that drop the filter when they end: measured `blur(2.5px)` during, `none` after.
+- **`/search` is clean under axe** (it was not covered by the a11y suite): heading order on poster
+  cards, a wordmark whose visible text did not match its accessible name, and two unlabelled
+  search landmarks.
+- **The wordmark carries the brand gradient.** `text-brand` existed but was unused; "Jandi" is now
+  painted with it instead of plain white.
+- **Two bugs found while verifying.** The local catalog filtered out demo titles, which hid the
+  only playable films and blocked ten browser tests. The e2e stack inherited the developer's
+  `.env`, so the browser suite ran against a different catalog on each machine; it now pins the
+  movie catalog provider and keeps the TMDB credentials the TV journeys need.
+- Agent skills (`motion`, `ui-ux-pro-max`, `impeccable`, `frontend-design`,
+  `vercel-react-best-practices`, `motion-foundations`) and the Motion / Motion+ / GetLayers MCP
+  servers are installed for the repository so the audit can be repeated.
+
 ## 2026-11-10 — Chat in the full-screen watch-party player
 
 - Full screen in a watch party keeps the chat: new messages float over the picture for 7 s and a

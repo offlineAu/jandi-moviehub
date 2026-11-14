@@ -33,6 +33,16 @@
     var(--iris) 100%
   );
 
+  /*
+   * Glass scale: translucent white fills for surfaces layered over the dark ground.
+   * One step per level so the whole app's surface hierarchy is tuned from here.
+   */
+  --glass-1: rgb(255 255 255 / 0.03);
+  --glass-2: rgb(255 255 255 / 0.05);
+  --glass-3: rgb(255 255 255 / 0.07);
+  --glass-4: rgb(255 255 255 / 0.1);
+  --glass-5: rgb(255 255 255 / 0.16);
+
   /* Motion tokens (expo/quint outs for arrivals, quart in-out for travel). */
   --ease-out-cinema: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -70,10 +80,17 @@
   --font-display:
     var(--font-space-grotesk), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
+  /*
+   * Radius scale. Tailwind's built-in 2xl/3xl are not declared here, so they would fall back to
+   * 16px/24px and render *tighter* than our 20px `xl`. The whole scale is declared so it stays
+   * monotonic from `sm` to `3xl`.
+   */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
 
   --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -12px rgb(0 0 0 / 0.7);
   --shadow-lift:
@@ -83,6 +100,12 @@
 
   --ease-cinema: var(--ease-out-cinema);
   --color-iris: var(--iris);
+
+  --color-glass-1: var(--glass-1);
+  --color-glass-2: var(--glass-2);
+  --color-glass-3: var(--glass-3);
+  --color-glass-4: var(--glass-4);
+  --color-glass-5: var(--glass-5);
 
   --animate-shimmer: shimmer 1.6s linear infinite;
   --animate-marquee: marquee var(--marquee-duration, 60s) linear infinite;
@@ -209,27 +232,58 @@
   }
 }
 
-/*
- * Touch devices: iOS Safari zooms the page when a focused field's font is under 16px and never
- * zooms back, which leaves the layout shifted and overlapping. Unlayered so it beats `text-sm`.
- */
-@media (hover: none) and (pointer: coarse) {
-  input:not(
-    [type='checkbox'],
-    [type='radio'],
-    [type='range'],
-    [type='file'],
-    [type='color'],
-    [type='button'],
-    [type='submit'],
-    [type='reset'],
-    [type='image']
-  ),
-  textarea,
-  select {
-    font-size: 16px;
+  /*
+   * Touch devices: iOS Safari zooms the page when a focused field's font is under 16px and never
+   * zooms back, which leaves the layout shifted and overlapping. Unlayered so it beats `text-sm`.
+   */
+  @media (hover: none) and (pointer: coarse) {
+    input:not(
+      [type='checkbox'],
+      [type='radio'],
+      [type='range'],
+      [type='file'],
+      [type='color'],
+      [type='button'],
+      [type='submit'],
+      [type='reset'],
+      [type='image']
+    ),
+    textarea,
+    select {
+      font-size: 16px;
+    }
+
+    /*
+     * `touch-action: manipulation` drops the 300ms double-tap-to-zoom delay, so a tap feels
+     * immediate. Set on the elements that respond to taps rather than globally, so that pinch
+     * and double-tap zoom still work on the page itself.
+     */
+    button,
+    a,
+    [role='button'],
+    [role='option'],
+    [role='tab'],
+    label,
+    summary {
+      touch-action: manipulation;
+    }
+
+    /*
+     * WCAG 2.5.8 (AA) asks for 24x24 CSS px; platform guidance for touch is 44x44. Icon-only
+     * controls grow to the touch minimum on coarse pointers. The element itself grows rather
+     * than a pseudo-element extension, so neighbouring targets never overlap and steal taps.
+     */
+    .tap-target {
+      min-block-size: 44px;
+      min-inline-size: 44px;
+    }
+
+    /* Text links in a vertical list: only the height grows, so the column stays narrow. */
+    .tap-row {
+      min-block-size: 44px;
+    }
   }
-}
+
 
 /* ───────────────────────── Utilities ───────────────────────── */
 @utility scrollbar-none {
@@ -341,6 +395,15 @@
   );
   background-size: 200% 100%;
   animation: var(--animate-shimmer);
+}
+
+/*
+ * Blur-in entrance for pictures and large type. `--blur-in-radius` sets how soft the start is,
+ * `--blur-in-duration` how long it takes. The filter is removed when the animation ends.
+ */
+@utility blur-in {
+  animation: blur-in var(--blur-in-duration, 800ms) var(--ease-expo) backwards;
+  animation-delay: var(--blur-in-delay, 0ms);
 }
 
 @utility focus-ring {
@@ -494,6 +557,21 @@
   }
   50% {
     transform: scaleY(1);
+  }
+}
+
+/*
+ * Blur-in entrance. A CSS animation is used rather than an animated `filter` property because a
+ * filter value that has finished animating stays on the element, keeping it off the browser's
+ * fast compositing path. With `backwards` fill and no `forwards` fill, the filter is applied
+ * during the delay and the animation, then dropped entirely once it ends.
+ */
+@keyframes blur-in {
+  from {
+    filter: blur(var(--blur-in-radius, 8px));
+  }
+  to {
+    filter: blur(0px);
   }
 }
 

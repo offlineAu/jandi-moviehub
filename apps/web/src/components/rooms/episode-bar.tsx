@@ -81,7 +81,7 @@ export function EpisodeBar({
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-4 py-2.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]',
+        'flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-glass-1 px-4 py-2.5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]',
         className,
       )}
     >

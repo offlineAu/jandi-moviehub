@@ -13,7 +13,10 @@ export function localListQuery(
   query: MovieListQuery,
   now = new Date(),
 ): { where: Prisma.MovieWhereInput; orderBy: Prisma.MovieOrderByWithRelationInput[] } {
-  const and: Prisma.MovieWhereInput[] = [{ isDemo: false }];
+  // The Jandi Originals are seeded as demo titles but are the catalog's only streamable films.
+  // They are excluded from similar/recommendations (see `candidates`), not from the catalog
+  // itself: a browse listing without them has nothing playable to show.
+  const and: Prisma.MovieWhereInput[] = [];
   // Local mode lists the local catalog; `playable=true` lists every streamable title (any source).
   if (query.playable) and.push(playableMovieWhere(now));
   else and.push({ source: 'LOCAL' });

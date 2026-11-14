@@ -1,7 +1,12 @@
 import { z } from 'zod';
 
 const id = z.number().int().positive().max(2147483647);
-export const externalSelectionSchema = z.union([
+export const animeSelectionSchema = z.object({
+  provider: z.literal('anime'),
+  type: z.literal('anime'),
+  sourceId: z.uuid(),
+});
+const tmdbSelectionSchema = z.union([
   z.object({ provider: z.literal('vidsrc'), type: z.literal('movie'), movieId: z.uuid() }),
   z.object({ provider: z.literal('kisskh-direct'), type: z.literal('movie'), movieId: z.uuid() }),
   z.object({
@@ -11,6 +16,10 @@ export const externalSelectionSchema = z.union([
     season: z.number().int().min(0).max(1000),
     episode: z.number().int().min(1).max(10000),
   }),
+]);
+export const externalSelectionSchema = z.union([
+  animeSelectionSchema,
+  ...tmdbSelectionSchema.options,
 ]);
 export const playbackSelectionSchema = z.union([
   z.object({ provider: z.literal('native'), movieId: z.uuid() }),
@@ -25,14 +34,18 @@ export const playbackSelectionSchema = z.union([
     numbering: z.literal('provider'),
   }),
 ]);
-export const externalMediaSchema = z
-  .intersection(externalSelectionSchema, z.object({ tmdbId: id }))
-  .refine((media) => media.type !== 'tv' || media.tmdbId === media.tvId, {
-    message: 'Series identity mismatch',
-  });
+export const externalMediaSchema = z.union([
+  animeSelectionSchema.extend({ episodeId: z.uuid(), edition: z.string().min(1).max(200) }),
+  z
+    .intersection(tmdbSelectionSchema, z.object({ tmdbId: id }))
+    .refine((media) => media.type !== 'tv' || media.tmdbId === media.tvId, {
+      message: 'Series identity mismatch',
+    }),
+]);
 export type PlaybackSelection = z.infer<typeof playbackSelectionSchema>;
 export type ExternalMedia = z.infer<typeof externalMediaSchema>;
 export function selectionTitle(value: PlaybackSelection): string {
+  if (value.provider === 'anime') return `anime:anime:${value.sourceId}`;
   if (value.provider === 'native') return value.movieId;
   if (value.provider === 'kisskh')
     return `kisskh:${value.tvId}:${value.season}:${value.episode}:${value.seriesId}:${value.episodeId}`;
@@ -42,6 +55,16 @@ export function selectionTitle(value: PlaybackSelection): string {
 }
 export function parseExternalTitle(value: string) {
   const [provider, type, id, season, episode, ...extra] = value.split(':');
+  if (
+    provider === 'anime' &&
+    type === 'anime' &&
+    season === undefined &&
+    episode === undefined &&
+    !extra.length
+  ) {
+    const result = animeSelectionSchema.safeParse({ provider, type, sourceId: id });
+    return result.success ? result.data : null;
+  }
   if (
     !['vidsrc', 'kisskh-direct'].includes(provider ?? '') ||
     extra.length ||

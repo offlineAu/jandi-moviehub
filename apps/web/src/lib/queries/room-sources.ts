@@ -6,7 +6,9 @@ export function useRoomSourceCapabilities() {
   return useQuery({
     queryKey: ['room-source-capabilities'],
     queryFn: () =>
-      apiFetch<{ vidsrcSync: boolean; kisskhDirectSync?: boolean }>('/room-sources/capabilities'),
+      apiFetch<{ vidsrcSync: boolean; kisskhDirectSync?: boolean; playbackPipeline?: boolean; anime?: boolean }>(
+        '/room-sources/capabilities',
+      ),
     staleTime: 60000,
     retry: false,
   });

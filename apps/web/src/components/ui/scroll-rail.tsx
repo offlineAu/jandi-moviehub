@@ -105,7 +105,7 @@ export function ScrollRail({
               aria-label={`Scroll ${title} left`}
               disabled={edges.start}
               onClick={() => page(-1)}
-              className="grid size-9 place-items-center rounded-full border border-border-strong text-foreground transition-[background-color,transform,opacity] hover:-translate-x-0.5 hover:bg-white/[0.08] active:scale-90 focus-ring disabled:opacity-30 disabled:hover:translate-x-0"
+              className="grid size-9 tap-target place-items-center rounded-full border border-border-strong text-foreground transition-[background-color,transform,opacity] hover:-translate-x-0.5 hover:bg-glass-3 active:scale-90 focus-ring disabled:opacity-30 disabled:hover:translate-x-0"
             >
               <ChevronLeft className="size-4" aria-hidden="true" />
             </button>
@@ -115,7 +115,7 @@ export function ScrollRail({
               aria-label={`Scroll ${title} right`}
               disabled={edges.end}
               onClick={() => page(1)}
-              className="grid size-9 place-items-center rounded-full border border-border-strong text-foreground transition-[background-color,transform,opacity] hover:translate-x-0.5 hover:bg-white/[0.08] active:scale-90 focus-ring disabled:opacity-30 disabled:hover:translate-x-0"
+              className="grid size-9 tap-target place-items-center rounded-full border border-border-strong text-foreground transition-[background-color,transform,opacity] hover:translate-x-0.5 hover:bg-glass-3 active:scale-90 focus-ring disabled:opacity-30 disabled:hover:translate-x-0"
             >
               <ChevronRight className="size-4" aria-hidden="true" />
             </button>

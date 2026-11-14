@@ -1,3 +1,4 @@
+import { AnimeService } from '../anime/anime.service';
 import { KisskhStreamService } from '../catalog/kisskh-stream.service';
 import { VidsrcService } from '../catalog/vidsrc.service';
 import { ExternalSeriesService } from '../catalog/external-series.controller';
@@ -23,6 +24,7 @@ export class RealtimeController {
     private readonly kisskh: ExternalSeriesService,
     private readonly vidsrc: VidsrcService,
     private readonly kisskhStream: KisskhStreamService,
+    private readonly anime: AnimeService,
   ) {}
 
   /** Current authoritative playback state (REST fallback for the socket snapshot). */
@@ -45,6 +47,12 @@ export class RealtimeController {
     const state = await this.playback.getState(roomId);
     if (state.externalMedia) {
       const media = state.externalMedia;
+      if (media.provider === 'anime') {
+        const result = await this.anime.playback(media.sourceId);
+        if (result.externalMedia.episodeId !== media.episodeId || result.externalMedia.edition !== media.edition)
+          throw new Error('Anime source identity changed');
+        return result;
+      }
       if (media.provider === 'kisskh-direct') {
         const [movie, source] = await Promise.all([
           this.catalog.getSummary(media.movieId),

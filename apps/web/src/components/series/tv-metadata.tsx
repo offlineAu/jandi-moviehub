@@ -95,7 +95,7 @@ export function TvSearch({ query, showPopular = false }: { query: string; showPo
             {result.data.items.map((item) => (
               <li key={item.id}>
                 <Link
-                  className="group/tv flex gap-4 rounded-2xl bg-white/[0.03] p-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] transition-[background-color,transform,box-shadow] duration-300 ease-[var(--ease-expo)] hover:-translate-y-0.5 hover:bg-white/[0.06] hover:shadow-[inset_0_0_0_1px_rgb(168_85_247/0.4),0_16px_32px_-18px_rgb(168_85_247/0.5)] focus-ring"
+                  className="group/tv flex gap-4 rounded-2xl bg-glass-1 p-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] transition-[background-color,transform,box-shadow] duration-300 ease-[var(--ease-expo)] hover:-translate-y-0.5 hover:bg-glass-2 hover:shadow-[inset_0_0_0_1px_rgb(168_85_247/0.4),0_16px_32px_-18px_rgb(168_85_247/0.5)] focus-ring"
                   href={`/tv/${item.id}`}
                 >
                   <span className="relative h-24 w-16 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/10 transition-transform duration-500 ease-[var(--ease-expo)] group-hover/tv:scale-105">
@@ -140,7 +140,7 @@ function ViewingOptions({ id }: { id: string }) {
     <Reveal>
       <section
         aria-labelledby="where-title"
-        className="mt-14 rounded-3xl bg-white/[0.025] p-5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] sm:p-7"
+        className="mt-14 rounded-3xl bg-glass-1 p-5 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] sm:p-7"
       >
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -191,7 +191,7 @@ function ViewingOptions({ id }: { id: string }) {
                 {result.data.items.map((item, index) => (
                   <li
                     key={`${item.provider}-${item.type}-${index}`}
-                    className="flex items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] transition-colors hover:bg-white/[0.06]"
+                    className="flex items-center justify-between gap-3 rounded-2xl bg-glass-2 px-4 py-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] transition-colors hover:bg-glass-2"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{item.provider}</span>
@@ -324,9 +324,10 @@ export function TvDetail({ id }: { id: string }) {
       >
         <ParallaxBackdrop strength={0.22}>
           <motion.div
-            className="absolute inset-0"
-            initial={{ opacity: 0, scale: 1.08, filter: 'blur(10px)' }}
-            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            className="absolute inset-0 blur-in"
+            style={{ '--blur-in-radius': '10px', '--blur-in-duration': '1400ms' } as React.CSSProperties}
+            initial={{ opacity: 0, scale: 1.08 }}
+            animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1.4, ease: EASE_EXPO }}
           >
             <Artwork
@@ -401,7 +402,7 @@ export function TvDetail({ id }: { id: string }) {
                   {s.genres.map((g) => (
                     <li
                       key={g}
-                      className="inline-flex h-7 items-center rounded-full bg-white/[0.05] px-3 text-xs font-medium text-foreground/90 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)]"
+                      className="inline-flex h-7 items-center rounded-full bg-glass-2 px-3 text-xs font-medium text-foreground/90 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)]"
                     >
                       {g}
                     </li>
@@ -443,7 +444,7 @@ export function TvDetail({ id }: { id: string }) {
                 {s.cast.slice(0, 10).map((m) => (
                   <li
                     key={m.name}
-                    className="rounded-full bg-white/[0.04] px-3 py-1.5 text-sm shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]"
+                    className="rounded-full bg-glass-2 px-3 py-1.5 text-sm shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]"
                   >
                     {m.name}
                     {m.character ? <span className="text-muted"> · {m.character}</span> : null}

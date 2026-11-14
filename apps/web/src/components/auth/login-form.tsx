@@ -88,7 +88,7 @@ export function LoginForm() {
           New to Jandi?{' '}
           <Link
             href={`/register${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`}
-            className="font-medium link-fx focus-ring rounded"
+            className="font-medium link-fx focus-ring rounded tap-row"
           >
             Create an account
           </Link>
@@ -118,7 +118,7 @@ export function LoginForm() {
           aside={
             <Link
               href="/forgot-password"
-              className="rounded text-xs font-medium link-fx focus-ring"
+              className="rounded text-xs font-medium link-fx focus-ring tap-row"
             >
               Forgot password?
             </Link>

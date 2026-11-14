@@ -59,7 +59,7 @@ export function SyncStatus({
         tabIndex={0}
         role="status"
         aria-label={`${label}. ${connected ? details : ''}`}
-        className="inline-flex h-8 shrink-0 items-center gap-2 rounded-full border border-border-strong bg-white/[0.03] px-3 text-xs font-medium focus-ring"
+        className="inline-flex h-8 shrink-0 items-center gap-2 rounded-full border border-border-strong bg-glass-1 px-3 text-xs font-medium focus-ring"
       >
         <span
           aria-hidden="true"

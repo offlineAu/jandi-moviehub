@@ -252,6 +252,7 @@ export function MoviesView() {
                         {m.source === 'TMDB' ? (
                           <Tooltip label="Synced from TMDB — read-only">
                             <span
+                              role="img"
                               tabIndex={0}
                               className="grid size-8 place-items-center rounded-full text-subtle focus-ring"
                               aria-label={`${m.title} is managed by TMDB and can’t be edited`}

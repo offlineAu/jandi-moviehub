@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import * as React from 'react';
 import { apiFetch, isApiError } from '@/lib/api';
+import { LoadingCards, LoadingLines } from '@/components/ui/loading';
 
 type Item = { id: number; title: string; firstAirDate: string | null };
 export function TvGenreBrowse({ initialGenre }: { initialGenre?: string }) {
@@ -33,7 +34,9 @@ export function TvGenreBrowse({ initialGenre }: { initialGenre?: string }) {
         TV genre filters are separate from movie filters and playback availability.
       </p>
       {genres.isLoading ? (
-        <p className="mt-3 text-muted">Loading TV genres…</p>
+        <div className="mt-3">
+          <LoadingLines label="Loading TV genres" count={1} />
+        </div>
       ) : genres.isError ? (
         <p className="mt-3 text-muted">TV genres could not be loaded.</p>
       ) : (
@@ -56,7 +59,9 @@ export function TvGenreBrowse({ initialGenre }: { initialGenre?: string }) {
           </select>
           {chosen &&
             (results.isLoading ? (
-              <p className="mt-3 text-muted">Loading TV series…</p>
+              <div className="mt-4">
+                <LoadingCards label="Loading TV series" count={6} itemClassName="h-24" />
+              </div>
             ) : results.isError ? (
               <p className="mt-3 text-muted">TV series could not be loaded.</p>
             ) : !results.data?.items.length ? (

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { LoadingCards } from '@/components/ui/loading';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { useMe } from '@/lib/queries/auth';
 
@@ -56,7 +57,9 @@ export function SavedTvList() {
     <section className="mt-8">
       <h2 className="font-display text-xl font-semibold">TV watchlist</h2>
       {list.isLoading ? (
-        <p className="mt-3 text-muted">Loading saved series…</p>
+        <div className="mt-4">
+          <LoadingCards label="Loading saved series" count={6} itemClassName="h-24" />
+        </div>
       ) : list.isError ? (
         <p className="mt-3 text-muted">Saved series could not be loaded.</p>
       ) : !list.data?.items.length ? (

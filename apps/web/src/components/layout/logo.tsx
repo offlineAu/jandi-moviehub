@@ -85,20 +85,21 @@ export function Logo({ className, compact }: { className?: string; compact?: boo
     <Link
       href="/"
       className={cn(
-        'group/logo inline-flex items-center gap-2.5 rounded-lg font-display focus-ring',
+        'group/logo tap-row inline-flex items-center gap-2.5 rounded-lg font-display focus-ring',
         className,
       )}
-      aria-label="Jandi MovieHub home"
+      aria-label="Jandi MovieHub"
     >
       <LogoMark className="size-8 transition-transform duration-500 ease-[var(--ease-expo)] group-hover/logo:-rotate-6 group-active/logo:scale-95" />
       {compact ? null : (
-        <span className="flex items-baseline gap-1.5 leading-none">
-          <span className="text-[21px] font-bold tracking-[-0.045em] text-white">Jandi</span>
-          <span className="hidden text-[13px] font-medium tracking-[-0.01em] text-muted transition-colors group-hover/logo:text-foreground/80 min-[380px]:inline">
-            MovieHub
+        // The space lives inside the second word so the visible text matches the accessible
+        // name; a flex gap alone would render the two words as one string.
+        <span className="flex items-baseline leading-none">
+          <span className="text-brand text-[21px] font-bold tracking-[-0.045em]">Jandi</span>
+          <span className="ml-[3px] hidden text-[13px] font-medium tracking-[-0.01em] text-muted transition-colors group-hover/logo:text-foreground/80 min-[380px]:inline">
+            {' MovieHub'}
           </span>
-        </span>
-      )}
+        </span>      )}
     </Link>
   );
 }

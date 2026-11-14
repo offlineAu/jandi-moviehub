@@ -83,6 +83,7 @@ export function SeasonTabs({
   return (
     <div
       role="tablist"
+      tabIndex={-1}
       aria-label={label}
       className="scrollbar-none -mx-1 flex gap-1.5 overflow-x-auto px-1 py-1"
       onKeyDown={(e) => {
@@ -113,7 +114,7 @@ export function SeasonTabs({
               size === 'sm' ? 'h-8 px-3.5 text-[13px]' : 'h-10 px-5 text-sm',
               active
                 ? 'text-white'
-                : 'bg-white/[0.04] text-foreground/70 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] hover:bg-white/[0.08] hover:text-foreground',
+                : 'bg-glass-2 text-foreground/70 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] hover:bg-glass-3 hover:text-foreground',
             )}
           >
             {active ? (
@@ -182,8 +183,8 @@ export function EpisodeRow({
           'group/ep relative flex items-start rounded-2xl transition-[background-color,box-shadow] duration-300 ease-[var(--ease-expo)] focus-ring',
           compact ? 'gap-3 p-2' : 'gap-4 p-2.5 sm:gap-5 sm:p-3',
           current
-            ? 'bg-white/[0.07] shadow-[inset_0_0_0_1px_rgb(168_85_247/0.45)]'
-            : 'hover:bg-white/[0.045]',
+            ? 'bg-glass-3 shadow-[inset_0_0_0_1px_rgb(168_85_247/0.45)]'
+            : 'hover:bg-glass-2',
         )}
       >
         <span
@@ -237,7 +238,7 @@ export function EpisodeRow({
             <span
               className={cn(
                 'shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-semibold tabular-nums',
-                current ? 'bg-primary/30 text-white' : 'bg-white/[0.07] text-foreground/75',
+                current ? 'bg-primary/30 text-white' : 'bg-glass-3 text-foreground/75',
               )}
             >
               E{episode.number}

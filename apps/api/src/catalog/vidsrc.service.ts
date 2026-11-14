@@ -6,7 +6,7 @@ import type { Redis } from 'ioredis';
 import { AppError, Errors } from '../common/errors';
 import { AppConfig } from '../config/app-config';
 
-export function vidsrcPath(media: ExternalMedia) {
+export function vidsrcPath(media: Exclude<ExternalMedia, { provider: 'anime' }>) {
   return media.type === 'movie'
     ? `movie/${media.tmdbId}`
     : `tv/${media.tmdbId}/${media.season}/${media.episode}`;
@@ -36,10 +36,10 @@ export class VidsrcService {
         'Synchronized embed playback is not enabled.',
       );
   }
-  embedUrl(media: ExternalMedia) {
+  embedUrl(media: Exclude<ExternalMedia, { provider: 'anime' }>) {
     return `https://vidsrc.sh/embed/${vidsrcPath(media)}?autoplay=0&autonext=0`;
   }
-  async listed(media: ExternalMedia): Promise<boolean> {
+  async listed(media: Exclude<ExternalMedia, { provider: 'anime' }>): Promise<boolean> {
     const path = vidsrcPath(media);
     const key = `vidsrc:listing:${path}`;
     const cached = await this.redis.get(key);
@@ -55,7 +55,7 @@ export class VidsrcService {
     this.pending.set(path, promise);
     return promise;
   }
-  private async fetchListing(media: ExternalMedia) {
+  private async fetchListing(media: Exclude<ExternalMedia, { provider: 'anime' }>) {
     try {
       const response = await fetch(`https://vidsrc.sh/info/${vidsrcPath(media)}.json`, {
         signal: AbortSignal.timeout(8000),

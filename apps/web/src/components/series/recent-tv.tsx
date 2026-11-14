@@ -87,7 +87,7 @@ export function RecentTvList() {
                 type="button"
                 disabled={remove.isPending}
                 onClick={() => remove.mutate(item.tmdbId)}
-                className="h-8 rounded-full px-3 text-sm text-muted transition-colors hover:bg-white/[0.07] hover:text-foreground active:scale-95 focus-ring disabled:opacity-50"
+                className="h-8 rounded-full px-3 text-sm text-muted transition-colors hover:bg-glass-3 hover:text-foreground active:scale-95 focus-ring disabled:opacity-50"
                 aria-label={`Remove ${item.title} from recently viewed`}
               >
                 Remove

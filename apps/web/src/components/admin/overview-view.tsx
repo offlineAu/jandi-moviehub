@@ -41,7 +41,7 @@ function StatTile({
         {href ? (
           <Link
             href={href}
-            className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground focus-ring"
+            className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-muted transition-colors hover:bg-glass-2 hover:text-foreground focus-ring"
             aria-label={hrefLabel ?? `Open ${label}`}
           >
             <ArrowUpRight className="size-4" aria-hidden="true" />
@@ -76,7 +76,7 @@ function MediaCard({ data }: { data: AdminOverview }) {
           <li key={row.key}>
             <Link
               href={`/admin/media?status=${row.key}`}
-              className="flex h-10 items-center gap-3 rounded-lg px-2 text-sm transition-colors hover:bg-white/[0.04] focus-ring"
+              className="flex h-10 items-center gap-3 rounded-lg px-2 text-sm transition-colors hover:bg-glass-2 focus-ring"
             >
               <span className={cn('size-2 rounded-full', row.dot)} aria-hidden="true" />
               <span className="flex-1 text-muted">{row.label}</span>
@@ -93,7 +93,7 @@ function MediaCard({ data }: { data: AdminOverview }) {
 
 function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl bg-white/[0.03] p-4">
+    <div className="rounded-xl bg-glass-1 p-4">
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="mt-1 text-2xl font-semibold tracking-tight">{value}</dd>
       {hint ? <dd className="mt-0.5 text-xs text-subtle">{hint}</dd> : null}

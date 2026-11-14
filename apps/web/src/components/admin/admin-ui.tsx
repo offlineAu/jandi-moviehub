@@ -329,7 +329,7 @@ export function SortableTh<K extends string>({
         type="button"
         onClick={() => onSort({ key: sortKey, dir: active && sort.dir === 'asc' ? 'desc' : 'asc' })}
         className={cn(
-          'inline-flex h-8 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-white/[0.05] hover:text-foreground focus-ring',
+          'inline-flex h-8 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-glass-2 hover:text-foreground focus-ring',
           active && 'text-foreground',
         )}
       >
@@ -366,7 +366,7 @@ export function useSorted<T, K extends string>(
 }
 
 export const tdClass = 'border-b border-border/70 px-4 py-3 align-middle';
-export const trClass = 'transition-colors hover:bg-white/[0.02] [&:last-child>td]:border-b-0';
+export const trClass = 'transition-colors hover:bg-glass-1 [&:last-child>td]:border-b-0';
 
 export function TableSkeleton({ rows = 6, label }: { rows?: number; label: string }) {
   return (
@@ -454,6 +454,7 @@ export function Segmented<T extends string | number>({
   return (
     <div
       role="radiogroup"
+      tabIndex={-1}
       aria-label={label}
       className="inline-flex rounded-full border border-border-strong bg-secondary p-1"
       onKeyDown={(e) => {
@@ -481,7 +482,7 @@ export function Segmented<T extends string | number>({
             onClick={() => onChange(o.value)}
             className={cn(
               'h-8 rounded-full px-3.5 text-sm font-medium transition-colors focus-ring',
-              checked ? 'bg-white/[0.1] text-foreground' : 'text-muted hover:text-foreground',
+              checked ? 'bg-glass-4 text-foreground' : 'text-muted hover:text-foreground',
             )}
           >
             {o.label}

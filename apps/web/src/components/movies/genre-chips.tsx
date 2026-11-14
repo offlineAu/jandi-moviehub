@@ -7,7 +7,7 @@ import { useGenres } from '@/lib/queries/catalog';
 import { cn } from '@/lib/utils';
 
 export const chipClass =
-  'inline-flex h-9 shrink-0 items-center rounded-full border border-border-strong bg-white/[0.03] px-4 text-sm font-medium text-foreground/90 transition-[border-color,background-color,transform,box-shadow] duration-300 ease-[var(--ease-expo)] hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary/10 hover:shadow-[0_8px_24px_-12px_rgb(168_85_247/0.6)] active:scale-95 focus-ring';
+  'inline-flex h-9 tap-row shrink-0 items-center rounded-full border border-border-strong bg-glass-1 px-4 text-sm font-medium text-foreground/90 transition-[border-color,background-color,transform,box-shadow] duration-300 ease-[var(--ease-expo)] hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary/10 hover:shadow-[0_8px_24px_-12px_rgb(168_85_247/0.6)] active:scale-95 focus-ring';
 
 export function GenreChips({ className }: { className?: string }) {
   const genres = useGenres();

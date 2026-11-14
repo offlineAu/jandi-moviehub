@@ -28,6 +28,7 @@ it('resolves a fresh direct movie stream only after checking room membership', a
     {} as never,
     {} as never,
     streams as never,
+    {} as never,
   );
   const result = await controller.sources({ id: 'viewer' } as never, 'room');
   expect(rooms.requireMember).toHaveBeenCalledWith('room', 'viewer');

@@ -56,7 +56,7 @@ function VidsrcControlsTest() {
   const [type, setType] = React.useState<'movie' | 'tv'>('movie');
   const [season, setSeason] = React.useState('1');
   const [episode, setEpisode] = React.useState('1');
-  const [media, setMedia] = React.useState<ExternalMedia>({
+  const [media, setMedia] = React.useState<Exclude<ExternalMedia, { provider: 'anime' }>>({
     provider: 'vidsrc',
     type: 'movie',
     movieId: '00000000-0000-4000-8000-000000000000',

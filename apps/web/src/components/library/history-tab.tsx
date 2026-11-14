@@ -144,7 +144,7 @@ export function HistoryTab({
                         toast.error(errorMessage(error, 'Couldn’t remove it. Try again.')),
                     })
                   }
-                  className="absolute right-3 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.08] hover:text-foreground focus-ring disabled:opacity-40"
+                  className="absolute right-3 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-muted transition-colors hover:bg-glass-3 hover:text-foreground focus-ring disabled:opacity-40"
                 >
                   <X className="size-4" aria-hidden="true" />
                 </button>
