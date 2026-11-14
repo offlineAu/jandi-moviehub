@@ -1,10 +1,8 @@
-import Image from 'next/image';
-import { cn } from '@/lib/utils';
+'use client';
 
-/** Relative artwork (generated SVGs served by the API) is not run through the image optimizer. */
-function isRemoteOptimizable(src: string) {
-  return src.startsWith('https://image.tmdb.org/');
-}
+import Image from 'next/image';
+import { tmdbImageLoader, isTmdbImage } from '@/lib/tmdb-image';
+import { cn } from '@/lib/utils';
 
 export function Artwork({
   src,
@@ -55,7 +53,11 @@ export function Artwork({
       fill
       sizes={sizes}
       priority={priority}
-      unoptimized={!isRemoteOptimizable(src)}
+      // TMDB artwork is served at the closest pre-sized rendition straight from TMDB's CDN —
+      // routing it through the Next optimizer cost 250–1200ms per uncached image.
+      // Other artwork (generated SVGs served by the API) is used as-is.
+      loader={isTmdbImage(src) ? tmdbImageLoader : undefined}
+      unoptimized={!isTmdbImage(src)}
       className={cn('object-cover', className)}
     />
   );

@@ -146,7 +146,13 @@ export function useRoomSession(room: Room): RoomSession {
     };
     const onClosed = (p: { roomId: string; by: string }) => {
       if (p.roomId !== roomId) return;
-      toast(p.by === 'admin' ? 'A moderator closed this room' : 'The host closed this room');
+      toast(
+        p.by === 'admin'
+          ? 'A moderator closed this room'
+          : p.by === 'expiry'
+            ? 'This room closed after 30 days of inactivity'
+            : 'The host dissolved this room',
+      );
       void qc.invalidateQueries({ queryKey: roomKeys.all });
       router.push('/rooms');
     };
@@ -172,6 +178,7 @@ export function useRoomSession(room: Room): RoomSession {
     s.on(SocketEvents.MARATHON_STATE, onMarathon);
     s.on(SocketEvents.HOST_TRANSFER, onHostTransfer);
     s.on(SocketEvents.ROOM_UPDATED, onUpdated);
+    s.on(SocketEvents.MOVIE_CHANGE, onUpdated);
     s.on(SocketEvents.ROOM_CLOSED, onClosed);
     s.on(SocketEvents.MEMBER_KICKED, onKicked);
     s.on(SocketEvents.REACTION_BURST, onBurst);
@@ -186,6 +193,9 @@ export function useRoomSession(room: Room): RoomSession {
       s.off(SocketEvents.MARATHON_STATE, onMarathon);
       s.off(SocketEvents.HOST_TRANSFER, onHostTransfer);
       s.off(SocketEvents.ROOM_UPDATED, onUpdated);
+      s.off(SocketEvents.MOVIE_CHANGE, onUpdated);
+      void qc.invalidateQueries({ queryKey: ['library'] });
+      void qc.invalidateQueries({ queryKey: roomKeys.all });
       s.off(SocketEvents.ROOM_CLOSED, onClosed);
       s.off(SocketEvents.MEMBER_KICKED, onKicked);
       s.off(SocketEvents.REACTION_BURST, onBurst);

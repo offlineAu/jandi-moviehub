@@ -185,3 +185,39 @@ credentials, because the TV journeys are written against live TMDB metadata. The
 e2e stack can serve both.
 _Consequence:_ The suite is reproducible on any machine. It still needs TMDB credentials for the
 TV journeys; without them those tests are skipped rather than silently passing.
+
+### ADR-20 — TMDB artwork bypasses the Next image optimizer; home lists are server-prefetched
+
+_Context:_ The home page showed skeletons and empty poster tiles for seconds. Each uncached TMDB
+image cost 250–1200ms in the Next optimizer (download from TMDB, re-encode), and all movie lists
+waited for client hydration before they were requested.
+_Decision:_ TMDB images use a custom `next/image` loader that points each `srcset` candidate at
+TMDB's own pre-sized rendition (w92…w1280; up to 15% upscale allowed) on its CDN, which caches
+for a year. The home route prefetches its viewer-independent movie lists on the server and
+hydrates them with React Query. It is ISR (`revalidate = 300`), not per-request rendering: on
+Vercel, visits are served from the CDN and never invoke a function (Fluid CPU), and the page is
+regenerated in the background at most once per 5 minutes. A regeneration without the trending
+list throws, so the last good page keeps being served. `TmdbClient` serves stale entries while
+refreshing in the background.
+_Consequence:_ TMDB artwork is JPEG rather than AVIF/WebP. Movie lists can be up to 5 minutes
+behind the API on first paint, and TMDB metadata up to 24h past its TTL if TMDB stays down.
+
+### ADR-20 — The mark is a trail of frames, not stacked glyphs
+
+_Context:_ The mark's idea is that every screen in the room finds the same frame. It was drawn as
+three outlined play glyphs overlapping, which at 16 px (the favicon and the installed app icon)
+merged into an unreadable blob, and on hover the glyphs drifted apart into something that no
+longer read as a play arrow. A redesign was commissioned: keep the name, rework the mark and the
+wordmark.
+_Decision:_ The mark is now three frames of one picture trailing behind each other — the nearest
+frame crisp and stroked, the two behind it soft ghosts at 50% and 22% opacity. The silhouette
+reads as a single play arrow at every size while still carrying the "screens finding the same
+frame" idea in the drawing. Candidate marks — an aperture/iris, a projector beam, a knocked-out
+lens, a film-sprocket strip, a viewfinder — were each rendered at 96, 64, 32 and 16 px and on a
+light tab bar before choosing; the trail was the only one legible at 16 px. The wordmark became a
+film-credit lockup: "Jandi" in the brand gradient, a hairline, then "MOVIEHUB" tracked out in
+small caps, replacing a gradient word beside a smaller muted descriptor set in a different size,
+which read as two unrelated pieces of type. The name is unchanged.
+_Consequence:_ The favicon, the app icon and the in-app mark are now the same drawing, and the
+motion (frames sliding in from behind, drifting apart on hover, breathing out of sync in the
+loader) reads as translation rather than as nothing.

@@ -1,5 +1,27 @@
 # Progress Log
 
+## 2026-11-12 — Logo and wordmark redesign
+
+- **The mark** is now three frames of one picture trailing behind each other — the nearest frame
+  crisp and solid, the two behind it soft ghosts — instead of three outlined play glyphs stacked
+  on top of each other. Same idea (every screen in the room finding the same frame), but the
+  silhouette now reads as a single arrow at favicon size, where the old mark turned to mush.
+  Chosen over an aperture/iris and a projector-beam mark by rendering every candidate at 96, 64,
+  32 and 16 px and on a light tab bar: the trail was the only one that stayed legible at 16 px
+  while keeping the story.
+- **The wordmark** is now a film-credit lockup: "Jandi" in the brand gradient, a hairline rule,
+  then "MOVIEHUB" tracked out in small caps. It replaces a gradient word with a smaller muted
+  descriptor set at a different size, which read as two unrelated pieces of type. The name is
+  unchanged — `Jandi MovieHub`.
+- The visible text and the accessible name are the same string ("Jandi MovieHub"), so axe reports
+  no `label-content-name-mismatch` on the header.
+- The mark's motion is unchanged in character — the trailing frames slide in from behind and
+  settle into line on load, drift apart on hover, and breathe in and out of sync in the loader —
+  and now measures as a real translate (−2.5 px and −1.25 px on hover, front frame scaling to
+  1.1) rather than reading as nothing.
+- `src/app/icon.svg` was redrawn to match, so the favicon and the installed app icon are the new
+  mark rather than the old one.
+
 ## 2026-11-12 — UI/UX audit and hardening
 
 Full investigation and remediation of the web interface; see [UI_UX_AUDIT.md](UI_UX_AUDIT.md).
@@ -408,3 +430,22 @@ Implemented the API adapter and native player for the explicit Money Heist mappi
 - Register returns `verificationEmailSent`; the web toast says when the email failed and points
   to "Resend email". Password reset always returns 202 even when delivery fails.
 - Still needed (external): verify a sending domain in Resend and set `MAIL_FROM` (B-03).
+
+## 2026-11-15 — Home page: movies no longer sit in skeleton state
+
+- Investigation (Playwright + curl): skeletons/empty poster tiles lasted ~1.2s and posters kept
+  loading until ~3.8s on cold caches. Causes: every TMDB image went through the Next image
+  optimizer (250–1200ms per uncached image), all lists were fetched only after hydration
+  (~0.5s), and a TMDB cache expiry made the next visitor wait ~0.5s. See ADR-20.
+- Web: `lib/tmdb-image.ts` loader serves TMDB artwork straight from TMDB's CDN at the closest
+  rendition (capped at w1280); the home route is ISR (`revalidate = 300`, static on the CDN — no
+  per-visit Vercel function) and prefetches its six movie lists while regenerating
+  (`lib/queries/prefetch-movies.ts`, 5s cap in production, 1.5s in dev) and hydrates them;
+  `components/home/home-rails.ts` is the single definition of those lists. `useMovies(null)` lets
+  the layout's search box avoid pre-creating the trending cache entry (it blocked hydration of
+  the prefetched list). The hero's first slide no longer blurs in.
+- API: `TmdbClient` is stale-while-revalidate (fresh `TMDB_CACHE_TTL_SEC`, then served stale up
+  to 24h while one background refresh runs) and shares one upstream call between concurrent
+  misses. Cache keys moved to `tmdb:v2:`.
+- Not done: unreproduced 4.3s first request on a days-old API process (suspected stale sockets
+  after sleep).

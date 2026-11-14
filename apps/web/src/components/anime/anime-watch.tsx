@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useAnimeEpisodes, useAnimePlayback } from '@/lib/queries/anime';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { selectionTitle } from '@jandi/shared';
+import { nextAnimeSource } from './anime-source-recovery';
 
 function AnimeWatchContent({ id }: { id: string }) {
   const catalog = useAnimeEpisodes(id);
@@ -39,10 +40,8 @@ function AnimeWatchContent({ id }: { id: string }) {
     report('failed');
     const attempts = [...failed, sourceId];
     setFailed(attempts);
-    const edition = selected.sources.find((s) => s.id === sourceId)?.edition;
-    // Different cuts need explicit selection. Do not silently resume at another scene.
-    const next = selected.sources.find((s) => s.edition === edition && !attempts.includes(s.id));
-    if (next && attempts.length < 3) {
+    const next = nextAnimeSource(selected.sources, sourceId, attempts);
+    if (next) {
       setResumeAt(position.current);
       lastPosition.current = position.current;
       setSourceId(next.id);
@@ -52,6 +51,9 @@ function AnimeWatchContent({ id }: { id: string }) {
   React.useEffect(() => {
     if (playback.data && ['missing', 'unavailable'].includes(playback.data.status)) recover();
   }, [playback.data, recover]);
+  React.useEffect(() => {
+    if (playback.isError) recover();
+  }, [playback.isError, recover]);
   const choose = (episode: string, source: string) => {
     position.current = 0;
     lastPosition.current = 0;

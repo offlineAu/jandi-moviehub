@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import * as React from 'react';
+import { HOME_TRENDING } from '@/components/home/home-rails';
 import { EASE_EXPO } from '@/components/motion/reveal';
 import { Artwork } from '@/components/movies/artwork';
 import { Kbd, SearchInput } from '@/components/ui/search-input';
@@ -59,7 +60,9 @@ function useSearchResults(text: string, open: boolean) {
     retry: false,
   });
   // Shown before typing: what everyone is watching (usually already cached by the home page).
-  const trending = useMovies({ category: 'trending', pageSize: 20 }, { enabled: open });
+  // Observed only once opened: this box renders in the layout, before the home page's
+  // server-prefetched trending list, and must not pre-create that list's cache entry.
+  const trending = useMovies(open ? HOME_TRENDING : null);
 
   const movieResults: Result[] = (movies.isPlaceholderData ? [] : (movies.data?.items ?? []))
     .slice(0, 6)

@@ -486,7 +486,10 @@
   }
 }
 
-/* Logo mark: the echo glyphs converge into one (see components/layout/logo.tsx). */
+/*
+ * Logo mark: the trailing frames slide in from behind and settle into line (see
+ * components/layout/logo.tsx). `--sync-from` is how far behind each frame starts.
+ */
 @keyframes sync-in {
   from {
     opacity: 0;

@@ -5,9 +5,12 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * The Jandi mark: three play glyphs that slide together and lock into one — every screen in the
- * room on the same frame. On load the echoes converge ("sync in"); on hover they drift apart and
- * snap back. `loop` keeps them breathing in and out (route loader).
+ * The Jandi mark: three frames of one picture, trailing behind each other as they converge —
+ * every screen in the room finding the same frame. The nearest frame is solid; the two behind
+ * it fade, so the mark still reads as a single play arrow at favicon size.
+ *
+ * On load the trailing frames slide in from the left and settle into the line ("sync in"); on
+ * hover they drift apart again; `loop` keeps them breathing, in and out of sync.
  */
 export function LogoMark({
   className,
@@ -46,33 +49,34 @@ export function LogoMark({
       </defs>
       <rect width="40" height="40" rx="11.5" fill={`url(#${id}-tile)`} />
       <rect width="40" height="40" rx="11.5" fill={`url(#${id}-shine)`} />
-      <g
-        fill="#fff"
-        stroke="#fff"
-        strokeWidth="3"
-        strokeLinejoin="round"
-        transform="translate(1.75 0)"
-      >
+      {/* The two trailing frames are soft ghosts; the frame in focus is drawn crisply. */}
+      <g fill="#fff">
+        {/* The furthest frame. */}
         <path
-          d="M9 13v14l10.5-7z"
-          opacity="0.3"
-          style={{ '--sync-from': '-5px', transformBox: 'fill-box' } as React.CSSProperties}
+          d="M10.90 12.90 Q9.80 13.60 9.80 14.20 V25.80 Q9.80 26.40 10.90 27.10 L18.90 18.40 Q20.60 19.20 20.60 20.00 Q20.60 20.80 18.90 21.60 Z"
+          opacity="0.22"
+          style={{ '--sync-from': '-8px', transformBox: 'fill-box' } as React.CSSProperties}
           className={cn(
             echo,
             'transition-transform duration-500 ease-[var(--ease-expo)] group-hover/logo:-translate-x-[2.5px]',
           )}
         />
+        {/* The middle frame. */}
         <path
-          d="M12.5 13v14l10.5-7z"
-          opacity="0.58"
-          style={{ '--sync-from': '-3px', transformBox: 'fill-box' } as React.CSSProperties}
+          d="M14.30 12.90 Q13.20 13.60 13.20 14.20 V25.80 Q13.20 26.40 14.30 27.10 L22.30 18.40 Q24.00 19.20 24.00 20.00 Q24.00 20.80 22.30 21.60 Z"
+          opacity="0.5"
+          style={{ '--sync-from': '-4px', transformBox: 'fill-box' } as React.CSSProperties}
           className={cn(
             echo,
-            '[animation-delay:60ms] transition-transform duration-500 ease-[var(--ease-expo)] group-hover/logo:-translate-x-[1.25px]',
+            '[animation-delay:70ms] transition-transform duration-500 ease-[var(--ease-expo)] group-hover/logo:-translate-x-[1.25px]',
           )}
         />
+        {/* The frame in focus. */}
         <path
-          d="M16 13v14l10.5-7z"
+          d="M17.70 12.90 Q16.60 13.60 16.60 14.20 V25.80 Q16.60 26.40 17.70 27.10 L25.70 18.40 Q27.40 19.20 27.40 20.00 Q27.40 20.80 25.70 21.60 Z"
+          stroke="#fff"
+          strokeWidth="2.2"
+          strokeLinejoin="round"
           className="origin-center transition-transform duration-500 ease-[var(--ease-expo)] [transform-box:fill-box] group-hover/logo:scale-110"
         />
       </g>
@@ -92,14 +96,16 @@ export function Logo({ className, compact }: { className?: string; compact?: boo
     >
       <LogoMark className="size-8 transition-transform duration-500 ease-[var(--ease-expo)] group-hover/logo:-rotate-6 group-active/logo:scale-95" />
       {compact ? null : (
-        // The space lives inside the second word so the visible text matches the accessible
-        // name; a flex gap alone would render the two words as one string.
-        <span className="flex items-baseline leading-none">
+        // The name is one word; the descriptor is a film-credit line, set off by a hairline.
+        // The descriptor carries the space so the visible text reads as the product name.
+        <span className="flex items-center leading-none">
           <span className="text-brand text-[21px] font-bold tracking-[-0.045em]">Jandi</span>
-          <span className="ml-[3px] hidden text-[13px] font-medium tracking-[-0.01em] text-muted transition-colors group-hover/logo:text-foreground/80 min-[380px]:inline">
+          <span aria-hidden="true" className="mx-2.5 h-[15px] w-px bg-white/25" />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.19em] text-muted transition-colors group-hover/logo:text-foreground/80">
             {' MovieHub'}
           </span>
-        </span>      )}
+        </span>
+      )}
     </Link>
   );
 }

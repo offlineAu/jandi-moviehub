@@ -37,8 +37,12 @@ export function TvPlayback({
 }) {
   const [provider, setProvider] = React.useState<'moviebox' | 'kisskh'>('kisskh');
   const [nativeFailed, setNativeFailed] = React.useState(false);
+  const [alternatePlayer, setAlternatePlayer] = React.useState(false);
   const capabilities = useRoomSourceCapabilities();
-  React.useEffect(() => setNativeFailed(false), [id, season, episode]);
+  React.useEffect(() => {
+    setNativeFailed(false);
+    setAlternatePlayer(false);
+  }, [id, season, episode]);
   const candidates = useQuery({
     queryKey: ['episode-playback-candidates', id, season, episode],
     queryFn: () =>
@@ -150,7 +154,7 @@ export function TvPlayback({
           </NativeSelect>
         </div>
       )}
-      {provider === 'kisskh' && !availability.data?.playable && (
+      {provider === 'kisskh' && !alternatePlayer && !availability.data?.playable && (
         <ExternalEpisodes
           key={`${id}-${season}-${episode}`}
           title={seriesTitle}
@@ -170,7 +174,18 @@ export function TvPlayback({
         />
       ) : (
         <>
-          {externalPlayer && !availability.data?.playable ? (
+          {alternatePlayer ? (
+            <div className="aspect-video overflow-hidden rounded-2xl bg-black">
+              <iframe
+                className="size-full"
+                src={`https://vidsrc.sh/embed/tv/${encodeURIComponent(id)}/${encodeURIComponent(season)}/${encodeURIComponent(episode)}`}
+                title={`Alternative third-party player: ${title}`}
+                allow="fullscreen; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </div>
+          ) : externalPlayer && !availability.data?.playable ? (
             <div>
               <div
                 ref={externalContainer}
@@ -282,6 +297,20 @@ export function TvPlayback({
             </div>
           )}
         </>
+      )}
+      {provider === 'kisskh' && !availability.data?.playable && (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setAlternatePlayer((value) => !value)}
+          >
+            {alternatePlayer ? 'Return to original player' : 'Try another player'}
+          </Button>
+          <p className="text-sm text-muted">
+            Availability and episode numbering may differ between players.
+          </p>
+        </div>
       )}
       {belowPlayer}
     </>

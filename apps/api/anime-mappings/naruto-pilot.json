@@ -17,5 +17,24 @@
         "enabled": true
       }
     ]
+  },
+  {
+    "catalogKey": "myanimelist.net:20",
+    "key": "2",
+    "label": "Episode 2",
+    "ordinal": 2,
+    "sources": [
+      {
+        "adapterId": "yastream-kisskh",
+        "providerType": "series",
+        "providerId": "kisskh:1263:1:2",
+        "streamName": "yastream\nkisskh",
+        "edition": "naruto-original",
+        "audioLanguage": "ja",
+        "evidence": "KissKH lists Naruto series 1263 episode 2 as episode ID 34827; loopback Chromium start, pause, seek and resume tested on 2026-11-15. Edition, audio, subtitles, mobile and production origin not independently verified.",
+        "verified": false,
+        "enabled": false
+      }
+    ]
   }
 ]

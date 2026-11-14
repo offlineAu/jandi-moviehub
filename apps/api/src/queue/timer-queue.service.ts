@@ -13,7 +13,12 @@ import type { Redis } from 'ioredis';
 import { InjectRedis, RedisFactory } from '../redis/redis.module';
 
 export type TimerJobName =
-  'playback-end' | 'marathon-phase' | 'marathon-scheduled' | 'host-grace' | 'room-reminder';
+  | 'playback-end'
+  | 'marathon-phase'
+  | 'marathon-scheduled'
+  | 'host-grace'
+  | 'room-reminder'
+  | 'room-expiry-sweep';
 type Handler = (data: Record<string, unknown>, job: Job) => Promise<void>;
 
 /**

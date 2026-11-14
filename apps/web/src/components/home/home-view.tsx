@@ -11,7 +11,12 @@ import { ErrorState } from '@/components/ui/error-state';
 import { useMe } from '@/lib/queries/auth';
 import { useMovies } from '@/lib/queries/catalog';
 import { useContinueWatching } from '@/lib/queries/library';
-import type { MovieListParams } from '@/lib/types';
+import {
+  HOME_CATEGORY_RAILS,
+  HOME_READY_TO_STREAM,
+  HOME_TRENDING,
+  type HomeCategoryRail,
+} from './home-rails';
 import { ValueProp } from './value-prop';
 import { YourRoomsRail } from './your-rooms-rail';
 
@@ -30,18 +35,8 @@ function SeeAll({ href }: { href: string }) {
   );
 }
 
-function CategoryRail({
-  title,
-  description,
-  params,
-  href,
-}: {
-  title: string;
-  description?: string;
-  params: MovieListParams;
-  href: string;
-}) {
-  const query = useMovies({ pageSize: 20, ...params });
+function CategoryRail({ title, description, params, href }: HomeCategoryRail) {
+  const query = useMovies(params);
   return (
     <MovieRail
       title={title}
@@ -76,7 +71,7 @@ function ContinueWatchingRail() {
 
 export function HomeView() {
   const me = useMe();
-  const trending = useMovies({ category: 'trending', pageSize: 20 });
+  const trending = useMovies(HOME_TRENDING);
   const user = me.data;
   const items = trending.data?.items;
   const withBackdrop = items?.filter((m) => m.backdropUrl) ?? [];
@@ -118,33 +113,11 @@ export function HomeView() {
           onRetry={() => void trending.refetch()}
           action={<SeeAll href="/browse?sort=popularity" />}
         />
-        <CategoryRail
-          title="Ready to stream"
-          description="Licensed titles you can play right now — solo or in a watch party."
-          params={{ playable: true, sort: 'popularity' }}
-          href="/browse?playable=true"
-        />
+        <CategoryRail {...HOME_READY_TO_STREAM} />
         {!me.isLoading && !user ? <ValueProp posters={items} /> : null}
-        <CategoryRail
-          title="Recently released"
-          params={{ category: 'recent' }}
-          href="/browse?sort=release"
-        />
-        <CategoryRail
-          title="Popular"
-          params={{ category: 'popular' }}
-          href="/browse?sort=popularity"
-        />
-        <CategoryRail
-          title="Top rated"
-          params={{ category: 'top-rated' }}
-          href="/browse?sort=rating"
-        />
-        <CategoryRail
-          title="Coming soon"
-          params={{ category: 'upcoming' }}
-          href="/browse?sort=release"
-        />
+        {HOME_CATEGORY_RAILS.map((rail) => (
+          <CategoryRail key={rail.title} {...rail} />
+        ))}
         <GenreChips />
       </div>
     </div>

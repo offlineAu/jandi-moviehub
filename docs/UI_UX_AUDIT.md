@@ -160,6 +160,34 @@ Running axe against `/search` (which the a11y suite does not cover) found:
 `text-brand` existed in the stylesheet but was never used. The "Jandi" wordmark is now painted
 with it, so the wordmark carries the same gradient as the logo tile instead of plain white.
 
+### 3.9 The mark and the wordmark were redesigned
+
+The mark was three outlined play glyphs stacked on top of each other. At 16 px — the favicon and
+the installed app icon — the outlines merged into an unreadable blob, and on hover the glyphs
+drifted apart into something that no longer read as a play arrow.
+
+The mark is now **three frames of one picture trailing behind each other**: the nearest frame
+crisp and stroked, the two behind it soft ghosts. The silhouette reads as a single arrow at every
+size while still carrying the original idea — every screen in the room finding the same frame.
+Candidate marks (aperture/iris, projector beam, knocked-out lens, film-sprocket strip,
+viewfinder, three converging frames) were each rendered at 96, 64, 32 and 16 px and on a light
+tab bar before choosing; the trail was the only one that stayed legible at 16 px.
+
+The wordmark became a **film-credit lockup**: "Jandi" in the brand gradient, a hairline rule,
+then "MOVIEHUB" tracked out in small caps. It replaces a gradient word beside a smaller muted
+descriptor set in a different size and face, which read as two unrelated pieces of type rather
+than one name.
+
+Measured after the change:
+
+| Check | Result |
+| --- | --- |
+| Mark at 16 px on a light tab bar | reads as a play arrow |
+| Mark at 32 px (nav) | three frames distinguishable, front one crisp |
+| Visible text vs accessible name | both "Jandi MovieHub" — no `label-content-name-mismatch` |
+| Hover | trailing frames translate −2.5 px / −1.25 px, front frame scales to 1.1 |
+| `icon.svg` | redrawn to match, so favicon and app icon are the new mark |
+
 ---
 
 ## 4. Bugs found while verifying (outside the UI work)

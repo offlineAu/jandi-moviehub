@@ -31,13 +31,19 @@ export function HeroBillboard({ movies, eyebrow }: { movies: MovieSummary[]; eye
   const off = useMotionOff();
   const [index, setIndex] = React.useState(0);
   const [hovering, setHovering] = React.useState(false);
+  // The first slide shows sharp immediately (it is the page's largest paint); later slides
+  // arrive through the soft blur cut.
+  const [rotated, setRotated] = React.useState(false);
   const count = movies.length;
   const movie = movies[Math.min(index, count - 1)];
   const rotating = count > 1 && !off && !hovering;
 
   React.useEffect(() => {
     if (!rotating) return;
-    const t = window.setTimeout(() => setIndex((i) => (i + 1) % count), SLIDE_MS);
+    const t = window.setTimeout(() => {
+      setRotated(true);
+      setIndex((i) => (i + 1) % count);
+    }, SLIDE_MS);
     return () => window.clearTimeout(t);
   }, [rotating, index, count]);
 
@@ -76,8 +82,13 @@ export function HeroBillboard({ movies, eyebrow }: { movies: MovieSummary[]; eye
           <AnimatePresence initial={false} mode="popLayout">
             <motion.div
               key={movie.id}
-              className="absolute inset-0 blur-in"
-              style={{ '--blur-in-radius': '12px', '--blur-in-duration': '1400ms' } as React.CSSProperties}
+              className={rotated ? 'absolute inset-0 blur-in' : 'absolute inset-0'}
+              style={
+                {
+                  '--blur-in-radius': '12px',
+                  '--blur-in-duration': '1400ms',
+                } as React.CSSProperties
+              }
               initial={{ opacity: 0, scale: 1.08 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, filter: 'blur(6px)' }}

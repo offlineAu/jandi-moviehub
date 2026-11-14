@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { roomTitleSchema } from '@jandi/shared';
+import { roomTitleSchema, selectionTitle } from '@jandi/shared';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import * as React from 'react';
@@ -10,6 +10,7 @@ import { BackLink } from '@/components/ui/back-link';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/error-state';
 import { cn, formatDate, formatRuntime } from '@/lib/utils';
+import { useRoomSourceCapabilities, useRoomSourceCheck } from '@/lib/queries/room-sources';
 import { RecordTvVisit } from './recent-tv';
 import {
   EpisodeListSkeleton,
@@ -49,6 +50,14 @@ function CatalogEpisodeWatch({
   const [browseSeason, setBrowseSeason] = React.useState(seasonNo);
   React.useEffect(() => setBrowseSeason(seasonNo), [seasonNo]);
   const browsing = useTvSeason(id, browseSeason);
+  const capabilities = useRoomSourceCapabilities();
+  const roomSource = useRoomSourceCheck(
+    { tvId: Number(id), season: seasonNo, episode: episodeNo },
+    !!capabilities.data?.vidsrcSync &&
+      Number.isInteger(Number(id)) &&
+      seasonNo >= 0 &&
+      episodeNo > 0,
+  );
 
   // Keep the playing episode in view inside the scrolling list.
   const listRef = React.useRef<HTMLOListElement>(null);
@@ -90,6 +99,15 @@ function CatalogEpisodeWatch({
   const title = ep && !/^episode\s+\d+$/i.test(ep.title.trim()) ? ep.title : `Episode ${episodeNo}`;
   const meta = [formatDate(ep?.airDate), formatRuntime(ep?.runtimeMin)].filter(Boolean);
   const roomTitle = `moviebox:${id}:${seasonNo}:${episodeNo}`;
+  const externalRoomTitle = roomSource.data?.listed
+    ? selectionTitle({
+        provider: 'vidsrc',
+        type: 'tv',
+        tvId: Number(id),
+        season: seasonNo,
+        episode: episodeNo,
+      })
+    : null;
 
   return (
     <div className="px-4 pb-10 pt-5 sm:px-6 lg:px-10">
@@ -131,9 +149,11 @@ function CatalogEpisodeWatch({
                     <StepButton to={next} seriesId={id} dir="next" />
                   </nav>
                 </div>
-                {roomTitleSchema.safeParse(roomTitle).success && (
+                {(roomTitleSchema.safeParse(roomTitle).success || externalRoomTitle) && (
                   <Button asChild variant="secondary" className="mt-4">
-                    <Link href={`/rooms/new?movieId=${encodeURIComponent(roomTitle)}`}>
+                    <Link
+                      href={`/rooms/new?movieId=${encodeURIComponent(roomTitleSchema.safeParse(roomTitle).success ? roomTitle : externalRoomTitle!)}`}
+                    >
                       Watch together
                     </Link>
                   </Button>

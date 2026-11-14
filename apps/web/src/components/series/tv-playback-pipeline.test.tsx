@@ -50,3 +50,31 @@ it('tries the canonical episode embed after a local player fails', async () => {
     'https://vidsrc.sh/embed/tv/1399/2/3',
   );
 });
+
+it('lets viewers switch players when a third-party embed reports an error', async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path) => {
+    if (path.endsWith('/availability')) return { playable: false };
+    if (path === '/external-series/search') return { items: [] };
+    throw new Error(`Unexpected request: ${path}`);
+  });
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <TvPlayback
+        id="67075"
+        season="1"
+        episode="1"
+        title="Mob Psycho 100"
+        seriesTitle="Mob Psycho 100"
+        still={null}
+      />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Try another player' }));
+  expect(
+    screen.getByTitle('Alternative third-party player: Mob Psycho 100').getAttribute('src'),
+  ).toBe('https://vidsrc.sh/embed/tv/67075/1/1');
+  fireEvent.click(screen.getByRole('button', { name: 'Return to original player' }));
+  expect(screen.queryByTitle('Alternative third-party player: Mob Psycho 100')).toBeNull();
+});

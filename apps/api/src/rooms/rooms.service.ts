@@ -1,5 +1,5 @@
 import { parseRoomTvTitle, parseExternalTitle, selectionTitle } from '@jandi/shared';
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit, type OnApplicationBootstrap } from '@nestjs/common';
 import {
   type CreateRoomInput,
   SocketEvents,
@@ -7,6 +7,7 @@ import {
   type RoomRole,
 } from '@jandi/shared';
 import { Prisma, type Room, type RoomMember } from '@prisma/client';
+import { TvMetadataService } from '../catalog/tv.service';
 import { SettingsService } from '../admin/settings.service';
 import { AuditService } from '../common/audit.service';
 import type { AuthUser } from '../common/auth-context';
@@ -50,6 +51,7 @@ export const movieBrief = (m: MovieBriefRow | null) =>
 const roomInclude = {
   host: { include: { profile: true } },
   movie: { select: movieBriefSelect },
+  playbackState: { select: { tvEpisode: true, externalMedia: true } },
   _count: { select: { members: { where: { leftAt: null } } } },
 } satisfies Prisma.RoomInclude;
 type RoomRow = Prisma.RoomGetPayload<{ include: typeof roomInclude }>;
@@ -62,7 +64,7 @@ export interface ActiveMembership {
 const HOST_GRACE_SEC_DEFAULT = 60;
 
 @Injectable()
-export class RoomsService implements OnModuleInit {
+export class RoomsService implements OnModuleInit, OnApplicationBootstrap {
   private readonly logger = new Logger(RoomsService.name);
 
   constructor(
@@ -75,15 +77,122 @@ export class RoomsService implements OnModuleInit {
     private readonly config: AppConfig,
     private readonly friendships: FriendshipQuery,
     private readonly settings: SettingsService,
+    private readonly tv: TvMetadataService,
   ) {}
 
   onModuleInit() {
+    this.timers.register('room-expiry-sweep', () => this.sweepInactiveRooms());
     this.timers.register('host-grace', (data) =>
       this.handleHostGrace(String(data.roomId), String(data.hostId)),
     );
     this.timers.register('room-reminder', (data) =>
       this.sendScheduledReminder(String(data.roomId)),
     );
+  }
+
+  async onApplicationBootstrap() {
+    await this.timers.schedule('room-expiry-sweep', 'global', {}, 1000);
+  }
+
+  private async sweepInactiveRooms() {
+    try {
+      const now = Date.now();
+      const warningCutoff = new Date(now - 23 * 86400000);
+      const expiredCutoff = new Date(now - 30 * 86400000);
+      const rooms = await this.prisma.room.findMany({
+        where: { status: 'OPEN', lastActiveAt: { lte: warningCutoff } },
+        select: { id: true, code: true, name: true, hostId: true, lastActiveAt: true },
+      });
+      for (const room of rooms) {
+        if (room.lastActiveAt <= expiredCutoff) {
+          const closed = await this.prisma.room.updateMany({
+            where: { id: room.id, status: 'OPEN', lastActiveAt: room.lastActiveAt },
+            data: { status: 'CLOSED', closedAt: new Date() },
+          });
+          if (closed.count) {
+            await this.events.roomClosed(room.id);
+            this.emitter.toRoom(room.id, SocketEvents.ROOM_CLOSED, {
+              roomId: room.id,
+              by: 'expiry',
+            });
+            this.emitter.io?.in(`room:${room.id}`).socketsLeave(`room:${room.id}`);
+          }
+        } else {
+          const link = `/rooms/${room.code}`;
+          const members = await this.prisma.roomMember.findMany({
+            where: { roomId: room.id, leftAt: null, user: { isGuest: false } },
+            select: { userId: true },
+          });
+          for (const member of members) {
+            const existing = await this.prisma.notification.findFirst({
+              where: {
+                userId: member.userId,
+                type: 'SYSTEM',
+                link,
+                title: 'Room expiring soon',
+                createdAt: { gte: room.lastActiveAt },
+              },
+              select: { id: true },
+            });
+            if (!existing)
+              await this.notifications.notify(member.userId, {
+                type: 'SYSTEM',
+                title: 'Room expiring soon',
+                link,
+                body: `${room.name} will close after 30 days of inactivity. Open the room to keep it active.`,
+              });
+          }
+        }
+      }
+    } finally {
+      await this.timers.schedule('room-expiry-sweep', 'global', {}, 3600000);
+    }
+  }
+
+  async touchActivity(roomId: string) {
+    const result = await this.prisma.room.updateMany({
+      where: { id: roomId, status: 'OPEN' },
+      data: { lastActiveAt: new Date() },
+    });
+    if (!result.count) throw Errors.conflict('ROOM_CLOSED', 'This room has been closed');
+  }
+
+  private async selectedTitle(room: RoomRow) {
+    if (room.movie) return movieBrief(room.movie);
+    const external = room.playbackState?.externalMedia as {
+      type?: string;
+      tvId?: number;
+      sourceId?: string;
+    } | null;
+    const episode = room.playbackState?.tvEpisode as { tvId?: string } | null;
+    if (external?.type === 'anime' && external.sourceId) {
+      const source = await this.prisma.animeSource.findUnique({
+        where: { id: external.sourceId },
+        include: { episode: { include: { title: true } } },
+      });
+      if (source)
+        return {
+          id: source.episode.title.id,
+          title: source.episode.title.title,
+          posterUrl: source.episode.title.posterUrl,
+          backdropUrl: null,
+          year: null,
+          runtimeMin: null,
+          isDemo: false,
+        };
+    }
+    const tvId = external?.type === 'tv' ? external.tvId : Number(episode?.tvId);
+    if (!tvId) return null;
+    const result = await this.tv.detail(tvId).catch(() => null);
+    return {
+      id: String(tvId),
+      title: result?.series.title ?? (tvId === 71446 ? 'Money Heist' : 'Series'),
+      posterUrl: result?.series.posterUrl ?? null,
+      backdropUrl: result?.series.backdropUrl ?? null,
+      year: null,
+      runtimeMin: null,
+      isDemo: false,
+    };
   }
 
   get hostGraceSec() {
@@ -114,7 +223,7 @@ export class RoomsService implements OnModuleInit {
       lastActiveAt: room.lastActiveAt,
       requiresPassword: room.visibility === 'PASSWORD',
       host: publicUser(room.host as UserWithProfile),
-      movie: movieBrief(room.movie),
+      movie: await this.selectedTitle(room),
       memberCount: room._count.members,
       onlineCount: extra.onlineCount ?? (await this.onlineCount(room.id)),
       membership:
@@ -270,7 +379,8 @@ export class RoomsService implements OnModuleInit {
           throw error;
         }
         if (room.scheduledFor) await this.scheduleReminder(room.id, room.scheduledFor);
-        return this.toDto(room, user.id, { onlineCount: 0 });
+        const saved = await this.findRow({ id: room.id });
+        return this.toDto(saved!, user.id, { onlineCount: 0 });
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
           continue;

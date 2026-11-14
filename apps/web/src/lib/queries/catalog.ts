@@ -1,6 +1,6 @@
 'use client';
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, skipToken, useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../api';
 import type {
   CatalogInfo,
@@ -13,6 +13,7 @@ import type {
   PlaybackSource,
 } from '../types';
 import { qk } from './keys';
+import { movieListQuery } from './movie-list';
 
 export function useCatalogInfo() {
   return useQuery({
@@ -30,24 +31,24 @@ export function useGenres() {
   });
 }
 
-export function useMovies(params: MovieListParams, options: { enabled?: boolean } = {}) {
+/** Key held while `useMovies(null)`: no request and no cache entry for a real list. */
+const IDLE_MOVIES_KEY = ['catalog', 'movies', 'idle'] as const;
+
+/**
+ * A movie list. Pass `null` to observe nothing yet: unlike `enabled: false`, that does not create
+ * a cache entry for the list, so a later `HydrationBoundary` carrying the same list (e.g. the
+ * home page's server prefetch) can hydrate it during render rather than after an effect.
+ */
+export function useMovies(params: MovieListParams | null, options: { enabled?: boolean } = {}) {
   return useQuery({
-    queryKey: qk.movies(params),
-    queryFn: ({ signal }) =>
-      apiFetch<Paginated<MovieSummary>>('/movies', {
-        signal,
-        query: {
-          category: params.category,
-          genre: params.genre,
-          q: params.q,
-          year: params.year,
-          minRating: params.minRating,
-          playable: params.playable ? 'true' : undefined,
-          sort: params.sort,
-          page: params.page,
-          pageSize: params.pageSize,
-        },
-      }),
+    queryKey: params ? qk.movies(params) : IDLE_MOVIES_KEY,
+    queryFn: params
+      ? ({ signal }) =>
+          apiFetch<Paginated<MovieSummary>>('/movies', {
+            signal,
+            query: movieListQuery(params),
+          })
+      : skipToken,
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
     enabled: options.enabled ?? true,

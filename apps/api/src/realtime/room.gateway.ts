@@ -261,6 +261,7 @@ export class RoomGateway
       const { roomId } = roomRef.parse(body);
       const user = socket.data.user;
       const { room, member } = await this.rooms.requireMember(roomId, user.id);
+      await this.rooms.touchActivity(roomId);
       await socket.join(roomChannel(roomId));
       socket.data.rooms.add(roomId);
       await this.presence.setWatching(user.id, roomId);
@@ -466,7 +467,9 @@ export class RoomGateway
       });
       await this.presence.setWatching(socket.data.user.id, p.roomId);
       if (changed) this.schedulePresence(p.roomId);
-      if (state.movieId && !socket.data.user.isGuest)
+      if (await this.redis.set(`activity:${p.roomId}`, '1', 'EX', 300, 'NX'))
+        await this.rooms.touchActivity(p.roomId);
+      if (state.movieId && !socket.data.user.isGuest && state.version === p.version && !p.buffering)
         await this.recordHistory(
           socket.data.user.id,
           p.roomId,
@@ -478,7 +481,7 @@ export class RoomGateway
     });
   }
 
-  /** Room viewing counts toward watch history; written at most every 30 s per member. */
+  /** Room viewing counts toward watch history; written at most every 10 s per member and title. */
   private async recordHistory(
     userId: string,
     roomId: string,
@@ -486,7 +489,7 @@ export class RoomGateway
     positionSec: number,
     durationSec: number | null,
   ) {
-    const fresh = await this.redis.set(`hist:${roomId}:${userId}`, '1', 'EX', 30, 'NX');
+    const fresh = await this.redis.set(`hist:${roomId}:${userId}:${movieId}`, '1', 'EX', 10, 'NX');
     if (fresh)
       await this.history.recordProgress(userId, movieId, positionSec, durationSec ?? undefined);
   }

@@ -231,12 +231,20 @@ export function WatchRoom({ room }: { room: Room }) {
         {overlay}
       </div>
     );
-  } else if ((sources.isLoading || sources.data?.status === 'pending') || (sources.isFetching && playerFailed)) {
+  } else if (
+    sources.isLoading ||
+    sources.data?.status === 'pending' ||
+    (sources.isFetching && playerFailed)
+  ) {
     stage = (
       <div className="grid aspect-video place-items-center bg-black text-muted">
         <div className="grid justify-items-center gap-3 px-6 text-center">
           <Spinner className="size-8" label="Loading the stream" />
-          {sources.data?.status === 'pending' && <p className="text-sm">Preparing the stream. A sleeping service may take up to 90 seconds.</p>}
+          {sources.data?.status === 'pending' && (
+            <p className="text-sm">
+              Preparing the stream. A sleeping service may take up to 90 seconds.
+            </p>
+          )}
           {playback?.tvEpisode?.provider === 'kisskh-direct' ||
           playback?.externalMedia?.provider === 'kisskh-direct' ? (
             <p className="text-sm">Starting KissKH. This can take about a minute.</p>
@@ -499,7 +507,7 @@ export function WatchRoom({ room }: { room: Room }) {
             {isHost ? (
               <DropdownMenuItem destructive onSelect={() => setConfirm('close')}>
                 <Power aria-hidden="true" />
-                Close room for everyone
+                Dissolve room for everyone
               </DropdownMenuItem>
             ) : null}
           </DropdownMenuContent>
@@ -581,7 +589,16 @@ export function WatchRoom({ room }: { room: Room }) {
           {assetKey ? (
             <div className={cn('px-3 pb-3 sm:px-6', !(theater && desktop) && 'mx-auto max-w-5xl')}>
               {playback?.externalMedia?.provider === 'anime' ? (
-                <AnimeRoomNavigation roomId={room.id} sourceId={playback.externalMedia.sourceId} socket={session.socket} engine={engine} canControl={canControl} isHost={isHost} ended={playback.status === 'ended'} marathonActive={marathonActive} />
+                <AnimeRoomNavigation
+                  roomId={room.id}
+                  sourceId={playback.externalMedia.sourceId}
+                  socket={session.socket}
+                  engine={engine}
+                  canControl={canControl}
+                  isHost={isHost}
+                  ended={playback.status === 'ended'}
+                  marathonActive={marathonActive}
+                />
               ) : playback?.tvEpisode?.numbering === 'provider' ? (
                 <ProviderEpisodeBar
                   roomId={room.id}
@@ -726,15 +743,15 @@ export function WatchRoom({ room }: { room: Room }) {
       <ConfirmDialog
         open={confirm === 'close'}
         onOpenChange={(o) => !o && setConfirm(null)}
-        title="Close the room for everyone?"
+        title="Dissolve the room for everyone?"
         description="Playback stops and everyone is sent back to Watch parties. This can’t be undone."
-        confirmLabel="Close room"
-        pendingLabel="Closing"
+        confirmLabel="Dissolve room"
+        pendingLabel="Dissolving"
         pending={close.isPending}
         onConfirm={() =>
           close.mutate(room.id, {
             onSuccess: () => {
-              toast.success('Room closed');
+              toast.success('Room dissolved');
               router.push('/rooms');
             },
             onError: (e) => toast.error(errorMessage(e)),

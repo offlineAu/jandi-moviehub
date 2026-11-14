@@ -245,3 +245,24 @@ multi-browser Playwright test), behaviour over real networks/latency.
   both existing and unknown emails) and HTML alternative stored by the dev transport.
 - Web: `register-form.test.tsx` 3 passed (new: failed-delivery toast).
 - Not run: full integration suite, E2E, live Resend delivery (no verified domain).
+
+## 2026-11-15 — Home page load performance
+
+- Web + API typecheck and lint: pass. Web unit: 137 passed (34 files), incl. new
+  `tmdb-image.test.ts`. API unit: 196 passed (38 files), incl. 6 new
+  `tmdb.client.test.ts` cases (stale served + single background refresh, stale kept on refresh
+  failure, fresh not refetched, fresh+stale TTL, unreadable entry = miss, concurrent misses share
+  one request).
+- Playwright, dev server (`next dev`) against a fresh API build, 1440×900, new browser context per
+  run. Before: skeletons cleared at ~1.15s cold / ~0.7s warm; 6 client `/movies` requests after
+  ~0.5s hydration; last poster at ~3.8s via `/_next/image` (250–1200ms server wait each).
+  After (3 runs): skeletons cleared at 122–391ms, hero image 733–831ms, LCP 800–900ms, last
+  TMDB image ≤951ms; 0 client `/movies` requests, 0 optimizer requests, no hydration errors (only
+  the expected anonymous `/auth/me` 401).
+- API: stale trending entry served in 8ms and refreshed in the background (Redis TTL 108000s);
+  5 concurrent cold misses all answered in ~0.18s.
+- Production build (`pnpm --filter @jandi/web build`): `/` is `○` static, Revalidate 5m. The
+  prerendered HTML holds all lists (0 skeletons, 0 `/_next/image` URLs; 482KB raw, 47KB gzip).
+  `next start`: three visits all `x-nextjs-cache: HIT`, `s-maxage=300`, ~6ms.
+- Not run: the failed-regeneration path at runtime (API down after 5 minutes), integration and
+  E2E suites.

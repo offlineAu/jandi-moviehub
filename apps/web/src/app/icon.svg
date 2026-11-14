@@ -12,9 +12,9 @@
   </defs>
   <rect width="40" height="40" rx="11.5" fill="url(#t)"/>
   <rect width="40" height="40" rx="11.5" fill="url(#s)"/>
-  <g fill="#fff" stroke="#fff" stroke-width="3" stroke-linejoin="round" transform="translate(1.75 0)">
-    <path d="M9 13v14l10.5-7z" opacity="0.3"/>
-    <path d="M12.5 13v14l10.5-7z" opacity="0.58"/>
-    <path d="M16 13v14l10.5-7z"/>
+  <g fill="#fff">
+    <path d="M10.90 12.90 Q9.80 13.60 9.80 14.20 V25.80 Q9.80 26.40 10.90 27.10 L18.90 18.40 Q20.60 19.20 20.60 20.00 Q20.60 20.80 18.90 21.60 Z" opacity="0.22"/>
+    <path d="M14.30 12.90 Q13.20 13.60 13.20 14.20 V25.80 Q13.20 26.40 14.30 27.10 L22.30 18.40 Q24.00 19.20 24.00 20.00 Q24.00 20.80 22.30 21.60 Z" opacity="0.5"/>
+    <path d="M17.70 12.90 Q16.60 13.60 16.60 14.20 V25.80 Q16.60 26.40 17.70 27.10 L25.70 18.40 Q27.40 19.20 27.40 20.00 Q27.40 20.80 25.70 21.60 Z" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
   </g>
 </svg>
