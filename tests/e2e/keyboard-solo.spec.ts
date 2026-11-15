@@ -48,6 +48,24 @@ test('keyboard: tab to the solo player and toggle play/pause with Space', async 
   await expectPlaying(page);
 });
 
+test('anonymous viewers can play an approved movie without account requests', async ({ page }) => {
+  const movie = await movieByTitle(/Paper Moon Courier/);
+  const accountRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/api\/v1\/(?:history\/progress|movies\/[^/]+\/library-status)/.test(request.url()))
+      accountRequests.push(request.url());
+  });
+  await page.goto(`/movies/${movie.id}`);
+  await page.getByRole('link', { name: 'Watch now' }).click();
+  await expect(page).toHaveURL(new RegExp(`/watch/${movie.id}$`));
+  await expect(player(page)).toHaveAccessibleName('Video player: Paper Moon Courier');
+  await expectPlaying(page);
+  await player(page).focus();
+  await page.keyboard.press('Space');
+  await expectPaused(page);
+  expect(accountRequests).toEqual([]);
+});
+
 test('solo watch saves progress and shows it in “Continue watching”', async ({ page, context }) => {
   const user = await registerUser('solo');
   await loginAs(context, user);

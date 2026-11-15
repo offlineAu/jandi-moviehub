@@ -76,6 +76,7 @@ export class CatalogController {
     return { items: await this.catalog.recommendations(id, user?.id) };
   }
 
+  @Public()
   @RateLimit({ name: 'catalog:playback', limit: 120, windowSec: 60, by: 'user' })
   @Header('Cache-Control', 'no-store')
   @Get('movies/:id/playback')

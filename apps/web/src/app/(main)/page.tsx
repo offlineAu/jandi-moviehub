@@ -3,6 +3,7 @@ import { HOME_MOVIE_LISTS, HOME_TRENDING } from '@/components/home/home-rails';
 import { HomeView } from '@/components/home/home-view';
 import { qk } from '@/lib/queries/keys';
 import { prefetchMovieLists } from '@/lib/queries/prefetch-movies';
+import { sponsorFromEnv } from '@/lib/monetization';
 
 /**
  * Incremental static regeneration: the page (with its movie lists) is rendered at most once per
@@ -26,7 +27,7 @@ export default async function HomePage() {
   }
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <HomeView />
+      <HomeView sponsor={sponsorFromEnv(process.env)} />
     </HydrationBoundary>
   );
 }

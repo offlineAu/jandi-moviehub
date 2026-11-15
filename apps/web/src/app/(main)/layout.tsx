@@ -1,5 +1,6 @@
 import { AppShell } from '@/components/layout/app-shell';
+import { supportUrlFromEnv } from '@/lib/monetization';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  return <AppShell>{children}</AppShell>;
+  return <AppShell supportUrl={supportUrlFromEnv(process.env)}>{children}</AppShell>;
 }

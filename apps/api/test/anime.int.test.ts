@@ -64,11 +64,14 @@ describe('anime catalog and episode navigation', () => {
     const episodes = (await http.get(`/api/v1/anime/${title.id}/episodes`).expect(200)).body
       .episodes;
     expect(episodes[0].sources.map((s: { id: string }) => s.id)).toEqual([first.id]);
-    await http.get(`/api/v1/anime/sources/${first.id}/navigation`).expect(401);
+    expect(
+      (await http.get(`/api/v1/anime/sources/${first.id}/navigation`).expect(200)).body.next,
+    ).toEqual({ sourceId: second.id, label: 'Episode 2' });
     const user = await registerUser(t);
     expect(
       (await user.agent.get(`/api/v1/anime/sources/${first.id}/navigation`).expect(200)).body.next,
     ).toEqual({ sourceId: second.id, label: 'Episode 2' });
-    await user.agent.get(`/api/v1/anime/sources/${unreviewed.id}`).expect(404);
+    await http.get(`/api/v1/anime/sources/${unreviewed.id}`).expect(404);
+    await http.get(`/api/v1/anime/sources/${first.id}`).expect(200);
   });
 });

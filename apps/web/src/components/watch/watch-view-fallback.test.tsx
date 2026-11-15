@@ -7,8 +7,8 @@ import type * as ApiModule from '@/lib/api';
 import { WatchView } from './watch-view';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock('@/components/layout/require-account', () => ({
-  RequireAccount: ({ children }: { children: () => React.ReactNode }) => children(),
+vi.mock('@/lib/queries/auth', () => ({
+  useMe: () => ({ data: { id: 'user', isGuest: false }, isLoading: false }),
 }));
 vi.mock('@/components/player', () => ({
   VideoPlayer: ({

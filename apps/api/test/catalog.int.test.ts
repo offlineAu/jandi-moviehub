@@ -160,10 +160,10 @@ describe('catalog (integration, local provider)', () => {
     expect(animationIdx).toBeLessThan(firstNonAnimation === -1 ? Infinity : firstNonAnimation);
   });
 
-  it('serves signed playback sources to registered users only', async () => {
-    await http().get(`/api/v1/movies/${ids.neonDrift}/playback`).expect(401);
+  it('serves signed playback sources to anonymous visitors, guests and registered users', async () => {
+    await http().get(`/api/v1/movies/${ids.neonDrift}/playback`).expect(200);
     const guest = await createGuest(t);
-    await guest.agent.get(`/api/v1/movies/${ids.neonDrift}/playback`).expect(403);
+    await guest.agent.get(`/api/v1/movies/${ids.neonDrift}/playback`).expect(200);
 
     const u = await registerUser(t);
     const res = await u.agent.get(`/api/v1/movies/${ids.projectionist}/playback`).expect(200);
@@ -183,7 +183,7 @@ describe('catalog (integration, local provider)', () => {
     ]);
     expect(hls).toMatchObject({ format: 'HLS', url: expect.stringMatching(/\/index\.m3u8$/) });
 
-    const notPlayable = await u.agent.get(`/api/v1/movies/${ids.bunny}/playback`).expect(404);
+    const notPlayable = await http().get(`/api/v1/movies/${ids.bunny}/playback`).expect(404);
     expect(notPlayable.body.error.code).toBe('NOT_PLAYABLE');
   });
 
@@ -197,6 +197,7 @@ describe('catalog (integration, local provider)', () => {
     });
     expect(await svc.isPlayable(ids.neonDrift)).toBe(false);
     expect(await svc.getPlaybackSourceForAsset(ids.neonWebm)).toBeNull();
+    await http().get(`/api/v1/movies/${ids.neonDrift}/playback`).expect(404);
     await t.prisma.contentLicense.update({
       where: { id: asset.licenseId },
       data: { validUntil: null, verifiedAt: null },
@@ -208,6 +209,7 @@ describe('catalog (integration, local provider)', () => {
     });
     await t.prisma.mediaAsset.update({ where: { id: ids.neonWebm }, data: { status: 'DISABLED' } });
     expect(await svc.isPlayable(ids.neonDrift)).toBe(false);
+    await http().get(`/api/v1/movies/${ids.neonDrift}/playback`).expect(404);
   });
 
   it('exposes reusable helpers: ordered summaries, runtimes and per-asset sources', async () => {

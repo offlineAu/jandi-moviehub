@@ -4,14 +4,13 @@ import * as React from 'react';
 import { providerEpisode } from '@jandi/shared';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Maximize, Play, RotateCw, Users } from 'lucide-react';
+import { Maximize, RotateCw, Users } from 'lucide-react';
 import { LogoMark } from '@/components/layout/logo';
 import { Artwork } from '@/components/movies/artwork';
 import { VideoPlayer } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
 import { apiFetch } from '@/lib/api';
-import { useMe } from '@/lib/queries/auth';
 import { useRoomSourceCapabilities } from '@/lib/queries/room-sources';
 import type { PlaybackSource } from '@/lib/types';
 import { ExternalEpisodes } from './external-episodes';
@@ -71,7 +70,6 @@ export function TvPlayback({
     }
   };
   const path = `/tv/${encodeURIComponent(id)}/seasons/${encodeURIComponent(season)}/episodes/${encodeURIComponent(episode)}`;
-  const me = useMe();
   const availability = useQuery({
     queryKey: ['tv-playable', id, season, episode],
     queryFn: () => apiFetch<{ playable: boolean; movieId?: string | null }>(`${path}/availability`),
@@ -80,7 +78,7 @@ export function TvPlayback({
   const playback = useQuery({
     queryKey: ['tv-playback', id, season, episode],
     queryFn: () => apiFetch<{ sources: PlaybackSource[] }>(`${path}/playback`),
-    enabled: availability.data?.playable === true && !!me.data && !me.data.isGuest,
+    enabled: availability.data?.playable === true,
     retry: false,
     staleTime: 0,
   });
@@ -246,9 +244,7 @@ export function TvPlayback({
                 </>
               )}
               <div className="relative grid max-w-md justify-items-center gap-4 text-white">
-                {availability.isLoading ||
-                (availability.data?.playable && me.isLoading) ||
-                (playback.isLoading && availability.data?.playable && me.data) ? (
+                {availability.isLoading || (playback.isLoading && availability.data?.playable) ? (
                   <>
                     <LogoMark animate="loop" className="size-12" />
                     <p className="text-sm text-white/80">Checking playback…</p>
@@ -265,18 +261,6 @@ export function TvPlayback({
                   <>
                     <LogoMark animate="loop" className="size-12" />
                     <p className="text-sm text-white/80">{externalStatus}</p>
-                  </>
-                ) : !me.data || me.data.isGuest ? (
-                  <>
-                    <p className="text-lg font-semibold">Sign in to watch this episode</p>
-                    <Button asChild size="lg">
-                      <Link
-                        href={`/login?next=${encodeURIComponent(`/watch/tv/${id}/season/${season}/episode/${episode}`)}`}
-                      >
-                        <Play className="fill-current" aria-hidden="true" />
-                        Sign in
-                      </Link>
-                    </Button>
                   </>
                 ) : (
                   <>

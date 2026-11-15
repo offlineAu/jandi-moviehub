@@ -62,12 +62,14 @@ export class RoomSourcesController {
     private readonly series: ExternalSeriesService,
     private readonly pipeline: PlaybackPipelineService,
   ) {}
+  @Public()
   @RateLimit({ name: 'room-sources:candidates', limit: 60, windowSec: 60, by: 'user' })
   @Header('Cache-Control', 'private, no-store')
   @Get('candidates/movie/:id')
   candidates(@Param('id', ParseUUIDPipe) id: string) {
     return this.pipeline.movie(id);
   }
+  @Public()
   @RateLimit({ name: 'room-sources:episode-candidates', limit: 60, windowSec: 60, by: 'user' })
   @Header('Cache-Control', 'private, no-store')
   @Get('candidates/episode')
@@ -87,6 +89,7 @@ export class RoomSourcesController {
   ) {
     return this.pipeline.episode(query.tvId, query.season, query.episode);
   }
+  @Public()
   @RateLimit({ name: 'room-sources:playback-event', limit: 30, windowSec: 60, by: 'user' })
   @Post('playback-event')
   @HttpCode(204)
@@ -136,7 +139,7 @@ export class RoomSourcesController {
   caption(@Param('token') token: string) {
     return this.kisskhStream.caption(token);
   }
-  @AllowGuest()
+  @Public()
   @RateLimit({ name: 'kisskh:solo', limit: 30, windowSec: 60, by: 'user' })
   @Header('Cache-Control', 'private, no-store')
   @Get('kisskh/movie/:id')
@@ -165,7 +168,7 @@ export class RoomSourcesController {
     };
   }
 
-  @AllowGuest()
+  @Public()
   @RateLimit({ name: 'kisskh:solo-episode', limit: 30, windowSec: 60, by: 'user' })
   @Header('Cache-Control', 'private, no-store')
   @Get('kisskh/episode')

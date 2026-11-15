@@ -82,7 +82,14 @@ export class OAuthService {
   async start(id: string, returnTo = '/') {
     const provider = this.provider(id);
     const state = randomToken(24);
-    const safeReturn = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
+    const hasUnsafeCharacter = [...returnTo].some((char) => {
+      const code = char.charCodeAt(0);
+      return char === '\\' || code < 32 || code === 127;
+    });
+    const safeReturn =
+      returnTo.startsWith('/') && !returnTo.startsWith('//') && !hasUnsafeCharacter
+        ? returnTo
+        : '/';
     await this.redis.set(
       `oauth:state:${state}`,
       JSON.stringify({ provider: id, returnTo: safeReturn }),
@@ -162,20 +169,31 @@ export class OAuthService {
         username: user.login,
       };
     }
-    const info = (await (
-      await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers })
-    ).json()) as {
+    const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers,
+      signal: AbortSignal.timeout(10_000),
+    });
+    const info = (await response.json().catch(() => ({}))) as {
       sub: string;
       email?: string;
       email_verified?: boolean;
       name?: string;
+      hd?: string;
     };
+    if (!response.ok || typeof info.sub !== 'string' || !info.sub)
+      throw Errors.badRequest('OAUTH_PROFILE_FAILED', 'Could not complete sign-in');
+    const email = typeof info.email === 'string' ? info.email.toLowerCase() : null;
     return {
       providerAccountId: info.sub,
-      email: info.email?.toLowerCase() ?? null,
-      emailVerified: !!info.email_verified,
-      name: info.name ?? 'Movie fan',
-      username: (info.email ?? 'fan').split('@')[0]!,
+      email,
+      // Google is not authoritative for non-Gmail addresses unless they belong to a
+      // Google Workspace domain. Do not link existing accounts using those addresses.
+      emailVerified:
+        info.email_verified === true &&
+        !!email &&
+        (email.endsWith('@gmail.com') || (typeof info.hd === 'string' && info.hd.length > 0)),
+      name: typeof info.name === 'string' ? info.name : 'Movie fan',
+      username: (email ?? 'fan').split('@')[0]!,
     };
   }
 

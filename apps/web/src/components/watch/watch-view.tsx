@@ -4,7 +4,6 @@ import { ArrowLeft, Ban, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
-import { RequireAccount } from '@/components/layout/require-account';
 import { Logo } from '@/components/layout/logo';
 import { VideoPlayer, type VideoPlayerHandle } from '@/components/player';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +13,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiFetch, isApiError } from '@/lib/api';
 import { useMovie, usePlayback, useSeriesNavigation } from '@/lib/queries/catalog';
+import { useMe } from '@/lib/queries/auth';
 import { saveProgress, useLibraryStatus } from '@/lib/queries/library';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { qk } from '@/lib/queries/keys';
@@ -90,6 +90,8 @@ function useProgressSaver(
 
 function Watch({ id }: { id: string }) {
   const router = useRouter();
+  const me = useMe();
+  const account = !!me.data && !me.data.isGuest;
   const movie = useMovie(id);
   const playback = usePlayback(id);
   const capabilities = useRoomSourceCapabilities();
@@ -152,6 +154,7 @@ function Watch({ id }: { id: string }) {
         `/movies/${encodeURIComponent(id)}/external-source`,
       ),
     enabled:
+      !me.isLoading &&
       playback.isError &&
       isApiError(playback.error) &&
       playback.error.code === 'NOT_PLAYABLE' &&
@@ -161,7 +164,7 @@ function Watch({ id }: { id: string }) {
     staleTime: 300000,
     retry: false,
   });
-  const status = useLibraryStatus(id);
+  const status = useLibraryStatus(id, account);
   const navigation = useSeriesNavigation(id);
   const playerRef = React.useRef<VideoPlayerHandle>(null);
   const [theater, setTheater] = React.useState(false);
@@ -171,7 +174,7 @@ function Watch({ id }: { id: string }) {
   const sources = playback.data?.sources ?? direct.data?.sources;
   const previousEpisode = navigation.data?.navigation?.previous;
   const nextEpisode = navigation.data?.navigation?.next;
-  const ready = !!sources?.length && !status.isLoading;
+  const ready = account && !!sources?.length && !status.isLoading;
   const onTimeUpdate = useProgressSaver(id, playerRef, ready);
   const reported = React.useRef(new Set<string>());
   const startupAt = React.useRef(0);
@@ -251,7 +254,7 @@ function Watch({ id }: { id: string }) {
     [reportPlayback],
   );
 
-  const progress = status.data?.progress;
+  const progress = account ? status.data?.progress : undefined;
   const startAt =
     progress && !progress.completed && progress.positionSec >= 5 ? progress.positionSec : 0;
   const title = movie.data?.title ?? 'Movie';
@@ -293,7 +296,7 @@ function Watch({ id }: { id: string }) {
   }, [reportPlayback]);
 
   let stage: React.ReactNode;
-  if (playback.isLoading || status.isLoading) {
+  if (playback.isLoading || me.isLoading || (account && status.isLoading)) {
     stage = <Skeleton className="aspect-video w-full rounded-2xl" />;
   } else if (playback.isError && (capabilities.isLoading || pipelineWaiting || direct.isFetching)) {
     stage = <Skeleton className="aspect-video w-full rounded-2xl" />;
@@ -527,7 +530,7 @@ export function WatchView({ id }: { id: string }) {
         </div>
       </header>
       <main id="main" tabIndex={-1} className="pb-16 outline-none">
-        <RequireAccount feature="Streaming">{() => <Watch id={id} />}</RequireAccount>
+        <Watch id={id} />
       </main>
     </div>
   );

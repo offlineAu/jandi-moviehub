@@ -29,13 +29,13 @@ export class AnimeController {
   episodes(@Param('id', ParseUUIDPipe) id: string) {
     return this.anime.episodes(id);
   }
-  @AllowGuest()
+  @Public()
   @Get('sources/:id/navigation')
   @RateLimit({ name: 'anime:navigation', limit: 60, windowSec: 60, by: 'user' })
   navigation(@Param('id', ParseUUIDPipe) id: string) {
     return this.anime.navigation(id);
   }
-  @AllowGuest()
+  @Public()
   @Get('sources/:id')
   @Header('Cache-Control', 'private, no-store')
   @RateLimit({ name: 'anime:playback', limit: 60, windowSec: 60, by: 'user' })

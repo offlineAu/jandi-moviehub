@@ -64,26 +64,6 @@ function WatchButton({
   const status = useLibraryStatus(movie.id, signedIn && !isGuest);
   const progress = status.data?.progress;
   const resumable = progress && !progress.completed && progress.positionSec >= 30;
-  if (!signedIn) {
-    return (
-      <Button asChild size="lg">
-        <Link href={`/login?next=${encodeURIComponent(`/watch/${movie.id}`)}`}>
-          <Play className="fill-current" aria-hidden="true" />
-          Log in to watch
-        </Link>
-      </Button>
-    );
-  }
-  if (isGuest) {
-    return (
-      <Button asChild size="lg">
-        <Link href="/register">
-          <Play className="fill-current" aria-hidden="true" />
-          Create an account to watch
-        </Link>
-      </Button>
-    );
-  }
   return (
     <Magnetic>
       <Button asChild size="lg">
@@ -185,7 +165,9 @@ export function MovieDetailView({ id }: { id: string }) {
         <ParallaxBackdrop strength={0.22}>
           <motion.div
             className="absolute inset-0 blur-in"
-            style={{ '--blur-in-radius': '10px', '--blur-in-duration': '1400ms' } as React.CSSProperties}
+            style={
+              { '--blur-in-radius': '10px', '--blur-in-duration': '1400ms' } as React.CSSProperties
+            }
             initial={{ opacity: 0, scale: 1.08 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1.4, ease: EASE_EXPO }}

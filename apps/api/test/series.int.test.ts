@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPlayableMovie, createUnplayableMovie } from './fixtures';
-import { createTestApp, registerUser, resetState, type TestApp } from './helpers';
+import { createGuest, createTestApp, registerUser, resetState, type TestApp } from './helpers';
 import { TvMetadataService } from '../src/catalog/tv.service';
 
 describe('series and episodes', () => {
@@ -14,6 +14,20 @@ describe('series and episodes', () => {
   });
   beforeEach(async () => {
     await resetState(t);
+  });
+  it('allows anonymous solo provider resolution while room routes remain protected', async () => {
+    const http = request(t.app.getHttpServer());
+    const movieId = '00000000-0000-4000-8000-000000000001';
+    for (const path of [
+      `/api/v1/room-sources/candidates/movie/${movieId}`,
+      '/api/v1/room-sources/candidates/episode?tvId=71446&season=1&episode=1',
+      `/api/v1/room-sources/kisskh/movie/${movieId}`,
+      '/api/v1/room-sources/kisskh/episode?season=1&episode=1&seriesId=1&episodeId=1',
+    ]) {
+      const response = await http.get(path);
+      expect([401, 403]).not.toContain(response.status);
+    }
+    await http.post('/api/v1/rooms').send({}).expect(401);
   });
   it('only streams explicitly linked episode media while its approved license remains valid', async () => {
     const admin = await registerUser(t, { role: 'ADMIN' });
@@ -34,7 +48,9 @@ describe('series and episodes', () => {
       expect(
         (await request(t.app.getHttpServer()).get(`${base}/availability`).expect(200)).body,
       ).toEqual({ playable: true, movieId: movie.id });
-      await request(t.app.getHttpServer()).get(`${base}/playback`).expect(401);
+      await request(t.app.getHttpServer()).get(`${base}/playback`).expect(200);
+      const guest = await createGuest(t);
+      await guest.agent.get(`${base}/playback`).expect(200);
       const response = await user.agent.get(`${base}/playback`).expect(200);
       expect(response.headers['cache-control']).toContain('no-store');
       expect(response.body.sources.length).toBeGreaterThan(0);
@@ -45,7 +61,7 @@ describe('series and episodes', () => {
       expect(
         (await request(t.app.getHttpServer()).get(`${base}/availability`).expect(200)).body,
       ).toEqual({ playable: false, movieId: null });
-      await user.agent.get(`${base}/playback`).expect(404);
+      await request(t.app.getHttpServer()).get(`${base}/playback`).expect(404);
       await user.agent.delete(endpoint).expect(403);
       await admin.agent.delete(endpoint).expect(204);
       expect(

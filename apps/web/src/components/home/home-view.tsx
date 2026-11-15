@@ -11,6 +11,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { useMe } from '@/lib/queries/auth';
 import { useMovies } from '@/lib/queries/catalog';
 import { useContinueWatching } from '@/lib/queries/library';
+import type { Sponsor } from '@/lib/monetization';
 import {
   HOME_CATEGORY_RAILS,
   HOME_READY_TO_STREAM,
@@ -19,6 +20,7 @@ import {
 } from './home-rails';
 import { ValueProp } from './value-prop';
 import { YourRoomsRail } from './your-rooms-rail';
+import { SponsorCard } from './sponsor-card';
 
 function SeeAll({ href }: { href: string }) {
   return (
@@ -69,7 +71,7 @@ function ContinueWatchingRail() {
   );
 }
 
-export function HomeView() {
+export function HomeView({ sponsor = null }: { sponsor?: Sponsor | null }) {
   const me = useMe();
   const trending = useMovies(HOME_TRENDING);
   const user = me.data;
@@ -114,6 +116,7 @@ export function HomeView() {
           action={<SeeAll href="/browse?sort=popularity" />}
         />
         <CategoryRail {...HOME_READY_TO_STREAM} />
+        <SponsorCard sponsor={sponsor} />
         {!me.isLoading && !user ? <ValueProp posters={items} /> : null}
         {HOME_CATEGORY_RAILS.map((rail) => (
           <CategoryRail key={rail.title} {...rail} />

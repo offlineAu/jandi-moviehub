@@ -1,5 +1,4 @@
 'use client';
-import { RequireAccount } from '@/components/layout/require-account';
 import * as React from 'react';
 import Link from 'next/link';
 import { VideoPlayer } from '@/components/player/video-player';
@@ -8,8 +7,10 @@ import { useAnimeEpisodes, useAnimePlayback } from '@/lib/queries/anime';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { selectionTitle } from '@jandi/shared';
 import { nextAnimeSource } from './anime-source-recovery';
+import { useMe } from '@/lib/queries/auth';
 
 function AnimeWatchContent({ id }: { id: string }) {
+  const me = useMe();
   const catalog = useAnimeEpisodes(id);
   const [episodeId, setEpisodeId] = React.useState('');
   const [sourceId, setSourceId] = React.useState('');
@@ -23,6 +24,7 @@ function AnimeWatchContent({ id }: { id: string }) {
   const lastPosition = React.useRef(0);
   const report = React.useCallback(
     (event: 'started' | 'failed') => {
+      if (!me.data) return;
       const device = /iPhone|iPad|iPod/.test(navigator.userAgent)
         ? 'ios'
         : /Android/.test(navigator.userAgent)
@@ -33,7 +35,7 @@ function AnimeWatchContent({ id }: { id: string }) {
         body: { event, device },
       }).catch(() => {});
     },
-    [sourceId],
+    [sourceId, me.data],
   );
   const recover = React.useCallback(() => {
     if (!selected || failed.includes(sourceId)) return;
@@ -157,5 +159,5 @@ function AnimeWatchContent({ id }: { id: string }) {
 }
 
 export function AnimeWatch({ id }: { id: string }) {
-  return <RequireAccount feature="Streaming">{() => <AnimeWatchContent id={id} />}</RequireAccount>;
+  return <AnimeWatchContent id={id} />;
 }

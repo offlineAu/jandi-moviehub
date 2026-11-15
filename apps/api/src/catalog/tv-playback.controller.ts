@@ -51,6 +51,7 @@ export class TvPlaybackController {
     // movieId lets the client open a watch party on the linked, licensed title.
     return { playable: count > 0, movieId: count > 0 ? link!.movieId : null };
   }
+  @Public()
   @Get('tv/:id/seasons/:season/episodes/:episode/playback')
   @RateLimit({ name: 'tv:playback', limit: 120, windowSec: 60, by: 'user' })
   @Header('Cache-Control', 'no-store')

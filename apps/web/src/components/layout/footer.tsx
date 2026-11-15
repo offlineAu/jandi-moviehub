@@ -60,14 +60,11 @@ const columns = [
   },
 ];
 
-export function Footer() {
+export function Footer({ supportUrl = null }: { supportUrl?: string | null }) {
   return (
     <footer className="relative mt-24 overflow-hidden px-4 pb-28 pt-16 sm:px-6 md:pb-12 lg:px-10">
       {/* Top edge: a hairline with light running along it, and a soft glow spilling down. */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-px overflow-hidden bg-glass-3"
-      >
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px overflow-hidden bg-glass-3">
         <div className="h-full w-1/2 animate-[line-sweep_6s_var(--ease-in-out-cinema)_infinite] bg-gradient-to-r from-transparent via-accent to-transparent" />
       </div>
       <div
@@ -98,6 +95,18 @@ export function Footer() {
                     </Link>
                   </li>
                 ))}
+                {col.title === 'You' && supportUrl ? (
+                  <li>
+                    <a
+                      href={supportUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={linkClass}
+                    >
+                      Support Jandi <ArrowUpRight aria-hidden="true" className="size-3.5" />
+                    </a>
+                  </li>
+                ) : null}
               </ul>
             </StaggerItem>
           ))}

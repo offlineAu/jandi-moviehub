@@ -16,6 +16,9 @@ export const PROTECTED_PREFIXES = [
 ] as const;
 
 export function isProtectedPath(pathname: string): boolean {
+  // Solo movie playback is public; keep other watch routes protected as before.
+  if (/^\/watch\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/?$/i.test(pathname))
+    return false;
   // TV metadata pages contain no media or account data; playback APIs remain authenticated.
   if (/^\/watch\/tv\/\d+\/season\/\d+\/episode\/\d+\/?$/.test(pathname)) return false;
   return PROTECTED_PREFIXES.some(

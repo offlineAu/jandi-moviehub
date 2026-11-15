@@ -9,7 +9,13 @@ import { MobileTabBar } from './mobile-tab-bar';
 import { Sidebar } from './sidebar';
 import { TopNav } from './top-nav';
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  supportUrl = null,
+}: {
+  children: React.ReactNode;
+  supportUrl?: string | null;
+}) {
   const me = useMe();
   const showSidebar = !!me.data && !me.data.isGuest;
   return (
@@ -28,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <main id="main" tabIndex={-1} className="flex-1 outline-none">
             {children}
           </main>
-          <Footer />
+          <Footer supportUrl={supportUrl} />
         </div>
       </div>
       <MobileTabBar />
