@@ -296,12 +296,28 @@ export function useInvitePreview(token: string) {
 export function useRoomPlaybackSources(roomId: string, assetKey: string | null, enabled = true) {
   return useQuery({
     queryKey: roomKeys.sources(roomId, assetKey),
-    refetchInterval: query => query.state.data?.status === 'pending' ? 3000 : false,
+    refetchInterval: (query) => (query.state.data?.status === 'pending' ? 3000 : false),
     queryFn: () => apiFetch<RoomPlaybackSources>(`/rooms/${enc(roomId)}/playback-sources`),
     enabled: enabled && !!assetKey,
     staleTime: assetKey?.startsWith('kisskh-direct:') ? 60_000 : 30 * 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
+  });
+}
+
+export function useRoomCaptionRecovery(roomId: string, assetKey: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['rooms', 'id', roomId, 'captions', assetKey],
+    queryFn: () =>
+      apiFetch<{ assetId: string | null; captions: PlaybackSource['captions'] }>(
+        `/rooms/${enc(roomId)}/playback-captions`,
+      ),
+    enabled: enabled && !!assetKey,
+    refetchInterval: (query) =>
+      query.state.data?.assetId === assetKey && query.state.data.captions.length ? false : 30_000,
+    refetchIntervalInBackground: false,
+    retry: false,
+    staleTime: Infinity,
   });
 }
 

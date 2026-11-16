@@ -40,7 +40,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip } from '@/components/ui/tooltip';
 import { errorMessage } from '@/lib/api';
 import { useMe } from '@/lib/queries/auth';
-import { useCloseRoom, useLeaveRoom, useRoomPlaybackSources, type Room } from '@/lib/queries/rooms';
+import {
+  useCloseRoom,
+  useLeaveRoom,
+  useRoomPlaybackSources,
+  useRoomCaptionRecovery,
+  type Room,
+} from '@/lib/queries/rooms';
 import { cn, formatRuntime } from '@/lib/utils';
 import { EpisodeBar } from './episode-bar';
 import { ProviderEpisodeBar, VidsrcEpisodeBar } from './provider-episode-bar';
@@ -102,6 +108,22 @@ export function WatchRoom({ room }: { room: Room }) {
   const marathonActive = !!marathon && ACTIVE_MARATHON_STATES.includes(marathon.state);
   const assetKey = playbackAssetKey(playback);
   const sources = useRoomPlaybackSources(room.id, assetKey, session.joined);
+  const needsCaptions =
+    assetKey?.startsWith('kisskh-direct:') === true &&
+    !!sources.data?.sources.length &&
+    sources.data.sources.every((source) => !source.captions.length);
+  const recoveredCaptions = useRoomCaptionRecovery(
+    room.id,
+    assetKey,
+    session.joined && needsCaptions,
+  );
+  const playerSources = React.useMemo(() => {
+    const original = sources.data?.sources ?? [];
+    const recovered = recoveredCaptions.data;
+    if (!needsCaptions || recovered?.assetId !== assetKey || !recovered.captions.length)
+      return original;
+    return original.map((source) => ({ ...source, captions: recovered.captions }));
+  }, [sources.data?.sources, recoveredCaptions.data, needsCaptions, assetKey]);
   const [sourceAttempt, setSourceAttempt] = React.useState(0);
   React.useEffect(() => setPlayerFailed(false), [assetKey]);
 
@@ -290,7 +312,7 @@ export function WatchRoom({ room }: { room: Room }) {
       <VideoPlayer
         key={`${assetKey}:${sourceAttempt}`}
         ref={playerRef}
-        sources={sources.data.sources}
+        sources={playerSources}
         title={sources.data.movie.title}
         mode="synced"
         canControl={canControl}

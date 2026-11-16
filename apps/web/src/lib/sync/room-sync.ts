@@ -208,8 +208,21 @@ export class RoomSyncEngine {
         if (this.canControl) void this.intent({ type: 'seek', positionSec: video.currentTime });
         else this.apply(true);
       });
-    on('waiting', () => this.setBuffering(true));
-    on('playing', () => this.setBuffering(false));
+    let waitingAt: number | null = null;
+    on('waiting', () => {
+      waitingAt = video.currentTime;
+      this.setBuffering(true);
+    });
+    on('playing', () => {
+      waitingAt = null;
+      this.setBuffering(false);
+    });
+    on('timeupdate', () => {
+      if (waitingAt !== null && !video.paused && video.currentTime > waitingAt) {
+        waitingAt = null;
+        this.setBuffering(false);
+      }
+    });
     on('loadedmetadata', () => this.apply(true));
     if (this.state) this.apply(true);
   }

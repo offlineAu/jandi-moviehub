@@ -106,6 +106,57 @@ describe('KissKH direct stream resolution', () => {
     expect(await resolver.caption(token)).toContain('00:00:01.000 --> 00:00:02.000');
     await expect(resolver.caption('invalid')).rejects.toMatchObject({ status: 404 });
   });
+  it('retains valid episode subtitles when a resolver includes malformed tracks', async () => {
+    const redis = { set: vi.fn(async () => 'OK'), get: vi.fn(async () => null) };
+    const resolver = new KisskhStreamService(
+      {
+        env: {
+          ENABLE_KISSKH_DIRECT_SYNC: true,
+          KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
+        },
+      } as unknown as AppConfig,
+      redis as never,
+    );
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        subtitles: [
+          { id: 'kisskh-0', lang: 'eng', url: 'https://sub.cdnvideo11.shop/sub/english.srt' },
+          { id: 'other', lang: 'en-US', url: 'https://other.example/sub.vtt' },
+          null,
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await resolver.captions('series', 'kisskh:2513:1:1')).toMatchObject([
+      { lang: 'eng', label: 'English' },
+    ]);
+    expect(fetchMock.mock.calls).toHaveLength(1);
+  });
+  it('retries a transient empty subtitle listing', async () => {
+    const redis = { set: vi.fn(async () => 'OK'), get: vi.fn(async () => null) };
+    const resolver = new KisskhStreamService(
+      {
+        env: {
+          ENABLE_KISSKH_DIRECT_SYNC: true,
+          KISSKH_STREAM_RESOLVER_URL: 'https://resolver.example',
+        },
+      } as unknown as AppConfig,
+      redis as never,
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ subtitles: [] }))
+      .mockResolvedValueOnce(
+        Response.json({
+          subtitles: [
+            { id: 'kisskh-0', lang: 'eng', url: 'https://sub.cdnvideo11.shop/sub/english.srt' },
+          ],
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await resolver.captions('series', 'kisskh:2513:1:1')).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   it('uses backup subtitle listings when the primary is unavailable', async () => {
     const redis = { set: vi.fn(async () => 'OK'), get: vi.fn(async () => null) };
     const resolver = new KisskhStreamService(
@@ -153,6 +204,7 @@ describe('KissKH direct stream resolution', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(Response.json({ subtitles: [] }))
+      .mockResolvedValueOnce(Response.json({ subtitles: [] }))
       .mockResolvedValueOnce(
         Response.json({
           subtitles: [
@@ -165,7 +217,7 @@ describe('KissKH direct stream resolution', () => {
     const tracks = await resolver.captions('series', 'kisskh:2512:1:8');
     expect(tracks).toHaveLength(1);
     expect(await resolver.captions('series', 'kisskh:2512:1:8')).toEqual(tracks);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
   it('combines KissKH tracks from both resolvers and excludes alternate providers', async () => {
     const cache = new Map<string, string>();

@@ -143,32 +143,40 @@ export class KisskhStreamService {
     const bases = [...new Set([primary, fallback].filter((item): item is string => !!item))];
     const listings = await Promise.all(
       bases.map(async (base) => {
-        try {
-          const response = await fetch(`${base}/subtitles/${type}/${encodeURIComponent(id)}.json`, {
-            // The resolver may be waking from idle, just like the stream endpoint.
-            signal: AbortSignal.timeout(85000),
-            redirect: 'error',
-          });
-          if (!response.ok) return [];
-          const body = await readBounded(response, 256000);
-          const parsed = z
-            .object({
-              subtitles: z
-                .array(
-                  z.object({
-                    id: z.string().max(200),
-                    lang: z.string().regex(/^[a-z]{2,3}$/i),
-                    url: z.string().max(8192),
-                  }),
-                )
-                .max(100),
-            })
-            .parse(JSON.parse(body));
-          return parsed.subtitles;
-        } catch {
-          this.logger.warn('A subtitle resolver could not be loaded');
-          return [];
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const response = await fetch(
+              `${base}/subtitles/${type}/${encodeURIComponent(id)}.json`,
+              {
+                // The resolver may be waking from idle, just like the stream endpoint.
+                signal: AbortSignal.timeout(attempt === 0 ? 85000 : 10000),
+                redirect: 'error',
+              },
+            );
+            if (!response.ok) {
+              this.logger.warn(`Subtitle resolver returned HTTP ${response.status}`);
+              if (attempt === 0) continue;
+              return [];
+            }
+            const body = await readBounded(response, 256000);
+            const parsed = z
+              .object({ subtitles: z.array(z.unknown()).max(100) })
+              .parse(JSON.parse(body));
+            const trackSchema = z.object({
+              id: z.string().max(200),
+              lang: z.string().regex(/^[a-z]{2,3}$/i),
+              url: z.string().max(8192),
+            });
+            const tracks = parsed.subtitles.flatMap((item) => {
+              const track = trackSchema.safeParse(item);
+              return track.success ? [track.data] : [];
+            });
+            if (tracks.length || attempt === 1) return tracks;
+          } catch {
+            this.logger.warn('A subtitle resolver could not be loaded');
+          }
         }
+        return [];
       }),
     );
     const captions: Array<{ lang: string; label: string; url: string }> = [];

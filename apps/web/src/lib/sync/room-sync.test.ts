@@ -222,6 +222,23 @@ describe('RoomSyncEngine', () => {
     );
   });
 
+  it('clears a stale buffering state when playback advances without a playing event', async () => {
+    const { video, engine, socket } = await setup(state({ status: 'playing' }));
+    video.fire('waiting');
+    video.fire('timeupdate');
+    expect(socket.emitted.some((event) => event.event === SocketEvents.PLAYBACK_RECOVERED)).toBe(
+      false,
+    );
+    video.currentTime += 0.5;
+    video.fire('timeupdate');
+    expect(socket.emitted.some((event) => event.event === SocketEvents.PLAYBACK_RECOVERED)).toBe(
+      true,
+    );
+    now += 5000;
+    engine.tick();
+    expect(video.currentTime).toBeCloseTo(15.05, 1);
+  });
+
   it('does not mark a playing video as buffering for a stalled download alone', async () => {
     const { video, socket } = await setup(state({ status: 'playing' }));
     video.fire('stalled');

@@ -35,6 +35,33 @@ export class RealtimeController {
     return { state: await this.playback.getState(roomId), serverTime: Date.now() };
   }
 
+  /** Refresh missing subtitles without replacing the active video stream. */
+  @AllowGuest()
+  @Get('playback-captions')
+  @Header('Cache-Control', 'private, no-store')
+  async captions(@CurrentUser() user: AuthUser, @Param('roomId', ParseUUIDPipe) roomId: string) {
+    await this.rooms.requireMember(roomId, user.id);
+    const state = await this.playback.getState(roomId);
+    const media = state.externalMedia;
+    if (media?.provider === 'kisskh-direct') {
+      return {
+        assetId: selectionTitle(media),
+        captions: await this.kisskhStream.captions('movie', `tmdb:${media.tmdbId}`),
+      };
+    }
+    const episode = state.tvEpisode;
+    if (episode?.provider === 'kisskh-direct') {
+      return {
+        assetId: roomTvTitle(episode),
+        captions: await this.kisskhStream.captions(
+          'series',
+          `kisskh:${episode.seriesId}:1:${episode.episode}`,
+        ),
+      };
+    }
+    return { assetId: null, captions: [] };
+  }
+
   /**
    * Signed sources for the room's current movie. The asset that defines the room timeline is
    * listed first; other renditions (e.g. HLS for Safari) share the same duration.
@@ -49,16 +76,19 @@ export class RealtimeController {
       const media = state.externalMedia;
       if (media.provider === 'anime') {
         const result = await this.anime.playback(media.sourceId);
-        if (result.externalMedia.episodeId !== media.episodeId || result.externalMedia.edition !== media.edition)
+        if (
+          result.externalMedia.episodeId !== media.episodeId ||
+          result.externalMedia.edition !== media.edition
+        )
           throw new Error('Anime source identity changed');
         return result;
       }
       if (media.provider === 'kisskh-direct') {
-        const [movie, source] = await Promise.all([
+        const [movie, source, captions] = await Promise.all([
           this.catalog.getSummary(media.movieId),
           this.kisskhStream.resolveMovie(media.tmdbId),
+          this.kisskhStream.captions('movie', `tmdb:${media.tmdbId}`),
         ]);
-        const captions = await this.kisskhStream.captions('movie', `tmdb:${media.tmdbId}`);
         return {
           movieId: media.movieId,
           movie,
@@ -119,18 +149,18 @@ export class RealtimeController {
       const episode = state.tvEpisode;
       if (episode.provider === 'kisskh' || episode.provider === 'kisskh-direct') {
         const source = await this.kisskh.resolveRoomEpisode(episode);
-        const metadata = await this.tv.detail(Number(episode.tvId)).catch(() => null);
-        const series = metadata?.series;
-        const title = `${source.series.title} · Episode ${episode.episode}`;
-        const direct =
-          episode.provider === 'kisskh-direct' ? await this.kisskhStream.resolve(episode) : null;
-        const captions =
-          direct && episode.provider === 'kisskh-direct'
-            ? await this.kisskhStream.captions(
+        const [metadata, direct, captions] = await Promise.all([
+          this.tv.detail(Number(episode.tvId)).catch(() => null),
+          episode.provider === 'kisskh-direct' ? this.kisskhStream.resolve(episode) : null,
+          episode.provider === 'kisskh-direct'
+            ? this.kisskhStream.captions(
                 'series',
                 `kisskh:${episode.seriesId}:1:${episode.episode}`,
               )
-            : [];
+            : [],
+        ]);
+        const series = metadata?.series;
+        const title = `${source.series.title} · Episode ${episode.episode}`;
         return {
           movieId: null,
           tvEpisode: episode,
