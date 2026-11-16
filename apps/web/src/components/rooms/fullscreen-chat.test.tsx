@@ -95,3 +95,21 @@ describe('FullscreenChatToggle', () => {
     expect(onOpen).toHaveBeenCalled();
   });
 });
+
+it('sends a fullscreen emoji reaction through the room socket', async () => {
+  const { FullscreenReactionPicker } = await import('./fullscreen-chat');
+  const { TooltipProvider } = await import('@/components/ui/tooltip');
+  const emitWithAck = vi.fn(async () => ({ ok: true }));
+  const socket = { timeout: vi.fn(() => ({ emitWithAck })) };
+  render(
+    <TooltipProvider>
+      <FullscreenReactionPicker roomId="room-1" socket={socket as never} />
+    </TooltipProvider>,
+  );
+  fireEvent.pointerDown(screen.getByRole('button', { name: 'Send a reaction' }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  fireEvent.click(await screen.findByRole('button', { name: 'React with popcorn' }));
+  expect(emitWithAck).toHaveBeenCalledWith('reaction:burst', { roomId: 'room-1', emoji: '🍿' });
+});

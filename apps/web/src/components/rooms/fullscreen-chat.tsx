@@ -1,6 +1,13 @@
 'use client';
 
-import { MessageSquare, X } from 'lucide-react';
+import { MessageSquare, SmilePlus, X } from 'lucide-react';
+import type { Socket } from 'socket.io-client';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ReactionBar } from './reactions';
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { ChatPanel } from './chat-panel';
@@ -21,7 +28,7 @@ export function FullscreenChatToggle({ unread, onOpen }: { unread: number; onOpe
       }
       className={cn(
         'absolute right-3 top-3 z-[8] grid size-11 place-items-center rounded-full bg-black/60 text-white shadow-lg backdrop-blur transition-opacity duration-300 hover:bg-black/75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-        unread === 0 && 'group-data-[controls=hidden]/player:opacity-0',
+        unread === 0 && 'group-data-[controls=hidden]/player:opacity-0 focus:opacity-100',
       )}
     >
       <MessageSquare className="size-5" aria-hidden="true" />
@@ -34,6 +41,29 @@ export function FullscreenChatToggle({ unread, onOpen }: { unread: number; onOpe
         </span>
       ) : null}
     </button>
+  );
+}
+
+/** A compact reaction picker keeps the picture clear until someone opens it. */
+export function FullscreenReactionPicker({
+  roomId,
+  socket,
+}: {
+  roomId: string;
+  socket: Socket | null;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Send a reaction"
+        className="absolute right-16 top-3 z-[8] grid size-11 place-items-center rounded-full bg-black/60 text-white shadow-lg backdrop-blur hover:bg-black/75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        <SmilePlus className="size-5" aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-0 p-2">
+        <ReactionBar roomId={roomId} socket={socket} className="grid grid-cols-4 gap-1" />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -103,7 +133,9 @@ export function FullscreenChatTicker({
             className="w-full rounded-2xl bg-black/65 px-3 py-2 text-left text-sm text-white shadow-lg backdrop-blur focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="font-semibold">{item.name}</span>{' '}
-            <span className="break-words text-white/90">{item.body}</span>
+            <span className="line-clamp-3 break-words text-white/90 [overflow-wrap:anywhere]">
+              {item.body}
+            </span>
           </button>
         </li>
       ))}
@@ -118,12 +150,16 @@ export function FullscreenChatPanel({
   isModerator,
   connected,
   onClose,
+  roomId,
+  socket,
 }: {
   chat: RoomChat;
   myUserId: string | null;
   isModerator: boolean;
   connected: boolean;
   onClose: () => void;
+  roomId: string;
+  socket: Socket | null;
 }) {
   return (
     <section aria-label="Room chat" className="flex size-full flex-col">
@@ -138,6 +174,9 @@ export function FullscreenChatPanel({
           <X className="size-4" aria-hidden="true" />
         </button>
       </header>
+      <div className="shrink-0 border-b border-border px-2 py-1" aria-label="Room reactions">
+        <ReactionBar roomId={roomId} socket={socket} className="gap-0.5 overflow-x-auto" />
+      </div>
       <ChatPanel
         chat={chat}
         myUserId={myUserId}

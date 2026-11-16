@@ -53,7 +53,12 @@ import { ProviderEpisodeBar, VidsrcEpisodeBar } from './provider-episode-bar';
 import { RoomSourceRecovery } from './room-source-recovery';
 import { Artwork } from '@/components/movies/artwork';
 import { ChatPanel } from './chat-panel';
-import { FullscreenChatPanel, FullscreenChatTicker, FullscreenChatToggle } from './fullscreen-chat';
+import {
+  FullscreenChatPanel,
+  FullscreenChatTicker,
+  FullscreenChatToggle,
+  FullscreenReactionPicker,
+} from './fullscreen-chat';
 import {
   ACTIVE_MARATHON_STATES,
   MARATHON_STATE_LABEL,
@@ -183,6 +188,7 @@ export function WatchRoom({ room }: { room: Room }) {
       {playerFullscreen && !fullscreenChatOpen ? (
         <>
           <FullscreenChatToggle unread={unread} onOpen={() => setFullscreenChatOpen(true)} />
+          <FullscreenReactionPicker roomId={room.id} socket={session.socket} />
           <FullscreenChatTicker
             messages={chat.messages}
             myUserId={session.myUserId}
@@ -204,6 +210,18 @@ export function WatchRoom({ room }: { room: Room }) {
       ) : null}
     </>
   );
+
+  const fullscreenChat = fullscreenChatOpen ? (
+    <FullscreenChatPanel
+      chat={chat}
+      roomId={room.id}
+      socket={session.socket}
+      myUserId={session.myUserId}
+      isModerator={isMod}
+      connected={session.connected}
+      onClose={() => setFullscreenChatOpen(false)}
+    />
+  ) : null;
 
   let stage: React.ReactNode;
   if (!session.joined && session.joinError) {
@@ -288,14 +306,21 @@ export function WatchRoom({ room }: { room: Room }) {
         overlay={<ReactionOverlay bursts={session.bursts} />}
       />
     );
-  } else if (!sources.isError && sources.data?.embed?.provider === 'kisskh') {
+  } else if (
+    !sources.isError &&
+    sources.data?.embed?.provider === 'kisskh' &&
+    playback?.tvEpisode?.provider === 'kisskh'
+  ) {
     stage = (
       <KisskhRoomPlayer
         key={assetKey}
         src={sources.data.embed.url}
         title={sources.data.movie.title}
+        episode={playback.tvEpisode}
         episodeHref={sources.data.detailHref}
-        overlay={<ReactionOverlay bursts={session.bursts} />}
+        overlay={overlay}
+        fullscreenAside={fullscreenChat}
+        onFullscreenChange={setPlayerFullscreen}
       />
     );
   } else if (sources.isError || !sources.data?.sources.length) {
@@ -338,17 +363,7 @@ export function WatchRoom({ room }: { room: Room }) {
         overlay={overlay}
         fullscreenFallback="viewport"
         onFullscreenChange={setPlayerFullscreen}
-        fullscreenAside={
-          fullscreenChatOpen ? (
-            <FullscreenChatPanel
-              chat={chat}
-              myUserId={session.myUserId}
-              isModerator={isMod}
-              connected={session.connected}
-              onClose={() => setFullscreenChatOpen(false)}
-            />
-          ) : null
-        }
+        fullscreenAside={fullscreenChat}
         className={cn(
           theater && desktop
             ? 'rounded-none sm:rounded-none lg:max-h-[calc(100dvh-8.5rem)]'
