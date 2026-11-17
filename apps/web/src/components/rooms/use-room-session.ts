@@ -32,6 +32,8 @@ export interface RoomSession {
   socket: Socket | null;
   engine: RoomSyncEngine | null;
   joined: boolean;
+  /** Increments after every successful (re)join of the room. */
+  joinVersion: number;
   joinError: string | null;
   connected: boolean;
   playback: PlaybackState | null;
@@ -59,6 +61,7 @@ export function useRoomSession(room: Room): RoomSession {
   const [socket, setSocket] = React.useState<Socket | null>(null);
   const [engine, setEngine] = React.useState<RoomSyncEngine | null>(null);
   const [joined, setJoined] = React.useState(false);
+  const [joinVersion, setJoinVersion] = React.useState(0);
   const [joinError, setJoinError] = React.useState<string | null>(null);
   const [connected, setConnected] = React.useState(false);
   const [playback, setPlayback] = React.useState<PlaybackState | null>(null);
@@ -92,6 +95,7 @@ export function useRoomSession(room: Room): RoomSession {
         const snap = await e.join();
         if (disposed) return;
         setJoined(true);
+        setJoinVersion((v) => v + 1);
         setJoinError(null);
         setMembers(snap.members);
         setMarathon(snap.marathon);
@@ -228,6 +232,7 @@ export function useRoomSession(room: Room): RoomSession {
     socket,
     engine,
     joined,
+    joinVersion,
     joinError,
     connected,
     playback,

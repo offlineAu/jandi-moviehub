@@ -8,6 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { isApiError } from '@/lib/api';
 import { resolvePreferences, useMe } from '@/lib/queries/auth';
 import { qk } from '@/lib/queries/keys';
+import { syncMeSnapshot } from '@/lib/queries/me-snapshot';
 
 function makeQueryClient() {
   // A 401 on any request means the session ended; reflect that in the cached user.
@@ -36,6 +37,7 @@ function makeQueryClient() {
       mutations: { retry: false },
     },
   });
+  syncMeSnapshot(client);
   return client;
 }
 

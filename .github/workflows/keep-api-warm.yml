@@ -1,0 +1,28 @@
+name: Keep API warm
+
+# Render's free plan stops a web service after ~15 idle minutes and a cold start takes up to a
+# minute, which is what makes the account area (the first thing that needs the API) feel slow.
+# Pinging the cheap liveness endpoint every 10 minutes keeps it awake.
+#
+# Only during waking hours: free instance hours (750/month) are shared by every free service in
+# the workspace, so 24/7 would leave nothing for the resolver. 00:00–17:59 UTC is
+# 08:00–01:59 Philippine time (UTC+8) ≈ 558 h/month. Scheduled runs are best-effort and may
+# be delayed by GitHub. Public repo → Actions minutes are free.
+on:
+  schedule:
+    - cron: '*/10 0-17 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Ping API liveness endpoint
+        run: |
+          curl --silent --show-error --output /dev/null \
+            --max-time 90 --retry 2 --retry-delay 5 \
+            --write-out 'HTTP %{http_code} in %{time_total}s\n' \
+            https://jandi-moviehub-api.onrender.com/api/v1/health

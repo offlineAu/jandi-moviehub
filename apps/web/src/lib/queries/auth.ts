@@ -12,6 +12,7 @@ import { apiFetch, isApiError } from '../api';
 import { resetSocket } from '../sync/socket';
 import type { ItemList, Me, OAuthProvider, SessionInfo } from '../types';
 import { qk } from './keys';
+import { readMeSnapshot } from './me-snapshot';
 
 export async function fetchMe(): Promise<Me | null> {
   try {
@@ -34,8 +35,21 @@ export function useHydrated() {
   );
 }
 
-export function useMe(): UseQueryResult<Me | null> {
-  const query = useQuery({ queryKey: qk.me, queryFn: fetchMe, staleTime: 5 * 60_000 });
+/**
+ * The signed-in user (`null` when signed out).
+ * `optimistic`: until `/auth/me` answers, return the last known user from local storage
+ * (`isPlaceholderData` is true). For display-only chrome (nav, menus) — never for redirects,
+ * permission checks or anything with side effects.
+ */
+export function useMe({
+  optimistic = false,
+}: { optimistic?: boolean } = {}): UseQueryResult<Me | null> {
+  const query = useQuery({
+    queryKey: qk.me,
+    queryFn: fetchMe,
+    staleTime: 5 * 60_000,
+    placeholderData: optimistic ? readMeSnapshot : undefined,
+  });
   const hydrated = useHydrated();
   if (!hydrated) {
     // The server never knows the session; render the "checking" state until hydration completes.

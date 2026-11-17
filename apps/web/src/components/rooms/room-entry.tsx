@@ -325,7 +325,9 @@ export function RoomEntry({ code }: { code: string }) {
       </LobbyShell>
     );
   }
-  if (preview.isError || !preview.data) {
+  // A failed background refetch keeps the last good data; only a failure with nothing to show
+  // falls through to the error screen (otherwise the live room would unmount mid-session).
+  if (!preview.data) {
     const status = isApiError(preview.error) ? preview.error.status : 0;
     return (
       <LobbyShell>

@@ -221,3 +221,21 @@ which read as two unrelated pieces of type. The name is unchanged.
 _Consequence:_ The favicon, the app icon and the in-app mark are now the same drawing, and the
 motion (frames sliding in from behind, drifting apart on hover, breathing out of sync in the
 loader) reads as translation rather than as nothing.
+
+## Slow account area on the free-tier deployment (2026-11-17)
+
+_Context:_ In production every page is prerendered and served from the Vercel CDN, so it appears
+at once; the account area is the first thing that needs the API, which runs on Render Free and
+stops after ~15 idle minutes (cold start up to a minute). Measured: CDN page TTFB 0.2–0.9 s, warm
+API `/health/ready` ~0.2 s (DB 2 ms), local signed-in `/auth/me` ~3 ms. No paid plan wanted.
+_Decision:_ (1) `.github/workflows/keep-api-warm.yml` pings `/api/v1/health` every 10 min during
+00:00–17:59 UTC (08:00–01:59 PHT) only, since 750 free instance-hours/month are shared with the
+resolver service. (2) Migrations run in the Render build command, which leaves a
+`.migrated-at-build` marker; `scripts/render-start.sh` skips migrating when it exists, so cold
+starts don't pay for the Prisma CLI. (3) `useMe({ optimistic: true })` (top nav and app shell
+only) shows the last known user from localStorage until `/auth/me` answers; the snapshot is
+mirrored from the `me` query and cleared when it becomes `null`. Redirects, permissions and data
+pages still wait for the real answer.
+_Consequence:_ With `/auth/me` delayed 8 s in a browser test, a returning visitor saw the account
+menu after 0.36 s instead of 8.6 s; an ended session cleared the snapshot and showed "Log in".
+Overnight (PHT) the first visit can still hit a cold start.

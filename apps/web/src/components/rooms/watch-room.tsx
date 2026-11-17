@@ -91,7 +91,13 @@ export function WatchRoom({ room }: { room: Room }) {
   const router = useRouter();
   const me = useMe();
   const session = useRoomSession(room);
-  const chat = useRoomChat(room.id, session.socket, session.myUserId, me.data ?? null);
+  const chat = useRoomChat(
+    room.id,
+    session.socket,
+    session.myUserId,
+    me.data ?? null,
+    session.joinVersion,
+  );
   const desktop = useIsDesktop();
   const [theater, setTheater] = React.useState(true);
   const [panelOpen, setPanelOpen] = React.useState(true);

@@ -22,3 +22,6 @@ next-env.d.ts
 .next-design/
 .next-anime/
 .neon
+
+# Render build marker (scripts/render-start.sh)
+.migrated-at-build

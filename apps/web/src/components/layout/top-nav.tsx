@@ -17,7 +17,7 @@ import { UserMenu } from './user-menu';
 export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const me = useMe();
+  const me = useMe({ optimistic: true });
   const [scrolled, setScrolled] = React.useState(false);
   const [hidden, setHidden] = React.useState(false);
   const [query, setQuery] = React.useState('');

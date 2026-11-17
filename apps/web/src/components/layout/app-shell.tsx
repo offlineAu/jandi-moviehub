@@ -16,7 +16,7 @@ export function AppShell({
   children: React.ReactNode;
   supportUrl?: string | null;
 }) {
-  const me = useMe();
+  const me = useMe({ optimistic: true });
   const showSidebar = !!me.data && !me.data.isGuest;
   return (
     <div className="relative isolate flex min-h-dvh flex-col">

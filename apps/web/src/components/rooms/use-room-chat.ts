@@ -10,8 +10,9 @@ import * as React from 'react';
 import type { Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { apiFetch, errorMessage } from '@/lib/api';
+import { mergeChatHistory, type ChatItem } from './chat-merge';
 
-export type ChatItem = ChatMessageDto & { pending?: boolean; failed?: boolean };
+export type { ChatItem } from './chat-merge';
 
 const uid = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -28,12 +29,17 @@ function chatErrorText(code: string, message: string): string {
 /**
  * Room chat: history over REST (older pages on demand), live messages over the socket,
  * optimistic sends reconciled by `clientId`, reactions and deletions.
+ *
+ * `joinVersion` increments each time the socket (re)joins the room. History is refreshed after
+ * every join — not on the raw socket `connect` — so messages sent while the socket was outside
+ * the room are picked up once live delivery has resumed.
  */
 export function useRoomChat(
   roomId: string,
   socket: Socket | null,
   myUserId: string | null,
   me: { displayName: string; avatarUrl: string | null; isGuest: boolean } | null,
+  joinVersion = 0,
 ) {
   const [messages, setMessages] = React.useState<ChatItem[]>([]);
   const [hasMore, setHasMore] = React.useState(false);
@@ -41,6 +47,7 @@ export function useRoomChat(
   const [loadingOlder, setLoadingOlder] = React.useState(false);
   const [error, setError] = React.useState<unknown>(null);
   const [incoming, setIncoming] = React.useState(0);
+  const olderLoadedRef = React.useRef(false);
   const myIdRef = React.useRef(myUserId);
   React.useEffect(() => {
     myIdRef.current = myUserId;
@@ -56,12 +63,10 @@ export function useRoomChat(
           query: { limit: 50 },
         },
       );
-      setMessages((current) => {
-        // Keep anything that arrived live while history was loading.
-        const ids = new Set(res.items.map((m) => m.id));
-        return [...res.items, ...current.filter((m) => !ids.has(m.id))];
-      });
-      setHasMore(res.hasMore);
+      // Keeps live/older messages already on screen, in server order.
+      setMessages((current) => mergeChatHistory(current, res.items));
+      // Once older pages are loaded, the newest page no longer says whether more exist.
+      if (!olderLoadedRef.current) setHasMore(res.hasMore);
     } catch (e) {
       setError(e);
     } finally {
@@ -70,8 +75,15 @@ export function useRoomChat(
   }, [roomId]);
 
   React.useEffect(() => {
+    olderLoadedRef.current = false;
+    setMessages([]);
     void loadInitial();
   }, [loadInitial]);
+
+  // Refresh after each (re)join of the room; the merge makes overlapping loads harmless.
+  React.useEffect(() => {
+    if (joinVersion > 0) void loadInitial();
+  }, [joinVersion, loadInitial]);
 
   const loadOlder = React.useCallback(async () => {
     if (loadingOlder || !hasMore) return;
@@ -85,10 +97,8 @@ export function useRoomChat(
           query: { before: oldest.createdAt, limit: 50 },
         },
       );
-      setMessages((current) => {
-        const ids = new Set(current.map((m) => m.id));
-        return [...res.items.filter((m) => !ids.has(m.id)), ...current];
-      });
+      olderLoadedRef.current = true;
+      setMessages((current) => mergeChatHistory(current, res.items));
       setHasMore(res.hasMore);
     } catch (e) {
       toast.error(errorMessage(e, 'Older messages didn’t load.'));
@@ -153,30 +163,15 @@ export function useRoomChat(
         }),
       );
     };
-    // After a reconnect, refresh history so nothing is missed.
-    let wasDown = false;
-    const onDisconnect = () => {
-      wasDown = true;
-    };
-    const onConnect = () => {
-      if (wasDown) {
-        wasDown = false;
-        void loadInitial();
-      }
-    };
     socket.on(SocketEvents.CHAT_MESSAGE, onMessage);
     socket.on(SocketEvents.CHAT_DELETED, onDeleted);
     socket.on(SocketEvents.CHAT_REACTIONS, onReactions);
-    socket.on('disconnect', onDisconnect);
-    socket.on('connect', onConnect);
     return () => {
       socket.off(SocketEvents.CHAT_MESSAGE, onMessage);
       socket.off(SocketEvents.CHAT_DELETED, onDeleted);
       socket.off(SocketEvents.CHAT_REACTIONS, onReactions);
-      socket.off('disconnect', onDisconnect);
-      socket.off('connect', onConnect);
     };
-  }, [socket, roomId, loadInitial]);
+  }, [socket, roomId]);
 
   const send = React.useCallback(
     async (body: string, replyTo?: ChatItem | null, retryOf?: ChatItem) => {
