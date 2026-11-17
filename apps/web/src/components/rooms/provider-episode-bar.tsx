@@ -1,7 +1,7 @@
 'use client';
 
 import { roomTvTitle, selectionTitle, type ExternalMedia, type RoomTvEpisode } from '@jandi/shared';
-import { ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
 import { useProviderSeries, type SourceSeason } from '@/components/series/provider-series';
 import { playableSeasons, useTvSeason, useTvSeries } from '@/components/series/tv-episodes';
@@ -18,7 +18,11 @@ type Props = {
 };
 
 /** Find the next actual provider entry, never infer an episode ID or cross a missing part. */
-export function nextProviderEpisode(seasons: SourceSeason[], current: RoomTvEpisode) {
+export function adjacentProviderEpisode(
+  seasons: SourceSeason[],
+  current: RoomTvEpisode,
+  direction: -1 | 1,
+) {
   if (current.numbering !== 'provider') return null;
   const parts = [...seasons].sort((a, b) => a.number - b.number);
   const partIndex = parts.findIndex((part) =>
@@ -35,35 +39,44 @@ export function nextProviderEpisode(seasons: SourceSeason[], current: RoomTvEpis
       : episode.number === current.episode,
   );
   if (index < 0) return null;
-  const nextPart = index + 1 < episodes.length ? part : parts[partIndex + 1];
-  const next =
-    nextPart === part
-      ? episodes[index + 1]
-      : nextPart?.episodes.slice().sort((a, b) => a.number - b.number)[0];
-  if (!nextPart || !next) return null;
+  const adjacentPart = episodes[index + direction] ? part : parts[partIndex + direction];
+  const ordered = adjacentPart?.episodes.slice().sort((a, b) => a.number - b.number) ?? [];
+  const adjacent =
+    adjacentPart === part
+      ? episodes[index + direction]
+      : direction === 1
+        ? ordered[0]
+        : ordered.at(-1);
+  if (!adjacentPart || !adjacent) return null;
   if (current.provider === 'kisskh' || current.provider === 'kisskh-direct') {
-    if (!nextPart.id || !next.id) return null;
+    if (!adjacentPart.id || !adjacent.id) return null;
     return {
       ...current,
-      season: nextPart.number,
-      episode: next.number,
-      seriesId: nextPart.id,
-      episodeId: next.id,
+      season: adjacentPart.number,
+      episode: adjacent.number,
+      seriesId: adjacentPart.id,
+      episodeId: adjacent.id,
     };
   }
-  return { ...current, season: nextPart.number, episode: next.number };
+  return { ...current, season: adjacentPart.number, episode: adjacent.number };
 }
 
-function NextButton({
+export function nextProviderEpisode(seasons: SourceSeason[], current: RoomTvEpisode) {
+  return adjacentProviderEpisode(seasons, current, 1);
+}
+
+function EpisodeButtons({
   title,
-  target,
+  previous,
+  next,
   loading,
   error,
   retry,
   ...props
 }: Props & {
   title: string;
-  target: string | null;
+  previous: string | null;
+  next: string | null;
   loading: boolean;
   error: boolean;
   retry: () => void;
@@ -74,26 +87,37 @@ function NextButton({
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-glass-1 px-4 py-3 text-sm">
       <span className="text-muted">{title}</span>
       {loading ? (
-        <span className="text-muted">Loading next episode…</span>
+        <span className="text-muted">Loading episodes…</span>
       ) : error ? (
         <button type="button" onClick={retry} className="text-muted underline">
           Couldn’t load episodes · Try again
         </button>
-      ) : target ? (
-        props.canControl ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={busy}
-            onClick={() => void change(target, 'Next episode selected for everyone')}
-          >
-            {busy ? 'Changing episode…' : 'Next episode'} <ChevronRight aria-hidden="true" />
-          </Button>
-        ) : (
-          <span className="text-muted">The host can choose the next episode.</span>
-        )
+      ) : props.canControl ? (
+        <nav aria-label="Episode navigation" className="flex flex-wrap gap-2">
+          {previous && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => void change(previous, 'Previous episode selected for everyone')}
+            >
+              <ChevronLeft aria-hidden="true" /> Previous episode
+            </Button>
+          )}
+          {next && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => void change(next, 'Next episode selected for everyone')}
+            >
+              Next episode <ChevronRight aria-hidden="true" />
+            </Button>
+          )}
+          {!previous && !next && <span className="text-muted">No other episodes listed</span>}
+        </nav>
       ) : (
-        <span className="text-muted">No next episode listed</span>
+        <span className="text-muted">The host can choose an episode.</span>
       )}
     </div>
   );
@@ -105,11 +129,16 @@ export function ProviderEpisodeBar({ episode, ...props }: Props & { episode: Roo
   const catalog = useProviderSeries(provider, 'Money Heist');
   const next =
     !catalog.loading && !catalog.error ? nextProviderEpisode(catalog.seasons, episode) : null;
+  const previous =
+    !catalog.loading && !catalog.error
+      ? adjacentProviderEpisode(catalog.seasons, episode, -1)
+      : null;
   return (
-    <NextButton
+    <EpisodeButtons
       {...props}
       title={`Money Heist · Part ${episode.season} E${episode.episode}`}
-      target={next ? roomTvTitle(next) : null}
+      previous={previous ? roomTvTitle(previous) : null}
+      next={next ? roomTvTitle(next) : null}
       loading={catalog.loading}
       error={!!catalog.error}
       retry={catalog.retry}
@@ -128,10 +157,32 @@ export function VidsrcEpisodeBar({
     playableSeasons(series.data?.series.seasons ?? []).find(
       (part) => part.season_number > episode.season,
     )?.season_number ?? null;
+  const previousSeason =
+    playableSeasons(series.data?.series.seasons ?? [])
+      .filter((part) => part.season_number < episode.season)
+      .sort((a, b) => b.season_number - a.season_number)[0]?.season_number ?? null;
   const episodes = [...(current.data?.season.episodes ?? [])].sort((a, b) => a.number - b.number);
   const index = episodes.findIndex((item) => item.number === episode.episode);
   const crossesSeason = index >= 0 && index === episodes.length - 1 && nextSeason !== null;
   const later = useTvSeason(id, crossesSeason ? nextSeason : null);
+  const crossesPrevious = index === 0 && previousSeason !== null;
+  const earlier = useTvSeason(id, crossesPrevious ? previousSeason : null);
+  const previous =
+    index < 0
+      ? null
+      : (episodes[index - 1] ??
+        (crossesPrevious
+          ? [...(earlier.data?.season.episodes ?? [])].sort((a, b) => a.number - b.number).at(-1)
+          : null));
+  const previousTarget = previous
+    ? selectionTitle({
+        provider: 'vidsrc',
+        type: 'tv',
+        tvId: episode.tvId,
+        season: episodes[index - 1] ? episode.season : previousSeason!,
+        episode: previous.number,
+      })
+    : null;
   const next =
     index < 0
       ? null
@@ -150,19 +201,29 @@ export function VidsrcEpisodeBar({
           episode: next.number,
         })
       : null;
-  const loading = series.isPending || current.isPending || (crossesSeason && later.isPending);
-  const error = series.isError || current.isError || (crossesSeason && later.isError);
+  const loading =
+    series.isPending ||
+    current.isPending ||
+    (crossesSeason && later.isPending) ||
+    (crossesPrevious && earlier.isPending);
+  const error =
+    series.isError ||
+    current.isError ||
+    (crossesSeason && later.isError) ||
+    (crossesPrevious && earlier.isError);
   return (
-    <NextButton
+    <EpisodeButtons
       {...props}
       title={`${series.data?.series.title ?? 'Series'} · S${episode.season} E${episode.episode}`}
-      target={target}
+      previous={previousTarget}
+      next={target}
       loading={loading}
       error={error}
       retry={() => {
         void series.refetch();
         void current.refetch();
         if (crossesSeason) void later.refetch();
+        if (crossesPrevious) void earlier.refetch();
       }}
     />
   );

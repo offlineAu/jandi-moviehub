@@ -103,3 +103,38 @@ it('advances a VidSrc series across seasons using the same provider', () => {
   fireEvent.click(screen.getByRole('button', { name: /next episode/i }));
   expect(change).toHaveBeenCalledWith('vidsrc:tv:123:2:1', expect.any(String));
 });
+
+it('changes the room to the previous provider episode across parts', () => {
+  render(
+    <ProviderEpisodeBar
+      {...props}
+      episode={{ ...episode, season: 2, episode: 1, seriesId: 2511, episodeId: 201 }}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: /previous episode/i }));
+  expect(change).toHaveBeenCalledWith('kisskh-direct:71446:1:2:2510:102', expect.any(String));
+});
+
+it('does not offer a previous episode at the beginning or to viewers', () => {
+  const view = render(<ProviderEpisodeBar {...props} episode={episode} />);
+  expect(screen.queryByRole('button', { name: /previous episode/i })).toBeNull();
+  view.rerender(
+    <ProviderEpisodeBar
+      {...props}
+      episode={{ ...episode, episode: 2, episodeId: 102 }}
+      canControl={false}
+    />,
+  );
+  expect(screen.queryByRole('button', { name: /previous episode/i })).toBeNull();
+});
+
+it('moves a VidSrc series back across seasons', () => {
+  render(
+    <VidsrcEpisodeBar
+      {...props}
+      episode={{ provider: 'vidsrc', type: 'tv', tvId: 123, tmdbId: 123, season: 2, episode: 1 }}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: /previous episode/i }));
+  expect(change).toHaveBeenCalledWith('vidsrc:tv:123:1:2', expect.any(String));
+});
