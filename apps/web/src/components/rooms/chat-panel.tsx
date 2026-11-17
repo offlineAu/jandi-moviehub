@@ -260,7 +260,12 @@ export function ChatPanel({
     const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
     setAtBottom(bottom);
     if (bottom) setUnseen(0);
-    if (el.scrollTop < 60 && chat.hasMore && !chat.loadingOlder) {
+    if (
+      el.scrollHeight > el.clientHeight + 10 &&
+      el.scrollTop < 60 &&
+      chat.hasMore &&
+      !chat.loadingOlder
+    ) {
       restoreFrom.current = el.scrollHeight - el.scrollTop;
       void chat.loadOlder();
     }

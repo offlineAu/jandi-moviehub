@@ -394,7 +394,11 @@ export function useChangeRoomMovie(
 ) {
   const [busy, setBusy] = React.useState(false);
   const change = React.useCallback(
-    async (movieId: string, successMessage = 'Title changed for everyone'): Promise<boolean> => {
+    async (
+      movieId: string,
+      successMessage = 'Title changed for everyone',
+      episodeDirection?: 'previous' | 'next',
+    ): Promise<boolean> => {
       if (!socket || !engine?.current) return false;
       setBusy(true);
       try {
@@ -404,6 +408,7 @@ export function useChangeRoomMovie(
             roomId,
             commandId: uuid(),
             baseVersion: engine.current.version,
+            ...(episodeDirection ? { episodeDirection } : {}),
             ...(parseExternalTitle(movieId)
               ? { playbackSelection: parseExternalTitle(movieId) }
               : { movieId }),
@@ -412,7 +417,7 @@ export function useChangeRoomMovie(
             toast.success(successMessage);
             return true;
           }
-          if (ack.error.code === 'STALE' && attempt === 0) continue;
+          if (ack.error.code === 'STALE' && attempt === 0 && !episodeDirection) continue;
           toast.error(
             ack.error.code === 'CONFLICT'
               ? 'Stop the marathon before changing the movie.'

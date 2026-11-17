@@ -1,3 +1,5 @@
+import { EpisodeNavigationService } from './episode-navigation.service';
+import { EpisodeNavigationController } from './episode-navigation.controller';
 import { Module } from '@nestjs/common';
 import { CatalogModule } from '../catalog/catalog.module';
 import { ChatModule } from '../chat/chat.module';
@@ -11,8 +13,8 @@ import { RoomGateway } from './room.gateway';
 
 @Module({
   imports: [RoomsModule, PlaybackModule, ChatModule, MarathonModule, CatalogModule, LibraryModule],
-  controllers: [RealtimeController],
-  providers: [RoomGateway, PresenceService],
+  controllers: [RealtimeController, EpisodeNavigationController],
+  providers: [RoomGateway, PresenceService, EpisodeNavigationService],
   exports: [PresenceService],
 })
 export class RealtimeModule {}

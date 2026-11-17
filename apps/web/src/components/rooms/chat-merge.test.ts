@@ -70,3 +70,18 @@ describe('mergeChatHistory', () => {
     expect(ids(mergeChatHistory([a, b], [a, b]))).toEqual(['a', 'b']);
   });
 });
+
+it('keeps newer live reactions and deletions when an older history request finishes', () => {
+  const original = msg(1);
+  const snapshot = new Map([[original.id, original]]);
+  const changed = { ...original, deleted: true, body: '' };
+  expect(mergeChatHistory([changed, msg(3)], [original, msg(2)], snapshot)).toEqual([
+    changed,
+    msg(2),
+    msg(3),
+  ]);
+});
+
+it('places late live messages in server time order', () => {
+  expect(ids(mergeChatHistory([msg(1), msg(3)], [msg(2)]))).toEqual(['m1', 'm2', 'm3']);
+});

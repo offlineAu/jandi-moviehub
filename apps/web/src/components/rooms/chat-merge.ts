@@ -16,11 +16,17 @@ const time = (m: ChatItem) => Date.parse(m.createdAt) || 0;
  * - Unsent (pending/failed) optimistic items stay at the end in their existing order; their
  *   timestamps come from the client clock and are not comparable with server ones.
  */
-export function mergeChatHistory(current: ChatItem[], fetched: ChatItem[]): ChatItem[] {
+export function mergeChatHistory(
+  current: ChatItem[],
+  fetched: ChatItem[],
+  snapshot?: ReadonlyMap<string, ChatItem>,
+): ChatItem[] {
   const byId = new Map<string, ChatItem>();
   for (const m of current) if (!isUnsent(m)) byId.set(m.id, m);
   for (const m of fetched) {
     const prev = byId.get(m.id);
+    // A live deletion or reaction after this request started is newer than its snapshot.
+    if (snapshot && prev && prev !== snapshot.get(m.id)) continue;
     byId.set(m.id, prev?.clientId && !m.clientId ? { ...m, clientId: prev.clientId } : m);
   }
   const confirmed = [...byId.values()]

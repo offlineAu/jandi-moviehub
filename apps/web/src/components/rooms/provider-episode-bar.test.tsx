@@ -1,56 +1,22 @@
-import * as React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { ProviderEpisodeBar, VidsrcEpisodeBar, nextProviderEpisode } from './provider-episode-bar';
-
-const change = vi.fn();
-vi.mock('./room-dialogs', () => ({ useChangeRoomMovie: () => ({ change, busy: false }) }));
-vi.mock('@/components/series/provider-series', () => ({
-  useProviderSeries: () => ({ seasons, loading: false, error: null, retry: vi.fn() }),
+import { ProviderEpisodeBar } from './provider-episode-bar';
+const mocks = vi.hoisted(() => ({ change: vi.fn(), fetch: vi.fn() }));
+vi.mock('./room-dialogs', () => ({
+  useChangeRoomMovie: () => ({ change: mocks.change, busy: false }),
 }));
-vi.mock('@/components/series/tv-episodes', () => ({
-  useTvSeries: () => ({
-    data: {
-      series: {
-        title: 'Example',
-        seasons: [
-          { season_number: 1, episode_count: 2 },
-          { season_number: 2, episode_count: 1 },
-        ],
-      },
-    },
-    isPending: false,
-    isError: false,
-  }),
-  useTvSeason: (_id: string, season: number | null) => ({
-    data: { season: { episodes: season === 1 ? [{ number: 1 }, { number: 2 }] : [{ number: 1 }] } },
-    isPending: false,
-    isError: false,
-  }),
-  playableSeasons: (seasons: { season_number: number }[]) => seasons,
-}));
-
-const seasons = [
-  {
-    number: 1,
-    name: 'Part 1',
-    id: 2510,
-    episodes: [
-      { number: 1, id: 101 },
-      { number: 2, id: 102 },
-    ],
-  },
-  { number: 2, name: 'Part 2', id: 2511, episodes: [{ number: 1, id: 201 }] },
-];
+vi.mock('@/lib/api', () => ({ apiFetch: mocks.fetch }));
 const episode = {
   provider: 'kisskh-direct' as const,
   tvId: '71446' as const,
   numbering: 'provider' as const,
-  season: 1,
-  episode: 1,
-  seriesId: 2510,
-  episodeId: 101,
+  season: 3,
+  episode: 8,
+  seriesId: 2512,
+  episodeId: 57291,
 };
+const assetId = 'kisskh-direct:71446:3:8:2512:57291';
 const props = {
   roomId: 'room',
   socket: null,
@@ -58,83 +24,49 @@ const props = {
   canControl: true,
   marathonActive: false,
 };
-beforeEach(() => change.mockReset());
-
-it('changes the shared room to the next provider episode', () => {
-  render(<ProviderEpisodeBar {...props} episode={episode} />);
-  fireEvent.click(screen.getByRole('button', { name: /next episode/i }));
-  expect(change).toHaveBeenCalledWith('kisskh-direct:71446:1:2:2510:102', expect.any(String));
-});
-
-it('uses the next part’s actual provider IDs at a season boundary', () => {
-  expect(nextProviderEpisode(seasons, { ...episode, episode: 2, episodeId: 102 })).toEqual({
-    ...episode,
-    season: 2,
-    episode: 1,
-    seriesId: 2511,
-    episodeId: 201,
+const mount = (canControl = true) =>
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <ProviderEpisodeBar {...props} canControl={canControl} episode={episode} />
+    </QueryClientProvider>,
+  );
+beforeEach(() => {
+  mocks.change.mockReset().mockResolvedValue(true);
+  mocks.fetch.mockReset().mockResolvedValue({
+    assetId,
+    previous: { id: 'previous', label: 'Part 3, Episode 7', availability: 'listed' },
+    next: { id: 'next', label: 'Part 4, Episode 1', availability: 'listed' },
   });
 });
-
-it('does not invent a next episode for an unknown identity or missing provider IDs', () => {
-  expect(nextProviderEpisode(seasons, { ...episode, episodeId: 999 })).toBeNull();
-  expect(
-    nextProviderEpisode(
-      [{ ...seasons[0]!, episodes: [{ number: 1, id: 101 }, { number: 2 }] }],
-      episode,
-    ),
-  ).toBeNull();
-});
-
-it('does not offer a room change to viewers or during a marathon', () => {
-  const view = render(<ProviderEpisodeBar {...props} episode={episode} canControl={false} />);
-  expect(screen.queryByRole('button', { name: /next episode/i })).toBeNull();
-  view.rerender(<ProviderEpisodeBar {...props} episode={episode} marathonActive />);
-  expect(screen.queryByRole('button', { name: /next episode/i })).toBeNull();
-});
-
-it('advances a VidSrc series across seasons using the same provider', () => {
-  render(
-    <VidsrcEpisodeBar
-      {...props}
-      episode={{ provider: 'vidsrc', type: 'tv', tvId: 123, tmdbId: 123, season: 1, episode: 2 }}
-    />,
+it('shows the server-identified destination and sends a guarded adjacent change', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: /Next · Part 4, Episode 1/ }));
+  expect(mocks.change).toHaveBeenCalledWith(
+    'next',
+    'Part 4, Episode 1 selected for everyone',
+    'next',
   );
-  fireEvent.click(screen.getByRole('button', { name: /next episode/i }));
-  expect(change).toHaveBeenCalledWith('vidsrc:tv:123:2:1', expect.any(String));
-});
-
-it('changes the room to the previous provider episode across parts', () => {
-  render(
-    <ProviderEpisodeBar
-      {...props}
-      episode={{ ...episode, season: 2, episode: 1, seriesId: 2511, episodeId: 201 }}
-    />,
+  fireEvent.click(await screen.findByRole('button', { name: /Previous · Part 3, Episode 7/ }));
+  expect(mocks.change).toHaveBeenCalledWith(
+    'previous',
+    'Part 3, Episode 7 selected for everyone',
+    'previous',
   );
-  fireEvent.click(screen.getByRole('button', { name: /previous episode/i }));
-  expect(change).toHaveBeenCalledWith('kisskh-direct:71446:1:2:2510:102', expect.any(String));
 });
-
-it('does not offer a previous episode at the beginning or to viewers', () => {
-  const view = render(<ProviderEpisodeBar {...props} episode={episode} />);
-  expect(screen.queryByRole('button', { name: /previous episode/i })).toBeNull();
-  view.rerender(
-    <ProviderEpisodeBar
-      {...props}
-      episode={{ ...episode, episode: 2, episodeId: 102 }}
-      canControl={false}
-    />,
-  );
-  expect(screen.queryByRole('button', { name: /previous episode/i })).toBeNull();
+it('shows the destination without allowing viewers to change it', async () => {
+  mount(false);
+  expect(await screen.findByText('Up next: Part 4, Episode 1')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /Next/ })).toBeNull();
 });
-
-it('moves a VidSrc series back across seasons', () => {
-  render(
-    <VidsrcEpisodeBar
-      {...props}
-      episode={{ provider: 'vidsrc', type: 'tv', tvId: 123, tmdbId: 123, season: 2, episode: 1 }}
-    />,
-  );
-  fireEvent.click(screen.getByRole('button', { name: /previous episode/i }));
-  expect(change).toHaveBeenCalledWith('vidsrc:tv:123:1:2', expect.any(String));
+it('does not show destinations from a stale room response', async () => {
+  mocks.fetch.mockResolvedValue({
+    assetId: 'old',
+    previous: null,
+    next: { id: 'wrong', label: 'Wrong', availability: 'listed' },
+  });
+  mount();
+  await screen.findByText('Loading episodes…');
+  expect(screen.queryByText(/Wrong/)).toBeNull();
 });

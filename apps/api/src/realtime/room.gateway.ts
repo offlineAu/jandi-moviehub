@@ -1,3 +1,4 @@
+import { EpisodeNavigationService } from './episode-navigation.service';
 import { Errors } from '../common/errors';
 import { playbackSelectionSchema, selectionTitle } from '@jandi/shared';
 import { roomTitleSchema } from '@jandi/shared';
@@ -72,6 +73,7 @@ const commandSchemas = {
     .extend({
       movieId: roomTitleSchema.optional(),
       playbackSelection: playbackSelectionSchema.optional(),
+      episodeDirection: z.enum(['previous', 'next']).optional(),
     })
     .refine((v) => Boolean(v.movieId) !== Boolean(v.playbackSelection), {
       message: 'Choose one playback selection',
@@ -154,6 +156,7 @@ export class RoomGateway
     private readonly history: HistoryService,
     @InjectRedis() private readonly redis: Redis,
     private readonly socketTickets: SocketTicketService,
+    private readonly episodeNavigation: EpisodeNavigationService,
   ) {}
 
   afterInit(server: Server) {
@@ -421,6 +424,14 @@ export class RoomGateway
       if (await this.marathon.isActive(p.roomId))
         return fail('CONFLICT', 'Stop the marathon before changing the movie');
       const title = p.playbackSelection ? selectionTitle(p.playbackSelection) : p.movieId!;
+      if (p.episodeDirection) {
+        const state = await this.playback.getState(p.roomId);
+        if (state.version !== p.baseVersion)
+          return fail('STALE', 'Playback changed; refresh episode navigation.');
+        const navigation = await this.episodeNavigation.navigation(state);
+        if (navigation[p.episodeDirection]?.id !== title)
+          return fail('STALE', 'Episode navigation changed; choose again.');
+      }
       const ack = await this.playback.loadMovie(p.roomId, title, {
         autoplay: false,
         ctx: { actorId: socket.data.user.id, commandId: p.commandId, baseVersion: p.baseVersion },

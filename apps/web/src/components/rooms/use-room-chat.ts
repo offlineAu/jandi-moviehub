@@ -48,13 +48,18 @@ export function useRoomChat(
   const [error, setError] = React.useState<unknown>(null);
   const [incoming, setIncoming] = React.useState(0);
   const olderLoadedRef = React.useRef(false);
+  const messagesRef = React.useRef<ChatItem[]>([]);
+  messagesRef.current = messages;
+  const roomRef = React.useRef(roomId);
+  roomRef.current = roomId;
   const myIdRef = React.useRef(myUserId);
   React.useEffect(() => {
     myIdRef.current = myUserId;
   }, [myUserId]);
 
   const loadInitial = React.useCallback(async () => {
-    setLoading(true);
+    const snapshot = new Map(messagesRef.current.map((message) => [message.id, message]));
+    if (!messagesRef.current.length) setLoading(true);
     setError(null);
     try {
       const res = await apiFetch<{ items: ChatMessageDto[]; hasMore: boolean }>(
@@ -63,14 +68,15 @@ export function useRoomChat(
           query: { limit: 50 },
         },
       );
-      // Keeps live/older messages already on screen, in server order.
-      setMessages((current) => mergeChatHistory(current, res.items));
+      if (roomRef.current !== roomId) return;
+      // Preserve live updates that landed after this request began.
+      setMessages((current) => mergeChatHistory(current, res.items, snapshot));
       // Once older pages are loaded, the newest page no longer says whether more exist.
       if (!olderLoadedRef.current) setHasMore(res.hasMore);
     } catch (e) {
-      setError(e);
+      if (roomRef.current === roomId && !messagesRef.current.length) setError(e);
     } finally {
-      setLoading(false);
+      if (roomRef.current === roomId) setLoading(false);
     }
   }, [roomId]);
 
@@ -91,14 +97,16 @@ export function useRoomChat(
     if (!oldest) return;
     setLoadingOlder(true);
     try {
+      const snapshot = new Map(messagesRef.current.map((message) => [message.id, message]));
       const res = await apiFetch<{ items: ChatMessageDto[]; hasMore: boolean }>(
         `/rooms/${encodeURIComponent(roomId)}/messages`,
         {
           query: { before: oldest.createdAt, limit: 50 },
         },
       );
+      if (roomRef.current !== roomId) return;
       olderLoadedRef.current = true;
-      setMessages((current) => mergeChatHistory(current, res.items));
+      setMessages((current) => mergeChatHistory(current, res.items, snapshot));
       setHasMore(res.hasMore);
     } catch (e) {
       toast.error(errorMessage(e, 'Older messages didn’t load.'));
@@ -112,18 +120,7 @@ export function useRoomChat(
     if (!socket) return;
     const onMessage = (m: ChatMessageDto) => {
       if (m.roomId !== roomId) return;
-      setMessages((current) => {
-        if (current.some((x) => x.id === m.id)) return current;
-        const idx = m.clientId
-          ? current.findIndex((x) => x.clientId === m.clientId && x.pending)
-          : -1;
-        if (idx >= 0) {
-          const next = current.slice();
-          next[idx] = m;
-          return next;
-        }
-        return [...current, m];
-      });
+      setMessages((current) => mergeChatHistory(current, [m]));
       if (m.kind !== 'SYSTEM' && m.author?.id !== myIdRef.current) setIncoming((n) => n + 1);
     };
     const onDeleted = (p: { roomId: string; messageId: string }) => {
@@ -221,10 +218,7 @@ export function useRoomChat(
       }
       if (ack.ok) {
         const msg = ack.data;
-        setMessages((current) => {
-          const withoutDup = current.filter((m) => m.id !== msg.id || m.clientId === clientId);
-          return withoutDup.map((m) => (m.clientId === clientId ? { ...msg, clientId } : m));
-        });
+        setMessages((current) => mergeChatHistory(current, [{ ...msg, clientId }]));
         return true;
       }
       setMessages((current) =>
