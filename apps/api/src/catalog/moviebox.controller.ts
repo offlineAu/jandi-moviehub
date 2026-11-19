@@ -175,6 +175,27 @@ type MovieboxEpisodeList = {
 export class MovieboxService {
   private episodeCatalog: { expires: number; value: MovieboxEpisodeList } | null = null;
   private episodeRequest: Promise<MovieboxEpisodeList> | null = null;
+  private detailCache: { expires: number; value: unknown } | null = null;
+  private detailRequest: Promise<unknown> | null = null;
+
+  private async detail(): Promise<unknown> {
+    if (this.detailCache && this.detailCache.expires > Date.now())
+      return structuredClone(this.detailCache.value);
+    if (!this.detailRequest) {
+      this.detailRequest = json(
+        `https://h5-api.aoneroom.com/wefeed-h5api-bff/detail?${new URLSearchParams({ detailPath: original.detailPath })}`,
+      )
+        .then((value) => {
+          if (!detailSchema.safeParse(value).success) throw unavailable();
+          this.detailCache = { value, expires: Date.now() + 10000 };
+          return value;
+        })
+        .finally(() => {
+          this.detailRequest = null;
+        });
+    }
+    return structuredClone(await this.detailRequest);
+  }
 
   async episodes(): Promise<MovieboxEpisodeList> {
     if (this.episodeCatalog && this.episodeCatalog.expires > Date.now())
@@ -193,11 +214,7 @@ export class MovieboxService {
   }
 
   private async fetchEpisodes(): Promise<MovieboxEpisodeList> {
-    const parsed = providerDetailSchema.safeParse(
-      await json(
-        `https://h5-api.aoneroom.com/wefeed-h5api-bff/detail?${new URLSearchParams({ detailPath: original.detailPath })}`,
-      ),
-    );
+    const parsed = providerDetailSchema.safeParse(await this.detail());
     if (!parsed.success) throw unavailable();
     const data = parsed.data.data;
     if (
@@ -312,9 +329,7 @@ export class MovieboxService {
         'MOVIEBOX_SOURCE_SELECTION_REQUIRED',
         'Season 1 uses a different episode cut. Choose a source part and episode to watch.',
       );
-    const rawMetadata = await json(
-      `https://h5-api.aoneroom.com/wefeed-h5api-bff/detail?${new URLSearchParams({ detailPath: original.detailPath })}`,
-    );
+    const rawMetadata = await this.detail();
     const metadata = detailSchema.safeParse(rawMetadata);
     if (!metadata.success) throw unavailable();
     const data = metadata.data.data;

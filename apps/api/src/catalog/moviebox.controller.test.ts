@@ -167,6 +167,35 @@ describe('MovieBox media delivery', () => {
 });
 
 describe('MovieBox free playback', () => {
+  it('reuses episode metadata when navigating and resolves the exact next episode with a fresh stream', async () => {
+    const fetchMock = network();
+    const controller = new MovieboxController();
+    await controller.episodes({ tvId: '71446' });
+    await controller.playback({ tvId: '71446', season: 5, episode: 4, numbering: 'provider' });
+    const urls = fetchMock.mock.calls.map(([url]) => url);
+    expect(urls.filter((url) => url.includes('/detail?'))).toHaveLength(1);
+    const streamUrl = new URL(urls.find((url) => url.includes('/subject/play?'))!);
+    expect(streamUrl.searchParams.get('se')).toBe('5');
+    expect(streamUrl.searchParams.get('ep')).toBe('4');
+  });
+
+  it('refreshes shared metadata after its short lifetime and does not cache failed lookups', async () => {
+    let now = 100000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      const fetchMock = network();
+      const controller = new MovieboxController();
+      await controller.episodes({ tvId: '71446' });
+      now += 10001;
+      fetchMock.mockRejectedValueOnce(new DOMException('timeout', 'TimeoutError'));
+      await expect(controller.playback(query)).rejects.toMatchObject({ code: 'MOVIEBOX_TIMEOUT' });
+      await controller.playback(query);
+      expect(fetchMock.mock.calls.filter(([url]) => url.includes('/detail?'))).toHaveLength(3);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it('coalesces catalog requests, reuses successful results and refreshes after two minutes', async () => {
     let now = 100000;
     const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);

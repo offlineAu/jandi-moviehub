@@ -415,6 +415,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
 
     // Reload only this viewer's MP4. The sync engine suppresses local transport events
     // until metadata arrives and then aligns this player with the room again.
+    const lastMovieboxRecovery = React.useRef(0);
     const retryLocalVideo = () => {
       const video = videoRef.current;
       if (!video || !selected) return;
@@ -432,6 +433,8 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       video.src = selected.source.url;
       video.load();
     };
+    const retryLocalVideoRef = React.useRef(retryLocalVideo);
+    retryLocalVideoRef.current = retryLocalVideo;
 
     const retry = () => {
       if (onRetrySource) {
@@ -475,9 +478,18 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       const recovery = createStallRecovery({
         position: () => video.currentTime,
         isPlaying: () => !video.paused,
+        delayMs: selected?.source.assetId.startsWith('moviebox') ? 25000 : 15000,
         retry: (position) => {
-          if (!hlsRef.current) return false;
-          hlsRef.current.startLoad(position);
+          if (hlsRef.current) {
+            hlsRef.current.startLoad(position);
+            return true;
+          }
+          if (!selected?.source.assetId.startsWith('moviebox')) return false;
+          const now = Date.now();
+          if (lastMovieboxRecovery.current && now - lastMovieboxRecovery.current < 120000)
+            return false;
+          lastMovieboxRecovery.current = now;
+          retryLocalVideoRef.current();
           return true;
         },
       });
@@ -582,7 +594,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
         if (stalledTimer !== undefined) clearTimeout(stalledTimer);
         for (const [event, fn] of Object.entries(handlers)) video.removeEventListener(event, fn);
       };
-    }, [autoPlay, mode, startAtSec, selected?.source.url]);
+    }, [autoPlay, mode, startAtSec, selected?.source.url, selected?.source.assetId]);
 
     // Fullscreen tracking.
     React.useEffect(() => {

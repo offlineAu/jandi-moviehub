@@ -118,6 +118,8 @@ export function WatchRoom({ room }: { room: Room }) {
   const isMod = myRole === 'HOST' || myRole === 'COHOST';
   const marathonActive = !!marathon && ACTIVE_MARATHON_STATES.includes(marathon.state);
   const assetKey = playbackAssetKey(playback);
+  const assetKeyRef = React.useRef(assetKey);
+  assetKeyRef.current = assetKey;
   const sources = useRoomPlaybackSources(room.id, assetKey, session.joined);
   // A failed background refresh must not unmount a stream that is already playing.
   const sourceLoadFailed = sources.isError && !sources.data;
@@ -289,11 +291,7 @@ export function WatchRoom({ room }: { room: Room }) {
         {overlay}
       </div>
     );
-  } else if (
-    sources.isLoading ||
-    sources.data?.status === 'pending' ||
-    (sources.isFetching && playerFailed)
-  ) {
+  } else if (sources.isLoading || sources.data?.status === 'pending') {
     stage = (
       <div className="grid aspect-video place-items-center bg-black text-muted">
         <div className="grid justify-items-center gap-3 px-6 text-center">
@@ -365,13 +363,22 @@ export function WatchRoom({ room }: { room: Room }) {
         onSourceSwitch={(switching) => engine?.setSourceSwitching(switching)}
         onRetrySource={
           playback?.tvEpisode?.provider === 'kisskh-direct' ||
+          (playback?.tvEpisode && !playback.tvEpisode.provider) ||
           playback?.externalMedia?.provider === 'kisskh-direct'
             ? () =>
                 void sources.refetch().then((result) => {
-                  if (!result.isError) {
-                    setPlayerFailed(false);
-                    setSourceAttempt((attempt) => attempt + 1);
+                  if (assetKeyRef.current !== assetKey) return;
+                  if (result.isError || !result.data?.sources.length) {
+                    toast.error('Could not refresh your video', {
+                      description: errorMessage(
+                        result.error,
+                        'The provider is unavailable. Try again shortly.',
+                      ),
+                    });
+                    return;
                   }
+                  setPlayerFailed(false);
+                  setSourceAttempt((attempt) => attempt + 1);
                 })
             : undefined
         }
