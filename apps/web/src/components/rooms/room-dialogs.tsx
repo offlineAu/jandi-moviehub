@@ -445,6 +445,7 @@ export function ChangeMovieDialog({
   socket,
   engine,
   currentMovieId,
+  currentTitle,
 }: {
   roomId: string;
   open: boolean;
@@ -452,6 +453,7 @@ export function ChangeMovieDialog({
   socket: Socket | null;
   engine: RoomSyncEngine | null;
   currentMovieId: string | null;
+  currentTitle?: string | null;
 }) {
   const [movieId, setMovieId] = React.useState<string | undefined>(undefined);
   const { change, busy } = useChangeRoomMovie(roomId, socket, engine);
@@ -465,7 +467,8 @@ export function ChangeMovieDialog({
         <DialogHeader>
           <DialogTitle>{currentMovieId ? 'Change the title' : 'Pick a title'}</DialogTitle>
           <DialogDescription>
-            It loads paused at the start for everyone in the room.
+            {currentTitle ? `Currently playing: ${currentTitle}. ` : ''}The selected title loads
+            paused at the start for everyone in the room.
           </DialogDescription>
         </DialogHeader>
         <MoviePicker value={movieId} onChange={setMovieId} />

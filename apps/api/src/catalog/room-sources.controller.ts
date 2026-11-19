@@ -128,8 +128,16 @@ export class RoomSourcesController {
   @Post('kisskh/warm')
   @HttpCode(202)
   warmKisskh() {
-    this.kisskhStream.warm();
+    void this.kisskhStream.warm();
     return { starting: true };
+  }
+  @AllowGuest()
+  @RateLimit({ name: 'room-sources:warm-wait', limit: 5, windowSec: 60, by: 'user' })
+  @Post('kisskh/warm/wait')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async waitForKisskh() {
+    return { ready: await this.kisskhStream.warm() };
   }
   @Public()
   @RateLimit({ name: 'room-sources:captions', limit: 120, windowSec: 60 })

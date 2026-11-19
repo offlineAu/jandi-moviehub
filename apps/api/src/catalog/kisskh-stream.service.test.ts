@@ -422,3 +422,39 @@ describe('KissKH direct stream resolution', () => {
     finish(new Response(null, { status: 200 }));
   });
 });
+
+describe('manual resolver wake', () => {
+  it('shares the in-flight wake and reports successful readiness', async () => {
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const resolver = service();
+    const first = resolver.warm();
+    const second = resolver.warm();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response(null, { status: 200 }));
+    expect(await first).toBe(true);
+    expect(await second).toBe(true);
+  });
+  it('reports failure for an unavailable resolver', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 503 })),
+    );
+    expect(await service().warm()).toBe(false);
+  });
+  it('reports network failures without claiming the resolver is ready', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('network');
+      }),
+    );
+    expect(await service().warm()).toBe(false);
+  });
+});

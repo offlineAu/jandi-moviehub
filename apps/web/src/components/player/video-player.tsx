@@ -38,6 +38,8 @@ import { resolvePreferences, useMe } from '@/lib/queries/auth';
 import type { PlaybackSource } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { MediaSlider } from './media-slider';
+import { createStallRecovery } from './stall-recovery';
+import { CaptionWakeAction, type CaptionWakeResult } from './caption-wake-action';
 import {
   PLAYBACK_RATES,
   clamp,
@@ -74,6 +76,7 @@ export interface VideoPlayerProps {
   onPlaybackErrorChange?: (failed: boolean) => void;
   onSourceSwitch?: (switching: boolean) => void;
   onRetrySource?: () => void;
+  onWakeCaptions?: () => Promise<CaptionWakeResult>;
   onNext?: () => void;
   onPrevious?: () => void;
   nextLabel?: string;
@@ -173,6 +176,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       onPlaybackErrorChange,
       onSourceSwitch,
       onRetrySource,
+      onWakeCaptions,
       onNext,
       onPrevious,
       nextLabel,
@@ -446,6 +450,15 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       const video = videoRef.current;
       if (!video) return;
       let waitingAt: number | null = null;
+      const recovery = createStallRecovery({
+        position: () => video.currentTime,
+        isPlaying: () => !video.paused,
+        retry: (position) => {
+          if (!hlsRef.current) return false;
+          hlsRef.current.startLoad(position);
+          return true;
+        },
+      });
       const setBuf = (v: boolean) => {
         waitingAt = v ? video.currentTime : null;
         setBuffering((prev) => {
@@ -459,17 +472,23 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
           setStarted(true);
         },
         playing: () => {
+          recovery.reset();
           setPaused(false);
           setBuf(false);
         },
         pause: () => {
+          recovery.reset();
           setPaused(true);
           setBuf(false);
         },
-        waiting: () => setBuf(true),
+        waiting: () => {
+          setBuf(true);
+          recovery.wait();
+        },
         canplay: () => setBuf(false),
         seeked: () => setBuf(false),
         timeupdate: () => {
+          recovery.progress();
           if (waitingAt !== null && !video.paused && video.currentTime > waitingAt) setBuf(false);
           setCurrent(video.currentTime);
           onTimeUpdateRef.current?.(
@@ -513,6 +532,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
           setMuted(video.muted);
         },
         ended: () => {
+          recovery.reset();
           setPaused(true);
           setBuf(false);
           onEndedRef.current?.();
@@ -528,9 +548,10 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       };
       for (const [event, fn] of Object.entries(handlers)) video.addEventListener(event, fn);
       return () => {
+        recovery.dispose();
         for (const [event, fn] of Object.entries(handlers)) video.removeEventListener(event, fn);
       };
-    }, [autoPlay, mode, startAtSec]);
+    }, [autoPlay, mode, startAtSec, selected?.source.url]);
 
     // Fullscreen tracking.
     React.useEffect(() => {
@@ -1167,6 +1188,9 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
                           </DropdownMenuRadioItem>
                         ))}
                       </DropdownMenuRadioGroup>
+                      {captionChoices.length === 0 && onWakeCaptions && (
+                        <CaptionWakeAction onWake={onWakeCaptions} />
+                      )}
                       {captionChoices.length === 0 && onRetrySource && (
                         <DropdownMenuItem onSelect={onRetrySource}>
                           Retry stream and captions

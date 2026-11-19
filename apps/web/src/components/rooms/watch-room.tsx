@@ -38,7 +38,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip } from '@/components/ui/tooltip';
-import { errorMessage } from '@/lib/api';
+import { apiFetch, errorMessage } from '@/lib/api';
 import { useMe } from '@/lib/queries/auth';
 import {
   useCloseRoom,
@@ -119,6 +119,8 @@ export function WatchRoom({ room }: { room: Room }) {
   const marathonActive = !!marathon && ACTIVE_MARATHON_STATES.includes(marathon.state);
   const assetKey = playbackAssetKey(playback);
   const sources = useRoomPlaybackSources(room.id, assetKey, session.joined);
+  // A failed background refresh must not unmount a stream that is already playing.
+  const sourceLoadFailed = sources.isError && !sources.data;
   const needsCaptions =
     assetKey?.startsWith('kisskh-direct:') === true &&
     !!sources.data?.sources.length &&
@@ -185,7 +187,17 @@ export function WatchRoom({ room }: { room: Room }) {
   );
 
   const sourcesMovie = sources.data?.movie;
-  const nowTitle = sourcesMovie?.title ?? (assetKey ? room.movie?.title : null) ?? null;
+  const episode = playback?.tvEpisode;
+  const externalEpisode = playback?.externalMedia?.type === 'tv' ? playback.externalMedia : null;
+  const nowTitle = episode
+    ? `Money Heist · ${episode.numbering === 'provider' ? 'Part' : 'Season'} ${episode.season}, Episode ${episode.episode}`
+    : (sourcesMovie?.title ??
+      (externalEpisode
+        ? `Series · Season ${externalEpisode.season}, Episode ${externalEpisode.episode}`
+        : assetKey
+          ? room.movie?.title
+          : null) ??
+      null);
 
   const overlay = (
     <>
@@ -298,7 +310,7 @@ export function WatchRoom({ room }: { room: Room }) {
         </div>
       </div>
     );
-  } else if (!sources.isError && sources.data?.embed?.provider === 'vidsrc') {
+  } else if (!sourceLoadFailed && sources.data?.embed?.provider === 'vidsrc') {
     stage = (
       <VidsrcRoomPlayer
         key={assetKey}
@@ -313,7 +325,7 @@ export function WatchRoom({ room }: { room: Room }) {
       />
     );
   } else if (
-    !sources.isError &&
+    !sourceLoadFailed &&
     sources.data?.embed?.provider === 'kisskh' &&
     playback?.tvEpisode?.provider === 'kisskh'
   ) {
@@ -329,13 +341,13 @@ export function WatchRoom({ room }: { room: Room }) {
         onFullscreenChange={setPlayerFullscreen}
       />
     );
-  } else if (sources.isError || !sources.data?.sources.length) {
+  } else if (sourceLoadFailed || !sources.data?.sources.length) {
     stage = (
       <ErrorState
         className="aspect-video rounded-none border-0"
-        title={sources.isError ? 'The stream didn’t load' : 'This title has no playable stream'}
+        title={sourceLoadFailed ? 'The stream didn’t load' : 'This title has no playable stream'}
         error={sources.error ?? new Error('Ask the host to pick another movie.')}
-        onRetry={sources.isError ? () => void sources.refetch() : undefined}
+        onRetry={sourceLoadFailed ? () => void sources.refetch() : undefined}
       />
     );
   } else {
@@ -361,6 +373,19 @@ export function WatchRoom({ room }: { room: Room }) {
                     setSourceAttempt((attempt) => attempt + 1);
                   }
                 })
+            : undefined
+        }
+        onWakeCaptions={
+          needsCaptions
+            ? async () => {
+                const wake = await apiFetch<{ ready: boolean }>('/room-sources/kisskh/warm/wait', {
+                  method: 'POST',
+                });
+                if (!wake.ready) return 'unavailable';
+                const result = await recoveredCaptions.refetch();
+                if (result.isError || result.data?.assetId !== assetKey) return 'unavailable';
+                return result.data.captions.length ? 'found' : 'missing';
+              }
             : undefined
         }
         onTimeUpdate={onTimeUpdate}
@@ -474,7 +499,7 @@ export function WatchRoom({ room }: { room: Room }) {
               {room.code}
             </span>
             {nowTitle ? (
-              <span className="hidden truncate sm:inline">Now showing {nowTitle}</span>
+              <span className="hidden min-w-0 truncate sm:inline">Now showing {nowTitle}</span>
             ) : null}
             {marathon ? (
               <Badge
@@ -507,9 +532,21 @@ export function WatchRoom({ room }: { room: Room }) {
             joined={session.joined}
             stats={session.stats}
             hasMedia={!!assetKey}
-            playerFailed={playerFailed || sources.isError}
+            playerFailed={playerFailed || sourceLoadFailed}
           />
         )}
+        {canControl && !marathonActive ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setMovieOpen(true)}
+            className="hidden sm:inline-flex"
+            aria-label={assetKey ? 'Change title' : 'Pick a title'}
+          >
+            <Film aria-hidden="true" />
+            <span>{assetKey ? 'Change title' : 'Pick a title'}</span>
+          </Button>
+        ) : null}
         <Button
           variant="secondary"
           size="sm"
@@ -578,6 +615,16 @@ export function WatchRoom({ room }: { room: Room }) {
           </Button>
         </Tooltip>
       </header>
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-2 sm:hidden">
+        <p className="min-w-0 flex-1 text-sm leading-snug text-foreground">
+          {nowTitle ?? (assetKey ? 'Loading current title…' : 'Nothing playing yet')}
+        </p>
+        {canControl && !marathonActive ? (
+          <Button variant="secondary" size="sm" onClick={() => setMovieOpen(true)}>
+            {assetKey ? 'Change title' : 'Pick a title'}
+          </Button>
+        ) : null}
+      </div>
 
       <main
         id="main"
@@ -587,7 +634,7 @@ export function WatchRoom({ room }: { room: Room }) {
         <section aria-label="Player" className="min-w-0 flex-1 lg:overflow-y-auto">
           <div className={cn(theater && desktop ? 'bg-black' : 'sm:px-6 sm:pt-5')}>
             <div className={cn(theater && desktop ? '' : 'mx-auto max-w-5xl')}>{stage}</div>
-            {(sources.isError || playerFailed) && !marathonActive && (
+            {(sourceLoadFailed || playerFailed) && !marathonActive && (
               <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm text-muted">
                 {isMod && canControl ? (
                   <>
@@ -752,6 +799,7 @@ export function WatchRoom({ room }: { room: Room }) {
         onOpenChange={setMovieOpen}
         socket={session.socket}
         engine={engine}
+        currentTitle={nowTitle}
         currentMovieId={
           playback?.externalMedia
             ? selectionTitle(playback.externalMedia)

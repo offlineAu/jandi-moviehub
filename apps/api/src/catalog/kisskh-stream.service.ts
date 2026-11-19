@@ -47,7 +47,7 @@ async function readBounded(response: Response, limit: number) {
 @Injectable()
 export class KisskhStreamService {
   private readonly logger = new Logger(KisskhStreamService.name);
-  private warming: Promise<void> | null = null;
+  private warming: Promise<boolean> | null = null;
   private readonly pendingCaptions = new Map<
     string,
     Promise<Array<{ lang: string; label: string; url: string }>>
@@ -77,7 +77,7 @@ export class KisskhStreamService {
 
   warm() {
     this.assertEnabled();
-    if (this.warming) return;
+    if (this.warming) return this.warming;
     const started = Date.now();
     const base = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
     this.warming = (async () => {
@@ -90,14 +90,17 @@ export class KisskhStreamService {
           `Resolver warm-up ${response.ok ? 'ready' : 'unavailable'} in ${Date.now() - started}ms (HTTP ${response.status})`,
         );
         await response.body?.cancel();
+        return response.ok;
       } catch (error) {
         this.logger.warn(
           `Resolver warm-up ${error instanceof Error && error.name === 'TimeoutError' ? 'timed out' : 'failed'} after ${Date.now() - started}ms`,
         );
+        return false;
       } finally {
         this.warming = null;
       }
     })();
+    return this.warming;
   }
 
   async resolve(episode: KisskhEpisode) {

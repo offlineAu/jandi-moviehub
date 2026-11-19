@@ -64,3 +64,26 @@ it('rechecks missing captions and stops polling when they recover', async () => 
   });
   expect(apiFetch).toHaveBeenCalledTimes(2);
 });
+
+it('retains the existing playback source if a later refresh fails', async () => {
+  vi.useFakeTimers();
+  apiFetch.mockReset();
+  apiFetch.mockResolvedValueOnce(emptySource).mockRejectedValue(new Error('MovieBox timed out'));
+  const { result } = renderHook(() => useRoomPlaybackSources('room', assetId), {
+    wrapper: wrapper(),
+  });
+  await flush();
+  expect(result.current.data).toEqual(emptySource);
+  expect(result.current.isError).toBe(false);
+  let refreshed!: ReturnType<typeof result.current.refetch>;
+  act(() => {
+    refreshed = result.current.refetch();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2000);
+    await refreshed;
+  });
+  await flush();
+  expect(result.current.isError).toBe(true);
+  expect(result.current.data).toEqual(emptySource);
+});
