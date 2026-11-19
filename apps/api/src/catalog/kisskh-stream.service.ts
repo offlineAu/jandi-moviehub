@@ -79,24 +79,29 @@ export class KisskhStreamService {
     this.assertEnabled();
     if (this.warming) return this.warming;
     const started = Date.now();
-    const base = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
+    const primary = this.config.env.KISSKH_STREAM_RESOLVER_URL!.replace(/\/$/, '');
+    const fallback = this.config.env.KISSKH_STREAM_RESOLVER_FALLBACK_URL?.replace(/\/$/, '');
+    const bases = [...new Set([primary, fallback].filter((base): base is string => !!base))];
+    const abort = new AbortController();
     this.warming = (async () => {
       try {
-        const response = await fetch(`${base}/manifest.json`, {
-          signal: AbortSignal.timeout(85000),
-          redirect: 'error',
-        });
-        this.logger.log(
-          `Resolver warm-up ${response.ok ? 'ready' : 'unavailable'} in ${Date.now() - started}ms (HTTP ${response.status})`,
+        await Promise.any(
+          bases.map(async (base) => {
+            const response = await fetch(`${base}/manifest.json`, {
+              signal: AbortSignal.any([AbortSignal.timeout(85000), abort.signal]),
+              redirect: 'error',
+            });
+            await response.body?.cancel();
+            if (!response.ok) throw new Error('Resolver unavailable');
+          }),
         );
-        await response.body?.cancel();
-        return response.ok;
-      } catch (error) {
-        this.logger.warn(
-          `Resolver warm-up ${error instanceof Error && error.name === 'TimeoutError' ? 'timed out' : 'failed'} after ${Date.now() - started}ms`,
-        );
+        this.logger.log(`Resolver warm-up ready in ${Date.now() - started}ms`);
+        return true;
+      } catch {
+        this.logger.warn(`Resolver warm-up unavailable after ${Date.now() - started}ms`);
         return false;
       } finally {
+        abort.abort();
         this.warming = null;
       }
     })();

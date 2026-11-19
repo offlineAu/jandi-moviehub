@@ -17,11 +17,13 @@ function Episode({
   season,
   episode,
   onSelect,
+  current,
 }: {
   tvId: number;
   season: number;
   episode: TvEpisode;
   onSelect: (value: string) => void;
+  current?: boolean;
 }) {
   const [checking, setChecking] = React.useState(false);
   const check = useRoomSourceCheck({ tvId, season, episode: episode.number }, checking);
@@ -30,6 +32,7 @@ function Episode({
       <button
         type="button"
         className="flex w-full items-center gap-3 text-left disabled:opacity-60"
+        aria-current={current ? 'true' : undefined}
         disabled={check.isFetching || check.data?.listed === false}
         onClick={async () => {
           setChecking(true);
@@ -51,6 +54,7 @@ function Episode({
         </div>
         <span>
           Episode {episode.number} · {episode.title}
+          {current ? ' · Now playing' : ''}
           <span className="block text-xs text-muted">
             {check.isFetching
               ? 'Checking source…'
@@ -69,12 +73,16 @@ function Episode({
 export function VidsrcTvPicker({
   tvId,
   onSelect,
+  initialSeason,
+  currentEpisode,
 }: {
   tvId: number;
   onSelect: (value: string) => void;
+  initialSeason?: number;
+  currentEpisode?: number;
 }) {
   const detail = useTvSeries(String(tvId));
-  const [selected, setSelected] = React.useState<number | null>(null);
+  const [selected, setSelected] = React.useState<number | null>(initialSeason ?? null);
   const seasons = playableSeasons(detail.data?.series.seasons ?? []);
   const season = selected ?? seasons[0]?.season_number ?? null;
   const episodes = useTvSeason(String(tvId), season);
@@ -120,6 +128,7 @@ export function VidsrcTvPicker({
               season={season!}
               episode={episode}
               onSelect={onSelect}
+              current={season === initialSeason && episode.number === currentEpisode}
             />
           ))}
         </ul>

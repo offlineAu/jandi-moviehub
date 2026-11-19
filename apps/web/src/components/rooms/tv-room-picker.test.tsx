@@ -156,3 +156,45 @@ it('selects the experimental direct source only when enabled', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Episode 1' }));
   expect(onSelect).toHaveBeenCalledWith('kisskh-direct:71446:1:1:2510:57281');
 });
+
+it('opens on the current MovieBox part and highlights the playing episode', async () => {
+  const original = vi.mocked(apiFetch).getMockImplementation()!;
+  vi.mocked(apiFetch).mockImplementation(async (...args) => {
+    if (args[0] === '/room-sources/capabilities')
+      return { vidsrcSync: true, kisskhDirectSync: true };
+    if (args[0] === '/room-sources/kisskh/warm') return { starting: true };
+    if (args[0] === '/moviebox/episodes')
+      return {
+        seasons: [
+          { number: 4, name: 'Part 4', episodes: [{ number: 1 }] },
+          { number: 5, name: 'Part 5', episodes: [{ number: 1 }, { number: 2 }, { number: 3 }] },
+        ],
+      };
+    return original(...args);
+  });
+  const select = vi.fn();
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <TvRoomPicker
+        query="Money Heist"
+        initialTitle="Money Heist"
+        initialSelection="moviebox-source:71446:5:2"
+        onSelect={select}
+      />
+    </QueryClientProvider>,
+  );
+  expect(
+    (screen.getByRole('combobox', { name: 'Room playback provider' }) as HTMLSelectElement).value,
+  ).toBe('moviebox');
+  await screen.findByRole('option', { name: 'Part 5 · 3 episodes' });
+  expect(
+    (screen.getByRole('combobox', { name: 'Episode season' }) as HTMLSelectElement).value,
+  ).toBe('5');
+  expect(
+    await screen.findByRole('button', { name: 'Episode 2 · Now playing', current: true }),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Episode 3' }));
+  expect(select).toHaveBeenCalledWith('moviebox-source:71446:5:3');
+});

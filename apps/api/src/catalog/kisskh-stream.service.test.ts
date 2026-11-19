@@ -458,3 +458,13 @@ describe('manual resolver wake', () => {
     expect(await service().warm()).toBe(false);
   });
 });
+
+it('reports resolver ready when the fallback responds and the primary is unavailable', async () => {
+  const fetchMock = vi.fn(
+    async (url: string) =>
+      new Response(null, { status: url.startsWith('https://backup.example/') ? 200 : 502 }),
+  );
+  vi.stubGlobal('fetch', fetchMock);
+  expect(await service(true, 'https://backup.example').warm()).toBe(true);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});

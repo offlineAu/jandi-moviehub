@@ -458,8 +458,8 @@ export function ChangeMovieDialog({
   const [movieId, setMovieId] = React.useState<string | undefined>(undefined);
   const { change, busy } = useChangeRoomMovie(roomId, socket, engine);
   React.useEffect(() => {
-    if (open) setMovieId(undefined);
-  }, [open]);
+    if (open) setMovieId(currentMovieId ?? undefined);
+  }, [open, currentMovieId]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -471,7 +471,13 @@ export function ChangeMovieDialog({
             paused at the start for everyone in the room.
           </DialogDescription>
         </DialogHeader>
-        <MoviePicker value={movieId} onChange={setMovieId} />
+        <MoviePicker
+          key={open ? (currentMovieId ?? 'new') : 'closed'}
+          value={movieId}
+          onChange={setMovieId}
+          initialSelection={currentMovieId}
+          initialTitle={currentTitle}
+        />
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel

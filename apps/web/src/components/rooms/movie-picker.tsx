@@ -105,15 +105,22 @@ export function MoviePicker({
   onChange,
   id,
   invalid,
+  initialSelection,
+  initialTitle,
 }: {
   value: string | undefined;
   onChange: (movieId: string | undefined) => void;
   id?: string;
   invalid?: boolean;
+  initialSelection?: string | null;
+  initialTitle?: string | null;
 }) {
-  const [text, setText] = React.useState('');
-  const [q, setQ] = React.useState('');
-  const [browsing, setBrowsing] = React.useState(!value);
+  const initialTv = initialSelection ? parseRoomTvTitle(initialSelection) : null;
+  const initialExternal = initialSelection ? parseExternalTitle(initialSelection) : null;
+  const initialQuery = initialTv ? 'Money Heist' : ((initialTitle ?? '').split(' · ')[0] ?? '');
+  const [text, setText] = React.useState(initialQuery);
+  const [q, setQ] = React.useState(initialQuery);
+  const [browsing, setBrowsing] = React.useState(!!initialSelection || !value);
   const capabilities = useRoomSourceCapabilities();
   const warmed = React.useRef(false);
   React.useEffect(() => {
@@ -143,7 +150,9 @@ export function MoviePicker({
   if (external && !browsing)
     return (
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border-strong p-3">
-        {external.type === 'anime' ? <span>Anime episode · synchronized playback</span> : external.type === 'tv' ? (
+        {external.type === 'anime' ? (
+          <span>Anime episode · synchronized playback</span>
+        ) : external.type === 'tv' ? (
           <SelectedExternalEpisode media={{ ...external, tmdbId: external.tvId }} />
         ) : (
           <span className="min-w-0 flex-1 basis-48 break-words">
@@ -222,7 +231,15 @@ export function MoviePicker({
       )}
       id={id}
     >
-      {capabilities.data?.anime && <AnimePicker q={q} onSelect={value => { onChange(value); setBrowsing(false); }} />}
+      {capabilities.data?.anime && (
+        <AnimePicker
+          q={q}
+          onSelect={(value) => {
+            onChange(value);
+            setBrowsing(false);
+          }}
+        />
+      )}
       <SearchInput
         value={text}
         onValueChange={setText}
@@ -260,6 +277,10 @@ export function MoviePicker({
       )}
       <TvRoomPicker
         query={q}
+        initialSelection={initialSelection}
+        initialTitle={
+          initialTv ? 'Money Heist' : initialExternal?.type === 'tv' ? initialQuery : undefined
+        }
         onSelect={(id) => {
           onChange(id);
           setBrowsing(false);

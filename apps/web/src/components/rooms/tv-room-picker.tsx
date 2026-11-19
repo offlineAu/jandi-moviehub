@@ -4,7 +4,12 @@ import { VidsrcTvPicker } from './vidsrc-tv-picker';
 
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { providerCatalogEpisode, parseRoomTvTitle, roomTvTitle } from '@jandi/shared';
+import {
+  providerCatalogEpisode,
+  parseRoomTvTitle,
+  parseExternalTitle,
+  roomTvTitle,
+} from '@jandi/shared';
 import { useProviderSeries, type SeriesProvider } from '@/components/series/provider-series';
 import { apiFetch } from '@/lib/api';
 import { useTvSeason } from '@/components/series/tv-episodes';
@@ -69,15 +74,29 @@ export function SelectedRoomEpisode({
 export function TvRoomPicker({
   query,
   onSelect,
+  initialSelection,
+  initialTitle,
 }: {
   query: string;
   onSelect: (value: string) => void;
+  initialSelection?: string | null;
+  initialTitle?: string;
 }) {
-  const [series, setSeries] = React.useState<Series | null>(null);
-  const [provider, setProvider] = React.useState<SeriesProvider | 'vidsrc' | 'kisskh-direct'>(
-    'kisskh',
+  const initialEpisode = initialSelection ? parseRoomTvTitle(initialSelection) : null;
+  const initialExternal = initialSelection ? parseExternalTitle(initialSelection) : null;
+  const initialTv = initialExternal?.type === 'tv' ? initialExternal : null;
+  const initialId = initialEpisode ? Number(initialEpisode.tvId) : initialTv?.tvId;
+  const [series, setSeries] = React.useState<Series | null>(
+    initialId ? { id: initialId, title: initialTitle || 'TV series' } : null,
   );
-  const [season, setSeason] = React.useState(1);
+  const [provider, setProvider] = React.useState<SeriesProvider | 'vidsrc' | 'kisskh-direct'>(
+    initialEpisode ? (initialEpisode.provider ?? 'moviebox') : initialTv ? 'vidsrc' : 'kisskh',
+  );
+  const [season, setSeason] = React.useState(
+    initialEpisode?.numbering === 'provider' ? initialEpisode.season : (initialTv?.season ?? 1),
+  );
+  const initialQuery = React.useRef(query);
+  const currentEpisode = initialEpisode?.episode ?? initialTv?.episode;
   const capabilities = useRoomSourceCapabilities();
   React.useEffect(() => {
     if (series?.id === 71446 && capabilities.data?.kisskhDirectSync) {
@@ -85,17 +104,19 @@ export function TvRoomPicker({
     }
   }, [series?.id, capabilities.data?.kisskhDirectSync]);
   React.useEffect(() => {
-    if (capabilities.data?.vidsrcSync) setProvider('vidsrc');
-  }, [capabilities.data?.vidsrcSync]);
+    if (capabilities.data?.vidsrcSync && !initialId) setProvider('vidsrc');
+  }, [capabilities.data?.vidsrcSync, initialId]);
   React.useEffect(() => {
-    setSeries(null);
-    setSeason(1);
+    if (query !== initialQuery.current) {
+      setSeries(null);
+      setSeason(1);
+    }
   }, [query]);
   const search = useQuery({
     queryKey: ['room-tv-search', query],
     queryFn: ({ signal }) =>
       apiFetch<{ items: Series[] }>('/tv/search', { query: { q: query }, signal }),
-    enabled: query.length >= 2,
+    enabled: query.length >= 2 && !series,
     retry: false,
   });
   const episodes = useProviderSeries(
@@ -146,6 +167,12 @@ export function TvRoomPicker({
               Back to results
             </Button>
           </div>
+          {initialEpisode && initialEpisode.numbering !== 'provider' ? (
+            <p className="mb-3 text-xs text-muted">
+              The current episode uses catalog numbering. Choose the matching provider episode; its
+              ordering may differ.
+            </p>
+          ) : null}
           <div className="mb-3">
             <NativeSelect
               aria-label="Room playback provider"
@@ -170,7 +197,13 @@ export function TvRoomPicker({
             </NativeSelect>
           </div>
           {provider === 'vidsrc' ? (
-            <VidsrcTvPicker key={series.id} tvId={series.id} onSelect={onSelect} />
+            <VidsrcTvPicker
+              key={series.id}
+              tvId={series.id}
+              onSelect={onSelect}
+              initialSeason={initialTv?.tvId === series.id ? initialTv.season : undefined}
+              currentEpisode={initialTv?.tvId === series.id ? initialTv.episode : undefined}
+            />
           ) : (
             <>
               <NativeSelect
@@ -235,9 +268,23 @@ export function TvRoomPicker({
                             ),
                           );
                         }}
-                        className="w-full rounded-lg p-3 text-left text-sm hover:bg-white/5"
+                        aria-current={
+                          initialEpisode?.numbering === 'provider' &&
+                          part?.number === initialEpisode.season &&
+                          item.number === currentEpisode &&
+                          provider === (initialEpisode.provider ?? 'moviebox')
+                            ? 'true'
+                            : undefined
+                        }
+                        className="w-full rounded-lg p-3 text-left text-sm hover:bg-white/5 aria-[current=true]:bg-primary/15"
                       >
                         Episode {item.number}
+                        {initialEpisode?.numbering === 'provider' &&
+                        part?.number === initialEpisode.season &&
+                        item.number === currentEpisode &&
+                        provider === (initialEpisode.provider ?? 'moviebox')
+                          ? ' · Now playing'
+                          : ''}
                       </button>
                     </li>
                   ))}

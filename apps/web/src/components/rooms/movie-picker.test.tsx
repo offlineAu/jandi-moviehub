@@ -22,7 +22,16 @@ vi.mock('@/lib/queries/catalog', () => ({
     },
   }),
 }));
-vi.mock('./tv-room-picker', () => ({ TvRoomPicker: () => null, SelectedRoomEpisode: () => null }));
+vi.mock('./tv-room-picker', () => ({
+  TvRoomPicker: (props: { query: string; initialSelection?: string }) => (
+    <div
+      data-testid="series-picker"
+      data-query={props.query}
+      data-selection={props.initialSelection}
+    />
+  ),
+  SelectedRoomEpisode: () => null,
+}));
 vi.mock('@/components/movies/artwork', () => ({ Artwork: () => null }));
 vi.mock('@/lib/api', () => ({ apiFetch: vi.fn(async () => ({})) }));
 
@@ -35,4 +44,26 @@ it('checks the selected movie before offering it for synchronized playback', asy
       'kisskh-direct:movie:00000000-0000-4000-8000-000000000001',
     ),
   );
+});
+
+it('opens the title picker searching the current series with its episode identity', () => {
+  render(
+    <MoviePicker
+      value="moviebox-source:71446:5:2"
+      onChange={mocks.onChange}
+      initialSelection="moviebox-source:71446:5:2"
+      initialTitle="Money Heist · Part 5, Episode 2"
+    />,
+  );
+  expect(
+    (
+      screen.getByRole('searchbox', {
+        name: 'Search movies or series to watch',
+      }) as HTMLInputElement
+    ).value,
+  ).toBe('Money Heist');
+  expect(screen.getByTestId('series-picker').getAttribute('data-selection')).toBe(
+    'moviebox-source:71446:5:2',
+  );
+  expect(screen.getByTestId('series-picker').getAttribute('data-query')).toBe('Money Heist');
 });

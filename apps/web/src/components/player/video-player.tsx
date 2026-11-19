@@ -242,6 +242,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
     const [duration, setDuration] = React.useState(0);
     const [buffered, setBuffered] = React.useState<Range[]>([]);
     const [buffering, setBuffering] = React.useState(false);
+    const [bufferingLong, setBufferingLong] = React.useState(false);
     const [rate, setRate] = React.useState(1);
     const [volume, setVolume] = React.useState(0.8);
     const [muted, setMuted] = React.useState(false);
@@ -412,6 +413,26 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       };
     }, [attach]);
 
+    // Reload only this viewer's MP4. The sync engine suppresses local transport events
+    // until metadata arrives and then aligns this player with the room again.
+    const retryLocalVideo = () => {
+      const video = videoRef.current;
+      if (!video || !selected) return;
+      const wasPlaying = !video.paused;
+      const position = video.currentTime;
+      onSourceSwitchRef.current?.(true);
+      if (mode === 'solo') {
+        resumeAfterSource.current = { time: position, playing: wasPlaying };
+        startApplied.current = false;
+      } else {
+        startApplied.current = true;
+      }
+      setError(null);
+      setBufferingLong(false);
+      video.src = selected.source.url;
+      video.load();
+    };
+
     const retry = () => {
       if (onRetrySource) {
         onRetrySource();
@@ -427,12 +448,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
         hls.recoverMediaError();
         return;
       }
-      if (video && selected) {
-        startApplied.current = true;
-        video.src = selected.source.url;
-        video.load();
-        video.currentTime = at;
-      }
+      if (video && selected) retryLocalVideo();
     };
 
     // Keep latest callbacks in refs so event listeners don't need re-binding.
@@ -450,6 +466,12 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       const video = videoRef.current;
       if (!video) return;
       let waitingAt: number | null = null;
+      let stalledTimer: ReturnType<typeof setTimeout> | undefined;
+      const clearStalledTimer = () => {
+        if (stalledTimer !== undefined) clearTimeout(stalledTimer);
+        stalledTimer = undefined;
+        setBufferingLong(false);
+      };
       const recovery = createStallRecovery({
         position: () => video.currentTime,
         isPlaying: () => !video.paused,
@@ -472,11 +494,13 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
           setStarted(true);
         },
         playing: () => {
+          clearStalledTimer();
           recovery.reset();
           setPaused(false);
           setBuf(false);
         },
         pause: () => {
+          clearStalledTimer();
           recovery.reset();
           setPaused(true);
           setBuf(false);
@@ -484,12 +508,17 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
         waiting: () => {
           setBuf(true);
           recovery.wait();
+          if (stalledTimer === undefined)
+            stalledTimer = setTimeout(() => setBufferingLong(true), 15000);
         },
         canplay: () => setBuf(false),
         seeked: () => setBuf(false),
         timeupdate: () => {
           recovery.progress();
-          if (waitingAt !== null && !video.paused && video.currentTime > waitingAt) setBuf(false);
+          if (waitingAt !== null && !video.paused && video.currentTime > waitingAt) {
+            clearStalledTimer();
+            setBuf(false);
+          }
           setCurrent(video.currentTime);
           onTimeUpdateRef.current?.(
             video.currentTime,
@@ -532,6 +561,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
           setMuted(video.muted);
         },
         ended: () => {
+          clearStalledTimer();
           recovery.reset();
           setPaused(true);
           setBuf(false);
@@ -549,6 +579,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
       for (const [event, fn] of Object.entries(handlers)) video.addEventListener(event, fn);
       return () => {
         recovery.dispose();
+        if (stalledTimer !== undefined) clearTimeout(stalledTimer);
         for (const [event, fn] of Object.entries(handlers)) video.removeEventListener(event, fn);
       };
     }, [autoPlay, mode, startAtSec, selected?.source.url]);
@@ -971,7 +1002,18 @@ export const VideoPlayer = React.forwardRef<VideoPlayerHandle, VideoPlayerProps>
             {/* Buffering */}
             {buffering && !error ? (
               <div className="pointer-events-none absolute inset-0 z-[3] grid place-items-center">
-                <Spinner className="size-12 text-white drop-shadow-lg" label="Buffering" />
+                <div className="grid justify-items-center gap-4">
+                  <Spinner className="size-12 text-white drop-shadow-lg" label="Buffering" />
+                  {bufferingLong && selectedSource?.assetId.startsWith('moviebox') ? (
+                    <button
+                      type="button"
+                      onClick={retryLocalVideo}
+                      className="pointer-events-auto rounded-lg bg-black/80 px-4 py-2 text-sm font-medium text-white shadow-lg focus-visible:outline-2 focus-visible:outline-primary"
+                    >
+                      Retry my video
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 
