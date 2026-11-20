@@ -1,6 +1,44 @@
 import { expect, it, vi } from 'vitest';
 import { RealtimeController } from './realtime.controller';
 
+it('returns the MovieBox stream when both optional metadata requests fail', async () => {
+  const episode = { tvId: '71446', season: 5, episode: 4, numbering: 'provider' };
+  const moviebox = {
+    playback: vi.fn(async () => ({
+      durationSec: 3000,
+      sources: [{ id: '480', resolution: 480, url: '/api/v1/moviebox/media/token' }],
+      englishVtt: 'WEBVTT',
+    })),
+  };
+  const controller = new RealtimeController(
+    { requireMember: vi.fn(async () => {}) } as never,
+    { getState: vi.fn(async () => ({ tvEpisode: episode })) } as never,
+    {} as never,
+    moviebox as never,
+    {
+      detail: vi.fn(async () => {
+        throw new Error('metadata unavailable');
+      }),
+      episode: vi.fn(async () => {
+        throw new Error('metadata unavailable');
+      }),
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  const result = await controller.sources({ id: 'viewer' } as never, 'room');
+  expect(moviebox.playback).toHaveBeenCalledWith(episode);
+  expect(result.movie).toMatchObject({ title: 'Money Heist · Part5 E4', posterUrl: null });
+  expect(result.sources).toEqual([
+    expect.objectContaining({
+      url: '/api/v1/moviebox/media/token',
+      captions: [expect.objectContaining({ url: '/api/v1/moviebox/captions/token' })],
+    }),
+  ]);
+});
+
 it('resolves a fresh direct movie stream only after checking room membership', async () => {
   const media = {
     provider: 'kisskh-direct' as const,

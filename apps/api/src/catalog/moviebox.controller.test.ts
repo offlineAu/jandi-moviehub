@@ -167,6 +167,28 @@ describe('MovieBox media delivery', () => {
 });
 
 describe('MovieBox free playback', () => {
+  it('retries a transient provider connection timeout while resolving playback', async () => {
+    const fetchMock = network();
+    fetchMock.mockRejectedValueOnce(
+      Object.assign(new Error('connection timed out'), { cause: { code: 'ETIMEDOUT' } }),
+    );
+    const session = await new MovieboxController().playback({ ...query, numbering: 'provider' });
+    expect(session.sources).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([url]) => url.includes('/detail?'))).toHaveLength(2);
+  });
+
+  it('stops after one retry when the provider connection remains unavailable', async () => {
+    const fetchMock = network();
+    const timeout = Object.assign(new Error('connection timed out'), {
+      cause: { code: 'ETIMEDOUT' },
+    });
+    fetchMock.mockRejectedValueOnce(timeout).mockRejectedValueOnce(timeout);
+    await expect(new MovieboxController().playback(query)).rejects.toMatchObject({
+      code: 'MOVIEBOX_ETIMEDOUT',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('reuses episode metadata when navigating and resolves the exact next episode with a fresh stream', async () => {
     const fetchMock = network();
     const controller = new MovieboxController();

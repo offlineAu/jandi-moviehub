@@ -207,14 +207,17 @@ export class RealtimeController {
         episode.numbering === 'provider'
           ? providerCatalogEpisode(episode.season, episode.episode)
           : { season: episode.season, episode: episode.episode };
-      const [session, { series }, detail] = await Promise.all([
+      const [session, metadata, detail] = await Promise.all([
         this.moviebox.playback(episode),
-        this.tv.detail(Number(episode.tvId)),
+        this.tv.detail(Number(episode.tvId)).catch(() => null),
         coordinate
-          ? this.tv.episode(Number(episode.tvId), coordinate.season, coordinate.episode)
+          ? this.tv
+              .episode(Number(episode.tvId), coordinate.season, coordinate.episode)
+              .catch(() => null)
           : Promise.resolve(null),
       ]);
-      const title = `${series.title} · ${episode.numbering === 'provider' ? 'Part' : 'S'}${episode.season} E${episode.episode}${detail?.episode?.title ? ` · ${detail.episode?.title ?? 'Episode'}` : ''}`;
+      const series = metadata?.series;
+      const title = `${series?.title ?? 'Money Heist'} · ${episode.numbering === 'provider' ? 'Part' : 'S'}${episode.season} E${episode.episode}${detail?.episode?.title ? ` · ${detail.episode.title}` : ''}`;
       return {
         movieId: null,
         tvEpisode: episode,
@@ -222,12 +225,12 @@ export class RealtimeController {
         movie: {
           id: roomTvTitle(episode),
           title,
-          posterUrl: series.posterUrl,
-          backdropUrl: series.backdropUrl,
-          overview: detail?.episode?.overview ?? series.overview,
+          posterUrl: series?.posterUrl ?? null,
+          backdropUrl: series?.backdropUrl ?? null,
+          overview: detail?.episode?.overview ?? series?.overview ?? null,
           year: detail?.episode?.airDate ? Number(detail.episode.airDate.slice(0, 4)) : null,
           runtimeMin: Math.round(session.durationSec / 60),
-          genres: series.genres,
+          genres: series?.genres ?? [],
           playable: true,
           isDemo: false,
           source: 'TMDB',

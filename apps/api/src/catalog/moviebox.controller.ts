@@ -137,9 +137,23 @@ async function read(url: string, maxBytes = 2_000_000, referer?: string) {
     throw providerFailure('MovieBox', error);
   }
 }
-async function json(url: string, referer?: string): Promise<unknown> {
+async function json(url: string, referer?: string, retryConnection = false): Promise<unknown> {
   try {
-    return JSON.parse(await read(url, 2_000_000, referer));
+    let body: string;
+    try {
+      body = await read(url, 2_000_000, referer);
+    } catch (error) {
+      if (
+        !retryConnection ||
+        !(error instanceof AppError) ||
+        !['MOVIEBOX_ETIMEDOUT', 'MOVIEBOX_UND_ERR_CONNECT_TIMEOUT', 'MOVIEBOX_ECONNRESET'].includes(
+          error.code,
+        )
+      )
+        throw error;
+      body = await read(url, 2_000_000, referer);
+    }
+    return JSON.parse(body);
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw unavailable();
@@ -184,6 +198,8 @@ export class MovieboxService {
     if (!this.detailRequest) {
       this.detailRequest = json(
         `https://h5-api.aoneroom.com/wefeed-h5api-bff/detail?${new URLSearchParams({ detailPath: original.detailPath })}`,
+        undefined,
+        true,
       )
         .then((value) => {
           if (!detailSchema.safeParse(value).success) throw unavailable();
@@ -377,7 +393,7 @@ export class MovieboxService {
       'supportCodecs[h264]': '1',
     });
     const playback = streamSchema.safeParse(
-      await json(`https://movie-box.co/wefeed-h5api-bff/subject/play?${params}`, referer),
+      await json(`https://movie-box.co/wefeed-h5api-bff/subject/play?${params}`, referer, true),
     );
     if (!playback.success) throw unavailable();
     if (playback.data.data.limited)
